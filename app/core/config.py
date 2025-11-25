@@ -6,6 +6,8 @@ class Settings(BaseSettings):
     ELASTICSEARCH_URL: str = "http://elasticsearch:9200"
     PROXY_ENABLED: bool = False
     CIAN_MAX_RETRIES: int = 3
+    AVITO_RATE_LIMIT: int = 5
+    RATE_LIMIT_WINDOW: int = 60
 
     class Config:
         env_file = ".env"
