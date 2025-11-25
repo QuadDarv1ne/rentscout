@@ -1,4 +1,4 @@
-from app.models.schemas import Property
+from app.models.schemas import PropertyCreate
 from typing import List, Optional
 
 
@@ -21,7 +21,7 @@ class PropertyFilter:
         self.max_area = max_area
         self.property_type = property_type
 
-    def filter(self, properties: List[Property]) -> List[Property]:
+    def filter(self, properties: List[PropertyCreate]) -> List[PropertyCreate]:
         filtered = []
         for prop in properties:
             # Skip properties with invalid prices

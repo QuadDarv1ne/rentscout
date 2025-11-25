@@ -10,3 +10,4 @@ python-dotenv
 pandas
 elasticsearch
 python-multipart
+slowapi

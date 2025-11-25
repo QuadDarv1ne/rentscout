@@ -4,6 +4,7 @@ import httpx
 from bs4 import BeautifulSoup
 from app.models.schemas import PropertyCreate
 from app.core.config import settings
+from app.utils.ratelimiter import rate_limiter
 from tenacity import retry, stop_after_attempt
 
 logger = logging.getLogger(__name__)
@@ -14,6 +15,10 @@ class AvitoParser:
     @retry(stop=stop_after_attempt(3))
     async def parse_listing(self, city: str) -> list[PropertyCreate]:
         url = f"{self.BASE_URL}/{city}/sdam/na_sutki"
+        
+        # Apply rate limiting
+        await rate_limiter.acquire("avito")
+        
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(url)

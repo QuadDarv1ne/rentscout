@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.dependencies.parsers import get_parsers
-from app.models.schemas import Property
+from app.models.schemas import Property, PropertyCreate
 from app.services.filter import PropertyFilter
 from app.services.cache import cache
 from app.utils.logger import logger
@@ -40,7 +40,27 @@ async def get_properties(
             property_type=property_type
         )
         
-        return property_filter.filter(all_properties)
+        filtered_properties = property_filter.filter(all_properties)
+        
+        # Convert PropertyCreate objects to Property objects
+        result_properties = []
+        for prop in filtered_properties:
+            # Generate a simple ID based on source and external_id
+            prop_id = f"{prop.source}_{prop.external_id}"
+            property_obj = Property(
+                id=prop_id,
+                source=prop.source,
+                external_id=prop.external_id,
+                title=prop.title,
+                price=prop.price,
+                rooms=prop.rooms,
+                area=prop.area,
+                location=prop.location,
+                photos=prop.photos
+            )
+            result_properties.append(property_obj)
+        
+        return result_properties
     
     except Exception as e:
         logger.critical(f"API Error: {str(e)}")
