@@ -2,9 +2,10 @@ import asyncio
 import time
 from collections import defaultdict
 from typing import Dict
+from app.core.config import settings
 
 class RateLimiter:
-    def __init__(self, max_requests: int = 10, time_window: int = 60):
+    def __init__(self, max_requests: int = settings.AVITO_RATE_LIMIT, time_window: int = settings.RATE_LIMIT_WINDOW):
         """
         Initialize rate limiter.
         
@@ -53,4 +54,4 @@ class RateLimiter:
             del self.requests[key]
 
 # Global rate limiter instance
-rate_limiter = RateLimiter(max_requests=5, time_window=60)  # 5 requests per minute
+rate_limiter = RateLimiter()
