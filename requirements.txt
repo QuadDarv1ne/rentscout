@@ -2,6 +2,7 @@ fastapi
 uvicorn
 httpx
 beautifulsoup4
+lxml
 redis
 prometheus-fastapi-instrumentator
 tenacity
