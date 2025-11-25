@@ -11,3 +11,6 @@ pandas
 elasticsearch
 python-multipart
 slowapi
+pytest
+pytest-asyncio
+pytest-cov
