@@ -10,7 +10,7 @@ async def save_properties(properties: List[PropertyCreate]):
     try:
         for property in properties:
             # Convert Pydantic model to dict
-            property_dict = property.dict()
+            property_dict = property.model_dump()
             
             # Index the property in Elasticsearch
             await es.index(

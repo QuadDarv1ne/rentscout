@@ -1,14 +1,16 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
 class PropertyBase(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     source: str
     external_id: str
     title: str
     price: float
-    rooms: Optional[int]
-    area: Optional[float]
-    location: Optional[dict]
+    rooms: Optional[int] = None
+    area: Optional[float] = None
+    location: Optional[dict] = None
     photos: list[str] = []
 
 class PropertyCreate(PropertyBase):
@@ -17,5 +19,4 @@ class PropertyCreate(PropertyBase):
 class Property(PropertyBase):
     id: str
     
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
