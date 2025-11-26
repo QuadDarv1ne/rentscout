@@ -6,15 +6,25 @@ from app.models.schemas import PropertyCreate
 from app.core.config import settings
 from app.utils.ratelimiter import rate_limiter
 from tenacity import retry, stop_after_attempt
+from app.parsers.base_parser import BaseParser
+from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
-class AvitoParser:
+class AvitoParser(BaseParser):
     BASE_URL = "https://www.avito.ru"
 
+    def __init__(self):
+        super().__init__()
+        self.name = "AvitoParser"
+
     @retry(stop=stop_after_attempt(3))
-    async def parse_listing(self, city: str) -> list[PropertyCreate]:
-        url = f"{self.BASE_URL}/{city}/sdam/na_sutki"
+    async def parse(self, location: str, params: Dict[str, Any] = None) -> List[PropertyCreate]:
+        # Preprocess params
+        processed_params = await self.preprocess_params(params)
+        
+        # Build URL with params
+        url = f"{self.BASE_URL}/{location}/sdam/na_sutki"
         
         # Apply rate limiting
         await rate_limiter.acquire("avito")
@@ -23,7 +33,8 @@ class AvitoParser:
             async with httpx.AsyncClient() as client:
                 response = await client.get(url)
                 response.raise_for_status()  # Raise an exception for bad status codes
-                return self._parse_html(response.text)
+                results = self._parse_html(response.text)
+                return await self.postprocess_results(results)
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error occurred while fetching {url}: {e}")
             raise
@@ -33,6 +44,26 @@ class AvitoParser:
         except Exception as e:
             logger.error(f"Unexpected error occurred while parsing {url}: {e}")
             raise
+
+    async def validate_params(self, params: Dict[str, Any]) -> bool:
+        """Validate Avito-specific parameters."""
+        if not params:
+            return True
+        
+        # Add validation logic for Avito-specific params here
+        return True
+
+    async def preprocess_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Preprocess parameters for Avito parser."""
+        processed = await super().preprocess_params(params)
+        # Add Avito-specific parameter preprocessing here
+        return processed
+
+    async def postprocess_results(self, results: List[PropertyCreate]) -> List[PropertyCreate]:
+        """Postprocess results from Avito parser."""
+        processed = await super().postprocess_results(results)
+        # Add Avito-specific result postprocessing here
+        return processed
 
     def _parse_html(self, html: str) -> list[PropertyCreate]:
         soup = BeautifulSoup(html, "lxml")
@@ -60,6 +91,10 @@ class AvitoParser:
                     if img.get("src"):
                         photos.append(img["src"])
                 
+                # Extract additional information
+                location = self._extract_location(item)
+                description = self._extract_description(item)
+                
                 props = {
                     "source": "avito",
                     "external_id": item["data-item-id"],
@@ -68,7 +103,9 @@ class AvitoParser:
                     "link": self.BASE_URL + link_elem["href"],
                     "rooms": rooms,
                     "area": area,
-                    "photos": photos[:5]  # Limit to 5 photos
+                    "photos": photos[:5],  # Limit to 5 photos
+                    "location": location,
+                    "description": description
                 }
                 properties.append(PropertyCreate(**props))
             except Exception as e:
@@ -106,4 +143,58 @@ class AvitoParser:
                     return float(match.group(1).replace(',', '.'))
                 except ValueError:
                     continue
+        return None
+    
+    def _extract_location(self, item) -> Optional[Dict[str, str]]:
+        """Extract location information from item."""
+        location = {}
+        
+        # Try to extract district/neighborhood from title
+        title_elem = item.select_one("[itemprop='name']")
+        if title_elem:
+            title = title_elem.text.strip()
+            # Look for common Moscow districts in the title
+            moscow_districts = [
+                "центр", "ц ao", "цао", 
+                "север", "с ao", "сао",
+                "северо-восток", "св ao", "свао",
+                "восток", "в ao", "вао",
+                "юго-восток", "юв ao", "ювао",
+                "юг", "ю ao", "юао",
+                "юго-запад", "юз ao", "юзао",
+                "запад", "з ao", "зао",
+                "северо-запад", "сз ao", "сзао",
+                "зеленоград", "таганский", "басманный",
+                "арбат", "якиманка", "хамовники",
+                "кунцево", "перово", "люблино"
+            ]
+            
+            for district in moscow_districts:
+                if district in title.lower():
+                    location["district"] = district
+                    break
+        
+        # Try to extract address if available
+        address_elem = item.select_one("[data-marker='item-address']")
+        if address_elem:
+            location["address"] = address_elem.text.strip()
+            
+        return location if location else None
+    
+    def _extract_description(self, item) -> Optional[str]:
+        """Extract description from item."""
+        # Look for description element
+        desc_elem = item.select_one("[data-marker='item-specific-params']")
+        if desc_elem:
+            return desc_elem.text.strip()
+            
+        # Alternative: look for any text content that might be a description
+        content_elems = item.select("div")
+        for elem in content_elems:
+            text = elem.text.strip()
+            # Skip if it looks like a title, price, or other structured data
+            if (len(text) > 20 and 
+                not any(keyword in text.lower() for keyword in ["руб", "м²", "комнат", "этаж"])):
+                return text
+                
         return None

@@ -1,7 +1,6 @@
 from app.models.schemas import PropertyCreate
 from typing import List, Optional
 
-
 class PropertyFilter:
     def __init__(
         self,
@@ -11,7 +10,11 @@ class PropertyFilter:
         max_rooms: Optional[int] = None,
         min_area: Optional[float] = None,
         max_area: Optional[float] = None,
-        property_type: Optional[str] = None
+        property_type: Optional[str] = None,
+        district: Optional[str] = None,
+        has_photos: Optional[bool] = None,
+        source: Optional[str] = None,
+        max_price_per_sqm: Optional[float] = None
     ):
         self.min_price = min_price
         self.max_price = max_price
@@ -20,6 +23,10 @@ class PropertyFilter:
         self.min_area = min_area
         self.max_area = max_area
         self.property_type = property_type
+        self.district = district
+        self.has_photos = has_photos
+        self.source = source
+        self.max_price_per_sqm = max_price_per_sqm
 
     def filter(self, properties: List[PropertyCreate]) -> List[PropertyCreate]:
         filtered = []
@@ -49,6 +56,38 @@ class PropertyFilter:
             # Property type filtering (based on title)
             if self.property_type is not None and self.property_type.lower() not in prop.title.lower():
                 continue
+                
+            # District filtering (based on title or location)
+            if self.district is not None:
+                district_found = False
+                # Проверяем в названии
+                if self.district.lower() in prop.title.lower():
+                    district_found = True
+                # Проверяем в локации, если она есть
+                elif prop.location and isinstance(prop.location, dict):
+                    # Проверяем различные поля локации
+                    for key, value in prop.location.items():
+                        if isinstance(value, str) and self.district.lower() in value.lower():
+                            district_found = True
+                            break
+                if not district_found:
+                    continue
+                    
+            # Photos filtering
+            if self.has_photos is not None:
+                has_photos = len(prop.photos) > 0 if prop.photos else False
+                if self.has_photos != has_photos:
+                    continue
+                    
+            # Source filtering
+            if self.source is not None and prop.source.lower() != self.source.lower():
+                continue
+                
+            # Price per square meter filtering
+            if self.max_price_per_sqm is not None and prop.area and prop.area > 0:
+                price_per_sqm = prop.price / prop.area
+                if price_per_sqm > self.max_price_per_sqm:
+                    continue
                 
             filtered.append(prop)
         

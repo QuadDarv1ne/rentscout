@@ -12,9 +12,9 @@ async def test_save_properties_success():
             source="avito",
             external_id="12345",
             title="Тестовая квартира",
-            price=3000,
+            price=3000.0,
             rooms=1,
-            area=30
+            area=30.0
         )
     ]
     
@@ -32,11 +32,12 @@ async def test_save_properties_success():
                 "source": "avito",
                 "external_id": "12345",
                 "title": "Тестовая квартира",
-                "price": 3000,
+                "price": 3000.0,
                 "rooms": 1,
-                "area": 30,
+                "area": 30.0,
                 "location": None,
-                "photos": []
+                "photos": [],
+                "description": None
             },
             id="12345"
         )
@@ -50,17 +51,17 @@ async def test_save_properties_multiple():
             source="avito",
             external_id="12345",
             title="Первая квартира",
-            price=3000,
+            price=3000.0,
             rooms=1,
-            area=30
+            area=30.0
         ),
         PropertyCreate(
             source="avito",
             external_id="67890",
             title="Вторая квартира",
-            price=4500,
+            price=4500.0,
             rooms=2,
-            area=45
+            area=45.0
         )
     ]
     
@@ -81,11 +82,12 @@ async def test_save_properties_multiple():
                 "source": "avito",
                 "external_id": "12345",
                 "title": "Первая квартира",
-                "price": 3000,
+                "price": 3000.0,
                 "rooms": 1,
-                "area": 30,
+                "area": 30.0,
                 "location": None,
-                "photos": []
+                "photos": [],
+                "description": None
             },
             id="12345"
         )
@@ -96,11 +98,12 @@ async def test_save_properties_multiple():
                 "source": "avito",
                 "external_id": "67890",
                 "title": "Вторая квартира",
-                "price": 4500,
+                "price": 4500.0,
                 "rooms": 2,
-                "area": 45,
+                "area": 45.0,
                 "location": None,
-                "photos": []
+                "photos": [],
+                "description": None
             },
             id="67890"
         )
@@ -114,9 +117,9 @@ async def test_save_properties_error_handling():
             source="avito",
             external_id="12345",
             title="Тестовая квартира",
-            price=3000,
+            price=3000.0,
             rooms=1,
-            area=30
+            area=30.0
         )
     ]
     

@@ -18,6 +18,10 @@ async def get_properties(
     max_rooms: int = Query(None, ge=0),
     min_area: float = Query(None, ge=0),
     max_area: float = Query(None, ge=0),
+    district: str = Query(None, description="Фильтр по району города"),
+    has_photos: bool = Query(None, description="Фильтр по наличию фотографий"),
+    source: str = Query(None, description="Фильтр по источнику (avito, cian и т.д.)"),
+    max_price_per_sqm: float = Query(None, ge=0, description="Максимальная цена за квадратный метр"),
     parsers: list = Depends(get_parsers)
 ):
     try:
@@ -37,7 +41,11 @@ async def get_properties(
             max_rooms=max_rooms,
             min_area=min_area,
             max_area=max_area,
-            property_type=property_type
+            property_type=property_type,
+            district=district,
+            has_photos=has_photos,
+            source=source,
+            max_price_per_sqm=max_price_per_sqm
         )
         
         filtered_properties = property_filter.filter(all_properties)

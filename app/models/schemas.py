@@ -12,6 +12,7 @@ class PropertyBase(BaseModel):
     area: Optional[float] = None
     location: Optional[dict] = None
     photos: list[str] = []
+    description: Optional[str] = None
 
 class PropertyCreate(PropertyBase):
     pass

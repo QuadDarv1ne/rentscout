@@ -22,6 +22,48 @@ def test_extract_area_from_title():
     assert parser._extract_area_from_title("Квартира 55.7 кв.м") == 55.7
     assert parser._extract_area_from_title("Квартира без указания площади") is None  # No area
 
+def test_extract_location():
+    """Test extraction of location information."""
+    parser = AvitoParser()
+    
+    # Create a mock item with location in title
+    from bs4 import BeautifulSoup
+    html = """
+    <div data-marker="item" data-item-id="12345">
+        <h3 itemprop="name">2-к квартира в районе Хамовники, 45 м²</h3>
+        <span itemprop="price" content="4500">4 500 ₽/мес.</span>
+        <a data-marker="item-title" href="/moskva/kvartiry/12345">Подробнее</a>
+    </div>
+    """
+    soup = BeautifulSoup(html, "lxml")
+    item = soup.select_one("[data-marker='item']")
+    
+    location = parser._extract_location(item)
+    assert location is not None
+    assert "district" in location
+    assert "хамовники" in location["district"].lower()
+
+def test_extract_description():
+    """Test extraction of description."""
+    parser = AvitoParser()
+    
+    # Create a mock item with description
+    from bs4 import BeautifulSoup
+    html = """
+    <div data-marker="item" data-item-id="12345">
+        <h3 itemprop="name">2-к квартира, 45 м²</h3>
+        <span itemprop="price" content="4500">4 500 ₽/мес.</span>
+        <a data-marker="item-title" href="/moskva/kvartiry/12345">Подробнее</a>
+        <div>Уютная квартира в центре Москвы. Современный ремонт, вся необходимая мебель.</div>
+    </div>
+    """
+    soup = BeautifulSoup(html, "lxml")
+    item = soup.select_one("[data-marker='item']")
+    
+    description = parser._extract_description(item)
+    assert description is not None
+    assert "Уютная квартира" in description
+
 def test_parse_html_basic():
     """Test basic HTML parsing functionality."""
     parser = AvitoParser()
