@@ -1,11 +1,12 @@
 import re
 import logging
+import asyncio
 import httpx
 from bs4 import BeautifulSoup
 from app.models.schemas import PropertyCreate
 from app.core.config import settings
 from app.utils.ratelimiter import rate_limiter
-from tenacity import retry, stop_after_attempt
+from app.utils.error_handler import retry_on_failure, NetworkError, ParsingError
 from app.parsers.base_parser import BaseParser
 from typing import List, Dict, Any, Optional
 
@@ -18,7 +19,11 @@ class AvitoParser(BaseParser):
         super().__init__()
         self.name = "AvitoParser"
 
-    @retry(stop=stop_after_attempt(3))
+    @retry_on_failure(
+        max_retries=3, 
+        base_delay=1.0,
+        retry_exceptions=(httpx.NetworkError, httpx.TimeoutException, httpx.HTTPStatusError)
+    )
     async def parse(self, location: str, params: Dict[str, Any] = None) -> List[PropertyCreate]:
         # Preprocess params
         processed_params = await self.preprocess_params(params)
@@ -30,20 +35,24 @@ class AvitoParser(BaseParser):
         await rate_limiter.acquire("avito")
         
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(url)
                 response.raise_for_status()  # Raise an exception for bad status codes
                 results = self._parse_html(response.text)
                 return await self.postprocess_results(results)
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error occurred while fetching {url}: {e}")
-            raise
+            if e.response.status_code == 429:
+                # Rate limit exceeded
+                logger.warning("Rate limit exceeded, waiting before retry...")
+                await asyncio.sleep(60)  # Wait for 1 minute before retry
+            raise NetworkError(f"HTTP error: {e}")
         except httpx.RequestError as e:
             logger.error(f"Request error occurred while fetching {url}: {e}")
-            raise
+            raise NetworkError(f"Request error: {e}")
         except Exception as e:
             logger.error(f"Unexpected error occurred while parsing {url}: {e}")
-            raise
+            raise ParsingError(f"Parsing error: {e}")
 
     async def validate_params(self, params: Dict[str, Any]) -> bool:
         """Validate Avito-specific parameters."""

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import List
 from app.models.schemas import PropertyCreate, Property
@@ -13,14 +14,34 @@ class SearchService:
         # TODO: Add CianParser when implemented
         # self.parsers = [AvitoParser(), CianParser()]
 
-    async def search(self, city: str) -> List[Property]:
+    async def search(self, city: str, property_type: str = "Квартира") -> List[Property]:
+        """
+        Поиск недвижимости с использованием параллельного выполнения парсеров.
+        
+        Args:
+            city: Город для поиска
+            property_type: Тип недвижимости
+            
+        Returns:
+            Список найденных объектов недвижимости
+        """
+        # Выполняем парсеры параллельно
+        parser_tasks = [
+            self._parse_with_parser(parser, city, property_type)
+            for parser in self.parsers
+        ]
+        
+        # Ждем завершения всех задач
+        parser_results = await asyncio.gather(*parser_tasks, return_exceptions=True)
+        
+        # Собираем результаты, игнорируя ошибки
         all_properties = []
-        for parser in self.parsers:
-            try:
-                results = await parser.parse_listing(city)
-                all_properties.extend(results)
-            except Exception as e:
-                logger.error(f"Parser {parser.__class__.__name__} failed: {e}")
+        for i, result in enumerate(parser_results):
+            if isinstance(result, Exception):
+                parser_name = self.parsers[i].__class__.__name__
+                logger.error(f"Parser {parser_name} failed: {result}")
+            else:
+                all_properties.extend(result)
         
         try:
             await save_properties(all_properties)
@@ -28,4 +49,42 @@ class SearchService:
             logger.error(f"Error saving properties: {e}")
             # Don't raise the exception, as we still want to return the properties
         
-        return all_properties
+        # Конвертируем PropertyCreate объекты в Property объекты
+        result_properties = []
+        for prop in all_properties:
+            # Generate a simple ID based on source and external_id
+            prop_id = f"{prop.source}_{prop.external_id}"
+            property_obj = Property(
+                id=prop_id,
+                source=prop.source,
+                external_id=prop.external_id,
+                title=prop.title,
+                price=prop.price,
+                rooms=prop.rooms,
+                area=prop.area,
+                location=prop.location,
+                photos=prop.photos,
+                description=prop.description
+            )
+            result_properties.append(property_obj)
+        
+        return result_properties
+
+    async def _parse_with_parser(self, parser, city: str, property_type: str) -> List[PropertyCreate]:
+        """
+        Выполнение парсинга с конкретным парсером.
+        
+        Args:
+            parser: Экземпляр парсера
+            city: Город для поиска
+            property_type: Тип недвижимости
+            
+        Returns:
+            Список найденных объектов недвижимости
+        """
+        try:
+            results = await parser.parse(city, {"type": property_type})
+            return results
+        except Exception as e:
+            logger.error(f"Parser {parser.__class__.__name__} failed: {e}")
+            raise

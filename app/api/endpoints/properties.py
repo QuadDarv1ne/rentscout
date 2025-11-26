@@ -3,6 +3,7 @@ from app.dependencies.parsers import get_parsers
 from app.models.schemas import Property, PropertyCreate
 from app.services.filter import PropertyFilter
 from app.services.cache import cache
+from app.services.search import SearchService
 from app.utils.logger import logger
 
 router = APIRouter()
@@ -25,13 +26,9 @@ async def get_properties(
     parsers: list = Depends(get_parsers)
 ):
     try:
-        all_properties = []
-        for parser in parsers:
-            try:
-                data = await parser.parse(city, {"type": property_type})
-                all_properties.extend(data)
-            except Exception as e:
-                logger.error(f"Parser {parser.__class__.__name__} failed: {str(e)}")
+        # Используем оптимизированный поисковый сервис
+        search_service = SearchService()
+        all_properties = await search_service.search(city, property_type)
         
         # Apply filters
         property_filter = PropertyFilter(
@@ -50,25 +47,7 @@ async def get_properties(
         
         filtered_properties = property_filter.filter(all_properties)
         
-        # Convert PropertyCreate objects to Property objects
-        result_properties = []
-        for prop in filtered_properties:
-            # Generate a simple ID based on source and external_id
-            prop_id = f"{prop.source}_{prop.external_id}"
-            property_obj = Property(
-                id=prop_id,
-                source=prop.source,
-                external_id=prop.external_id,
-                title=prop.title,
-                price=prop.price,
-                rooms=prop.rooms,
-                area=prop.area,
-                location=prop.location,
-                photos=prop.photos
-            )
-            result_properties.append(property_obj)
-        
-        return result_properties
+        return filtered_properties
     
     except Exception as e:
         logger.critical(f"API Error: {str(e)}")
