@@ -5,6 +5,7 @@ beautifulsoup4
 lxml
 redis
 prometheus-fastapi-instrumentator
+prometheus-client
 tenacity
 python-dotenv
 pandas

@@ -1,0 +1,21 @@
+# Зависимости для разработки
+-r requirements.txt
+
+# Инструменты для тестирования
+pytest
+pytest-asyncio
+pytest-cov
+pytest-mock
+
+# Инструменты для линтинга и форматирования
+flake8
+black
+isort
+mypy
+
+# Инструменты для документации
+mkdocs
+mkdocs-material
+
+# Отладка
+pdbpp
