@@ -7,7 +7,7 @@ from app.models.schemas import PropertyCreate
 from app.core.config import settings
 from app.utils.ratelimiter import rate_limiter
 from app.utils.error_handler import retry_on_failure, NetworkError, ParsingError
-from app.parsers.base_parser import BaseParser
+from app.parsers.base_parser import BaseParser, metrics_collector_decorator
 from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -24,6 +24,7 @@ class AvitoParser(BaseParser):
         base_delay=1.0,
         retry_exceptions=(httpx.NetworkError, httpx.TimeoutException, httpx.HTTPStatusError)
     )
+    @metrics_collector_decorator
     async def parse(self, location: str, params: Dict[str, Any] = None) -> List[PropertyCreate]:
         # Preprocess params
         processed_params = await self.preprocess_params(params)

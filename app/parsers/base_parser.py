@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any
 from app.models.schemas import PropertyCreate
+from app.utils.metrics import metrics_collector
+import time
+import functools
 
 class BaseParser(ABC):
     """Абстрактный базовый класс для всех парсеров."""
@@ -60,3 +63,24 @@ class BaseParser(ABC):
             Обработанный список объектов
         """
         return results
+
+def metrics_collector_decorator(func):
+    """
+    Декоратор для автоматического сбора метрик выполнения парсеров.
+    """
+    @functools.wraps(func)
+    async def wrapper(self, *args, **kwargs):
+        start_time = time.time()
+        parser_name = self.__class__.__name__
+        
+        try:
+            result = await func(self, *args, **kwargs)
+            duration = time.time() - start_time
+            metrics_collector.record_parser_call(parser_name, "success", duration)
+            return result
+        except Exception as e:
+            duration = time.time() - start_time
+            metrics_collector.record_parser_call(parser_name, "error", duration)
+            raise
+    
+    return wrapper
