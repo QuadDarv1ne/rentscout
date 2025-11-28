@@ -1,12 +1,14 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+
 from app.dependencies.parsers import get_parsers
 from app.models.schemas import Property, PropertyCreate
-from app.services.filter import PropertyFilter
 from app.services.cache import cache
+from app.services.filter import PropertyFilter
 from app.services.search import SearchService
 from app.utils.logger import logger
 
 router = APIRouter()
+
 
 @router.get("/properties", response_model=list[Property])
 @cache(expire=300)
@@ -23,13 +25,13 @@ async def get_properties(
     has_photos: bool = Query(None, description="Фильтр по наличию фотографий"),
     source: str = Query(None, description="Фильтр по источнику (avito, cian и т.д.)"),
     max_price_per_sqm: float = Query(None, ge=0, description="Максимальная цена за квадратный метр"),
-    parsers: list = Depends(get_parsers)
+    parsers: list = Depends(get_parsers),
 ):
     try:
         # Используем оптимизированный поисковый сервис
         search_service = SearchService()
         all_properties = await search_service.search(city, property_type)
-        
+
         # Apply filters
         property_filter = PropertyFilter(
             min_price=min_price,
@@ -42,13 +44,13 @@ async def get_properties(
             district=district,
             has_photos=has_photos,
             source=source,
-            max_price_per_sqm=max_price_per_sqm
+            max_price_per_sqm=max_price_per_sqm,
         )
-        
+
         filtered_properties = property_filter.filter(all_properties)
-        
+
         return filtered_properties
-    
+
     except Exception as e:
         logger.critical(f"API Error: {str(e)}")
         raise HTTPException(500, "Internal Server Error")

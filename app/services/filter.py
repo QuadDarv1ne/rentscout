@@ -1,5 +1,7 @@
-from app.models.schemas import PropertyCreate
 from typing import List, Optional
+
+from app.models.schemas import PropertyCreate
+
 
 class PropertyFilter:
     def __init__(
@@ -14,7 +16,7 @@ class PropertyFilter:
         district: Optional[str] = None,
         has_photos: Optional[bool] = None,
         source: Optional[str] = None,
-        max_price_per_sqm: Optional[float] = None
+        max_price_per_sqm: Optional[float] = None,
     ):
         self.min_price = min_price
         self.max_price = max_price
@@ -34,29 +36,29 @@ class PropertyFilter:
             # Skip properties with invalid prices
             if prop.price <= 0:
                 continue
-                
+
             # Price filtering
             if self.min_price is not None and prop.price < self.min_price:
                 continue
             if self.max_price is not None and prop.price > self.max_price:
                 continue
-                
+
             # Room filtering
             if self.min_rooms is not None and (prop.rooms is None or prop.rooms < self.min_rooms):
                 continue
             if self.max_rooms is not None and (prop.rooms is None or prop.rooms > self.max_rooms):
                 continue
-                
+
             # Area filtering
             if self.min_area is not None and (prop.area is None or prop.area < self.min_area):
                 continue
             if self.max_area is not None and (prop.area is None or prop.area > self.max_area):
                 continue
-                
+
             # Property type filtering (based on title)
             if self.property_type is not None and self.property_type.lower() not in prop.title.lower():
                 continue
-                
+
             # District filtering (based on title or location)
             if self.district is not None:
                 district_found = False
@@ -72,24 +74,24 @@ class PropertyFilter:
                             break
                 if not district_found:
                     continue
-                    
+
             # Photos filtering
             if self.has_photos is not None:
                 has_photos = len(prop.photos) > 0 if prop.photos else False
                 if self.has_photos != has_photos:
                     continue
-                    
+
             # Source filtering
             if self.source is not None and prop.source.lower() != self.source.lower():
                 continue
-                
+
             # Price per square meter filtering
             if self.max_price_per_sqm is not None and prop.area and prop.area > 0:
                 price_per_sqm = prop.price / prop.area
                 if price_per_sqm > self.max_price_per_sqm:
                     continue
-                
+
             filtered.append(prop)
-        
+
         # Sort by price ascending and limit to 1000 results
         return sorted(filtered, key=lambda x: x.price)[:1000]

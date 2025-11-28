@@ -1,9 +1,10 @@
 from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
+
 class PropertyBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     source: str
     external_id: str
     title: str
@@ -14,10 +15,12 @@ class PropertyBase(BaseModel):
     photos: list[str] = []
     description: Optional[str] = None
 
+
 class PropertyCreate(PropertyBase):
     pass
 
+
 class Property(PropertyBase):
     id: str
-    
+
     model_config = ConfigDict(from_attributes=True)

@@ -1,0 +1,20 @@
+[tool.black]
+line-length = 120
+skip-string-normalization = true
+
+[tool.mypy]
+python_version = 3.9
+ignore_missing_imports = true
+strict_optional = true
+warn_unused_ignores = true
+warn_return_any = true
+warn_unused_configs = true
+exclude = ["tests", "migrations", "venv", ".venv", "build", "dist", "scripts"]
+
+[tool.isort]
+profile = "black"
+line_length = 120
+known_first_party = ["app"]
+known_third_party = [
+	"asyncio","bs4","collections","elasticsearch","fastapi","functools","httpx","lxml","logging","prometheus_client","prometheus_fastapi_instrumentator","pydantic","pytest","re","redis","slowapi","tenacity","time","typing","unittest"
+]

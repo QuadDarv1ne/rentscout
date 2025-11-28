@@ -2,13 +2,15 @@ import asyncio
 import time
 from collections import defaultdict
 from typing import Dict
+
 from app.core.config import settings
+
 
 class RateLimiter:
     def __init__(self, max_requests: int = settings.AVITO_RATE_LIMIT, time_window: int = settings.RATE_LIMIT_WINDOW):
         """
         Initialize rate limiter.
-        
+
         Args:
             max_requests: Maximum number of requests allowed in the time window
             time_window: Time window in seconds
@@ -16,22 +18,19 @@ class RateLimiter:
         self.max_requests = max_requests
         self.time_window = time_window
         self.requests: Dict[str, list] = defaultdict(list)
-        
+
     async def acquire(self, key: str = "default"):
         """
         Acquire permission to make a request.
-        
+
         Args:
             key: Identifier for the rate limit bucket (e.g., IP address, parser name)
         """
         now = time.time()
-        
+
         # Clean up old requests outside the time window
-        self.requests[key] = [
-            req_time for req_time in self.requests[key] 
-            if now - req_time < self.time_window
-        ]
-        
+        self.requests[key] = [req_time for req_time in self.requests[key] if now - req_time < self.time_window]
+
         # Check if we're within the rate limit
         if len(self.requests[key]) >= self.max_requests:
             # Calculate sleep time until the oldest request expires
@@ -40,18 +39,16 @@ class RateLimiter:
             if sleep_time > 0:
                 await asyncio.sleep(sleep_time)
                 # Clean up again after sleeping
-                self.requests[key] = [
-                    req_time for req_time in self.requests[key] 
-                    if now - req_time < self.time_window
-                ]
-        
+                self.requests[key] = [req_time for req_time in self.requests[key] if now - req_time < self.time_window]
+
         # Record this request
         self.requests[key].append(now)
-        
+
     def reset(self, key: str = "default"):
         """Reset the rate limit for a specific key."""
         if key in self.requests:
             del self.requests[key]
+
 
 # Global rate limiter instance
 rate_limiter = RateLimiter()

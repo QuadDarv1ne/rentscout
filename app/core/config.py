@@ -1,10 +1,10 @@
-from pydantic_settings import BaseSettings
 from pydantic import ConfigDict
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
     model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8")
-    
+
     APP_NAME: str = "RentScout"
     REDIS_URL: str = "redis://redis:6379/0"
     ELASTICSEARCH_URL: str = "http://elasticsearch:9200"

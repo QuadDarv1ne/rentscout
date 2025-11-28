@@ -1,12 +1,14 @@
 import asyncio
 import logging
 from typing import List
-from app.models.schemas import PropertyCreate, Property
-from app.parsers.avito.parser import AvitoParser
+
 # from app.parsers.cian.parser import CianParser  # TODO: Implement CianParser
 from app.db.crud import save_properties
+from app.models.schemas import Property, PropertyCreate
+from app.parsers.avito.parser import AvitoParser
 
 logger = logging.getLogger(__name__)
+
 
 class SearchService:
     def __init__(self):
@@ -17,23 +19,20 @@ class SearchService:
     async def search(self, city: str, property_type: str = "Квартира") -> List[Property]:
         """
         Поиск недвижимости с использованием параллельного выполнения парсеров.
-        
+
         Args:
             city: Город для поиска
             property_type: Тип недвижимости
-            
+
         Returns:
             Список найденных объектов недвижимости
         """
         # Выполняем парсеры параллельно
-        parser_tasks = [
-            self._parse_with_parser(parser, city, property_type)
-            for parser in self.parsers
-        ]
-        
+        parser_tasks = [self._parse_with_parser(parser, city, property_type) for parser in self.parsers]
+
         # Ждем завершения всех задач
         parser_results = await asyncio.gather(*parser_tasks, return_exceptions=True)
-        
+
         # Собираем результаты, игнорируя ошибки
         all_properties = []
         for i, result in enumerate(parser_results):
@@ -42,13 +41,13 @@ class SearchService:
                 logger.error(f"Parser {parser_name} failed: {result}")
             else:
                 all_properties.extend(result)
-        
+
         try:
             await save_properties(all_properties)
         except Exception as e:
             logger.error(f"Error saving properties: {e}")
             # Don't raise the exception, as we still want to return the properties
-        
+
         # Конвертируем PropertyCreate объекты в Property объекты
         result_properties = []
         for prop in all_properties:
@@ -64,21 +63,21 @@ class SearchService:
                 area=prop.area,
                 location=prop.location,
                 photos=prop.photos,
-                description=prop.description
+                description=prop.description,
             )
             result_properties.append(property_obj)
-        
+
         return result_properties
 
     async def _parse_with_parser(self, parser, city: str, property_type: str) -> List[PropertyCreate]:
         """
         Выполнение парсинга с конкретным парсером.
-        
+
         Args:
             parser: Экземпляр парсера
             city: Город для поиска
             property_type: Тип недвижимости
-            
+
         Returns:
             Список найденных объектов недвижимости
         """

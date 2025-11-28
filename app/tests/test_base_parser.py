@@ -1,11 +1,13 @@
 import pytest
-from app.parsers.base_parser import BaseParser
+from typing import Any, Dict, List
+
 from app.models.schemas import PropertyCreate
-from typing import List, Dict, Any
+from app.parsers.base_parser import BaseParser
+
 
 class MockParser(BaseParser):
     """Мock parser для тестирования базового класса."""
-    
+
     async def parse(self, location: str, params: Dict[str, Any] = None) -> List[PropertyCreate]:
         # Создаем mock объект недвижимости
         property_data = {
@@ -15,18 +17,20 @@ class MockParser(BaseParser):
             "price": 1000.0,
             "rooms": 2,
             "area": 50.0,
-            "photos": []
+            "photos": [],
         }
         return [PropertyCreate(**property_data)]
-    
+
     async def validate_params(self, params: Dict[str, Any]) -> bool:
         return True
+
 
 @pytest.mark.asyncio
 async def test_base_parser_instantiation():
     """Тест создания экземпляра парсера."""
     parser = MockParser()
     assert parser.name == "MockParser"
+
 
 @pytest.mark.asyncio
 async def test_base_parser_parse_method():
@@ -38,12 +42,14 @@ async def test_base_parser_parse_method():
     assert results[0].source == "mock"
     assert results[0].title == "Тестовая квартира"
 
+
 @pytest.mark.asyncio
 async def test_base_parser_validate_params():
     """Тест метода валидации параметров."""
     parser = MockParser()
     result = await parser.validate_params({"test": "value"})
     assert result is True
+
 
 @pytest.mark.asyncio
 async def test_base_parser_preprocess_params():
@@ -52,6 +58,7 @@ async def test_base_parser_preprocess_params():
     params = {"test": "value"}
     processed = await parser.preprocess_params(params)
     assert processed == params
+
 
 @pytest.mark.asyncio
 async def test_base_parser_postprocess_results():
@@ -64,7 +71,7 @@ async def test_base_parser_postprocess_results():
         "price": 1000.0,
         "rooms": 2,
         "area": 50.0,
-        "photos": []
+        "photos": [],
     }
     results = [PropertyCreate(**property_data)]
     processed = await parser.postprocess_results(results)

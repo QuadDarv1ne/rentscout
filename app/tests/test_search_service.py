@@ -1,8 +1,10 @@
-import pytest
 import asyncio
-from unittest.mock import AsyncMock, patch, MagicMock
-from app.services.search import SearchService
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+
 from app.models.schemas import PropertyCreate
+from app.services.search import SearchService
+
 
 @pytest.fixture
 def sample_properties():
@@ -17,7 +19,7 @@ def sample_properties():
             area=50.0,
             location=None,
             photos=[],
-            description="Тестовое описание"
+            description="Тестовое описание",
         ),
         PropertyCreate(
             source="cian",
@@ -28,9 +30,10 @@ def sample_properties():
             area=35.0,
             location=None,
             photos=[],
-            description="Еще одно описание"
-        )
+            description="Еще одно описание",
+        ),
     ]
+
 
 @pytest.mark.asyncio
 async def test_search_service_initialization():
@@ -40,23 +43,24 @@ async def test_search_service_initialization():
     assert len(service.parsers) == 1
     assert service.parsers[0].__class__.__name__ == "AvitoParser"
 
+
 @pytest.mark.asyncio
 async def test_search_service_search_success(sample_properties):
     """Тест успешного поиска недвижимости."""
     service = SearchService()
-    
+
     # Мокаем парсер
     mock_parser = AsyncMock()
     mock_parser.parse.return_value = sample_properties
     service.parsers = [mock_parser]
-    
+
     # Мокаем save_properties
     with patch('app.services.search.save_properties') as mock_save:
         mock_save.return_value = None
-        
+
         # Выполняем поиск
         results = await service.search("Москва", "Квартира")
-        
+
         # Проверяем результаты
         assert len(results) == 2
         assert results[0].source == "avito"
@@ -64,15 +68,16 @@ async def test_search_service_search_success(sample_properties):
         assert results[0].id == "avito_1"
         assert results[1].id == "cian_2"
 
+
 @pytest.mark.asyncio
 async def test_search_service_search_with_parser_error():
     """Тест поиска с ошибкой парсера."""
     service = SearchService()
-    
+
     # Мокаем парсер, который выбрасывает исключение
     mock_parser1 = AsyncMock()
     mock_parser1.parse.side_effect = Exception("Parser error")
-    
+
     # Мокаем второй парсер, который работает нормально
     mock_parser2 = AsyncMock()
     mock_parser2.parse.return_value = [
@@ -85,28 +90,29 @@ async def test_search_service_search_with_parser_error():
             area=35.0,
             location=None,
             photos=[],
-            description="Описание"
+            description="Описание",
         )
     ]
-    
+
     service.parsers = [mock_parser1, mock_parser2]
-    
+
     # Мокаем save_properties
     with patch('app.services.search.save_properties') as mock_save:
         mock_save.return_value = None
-        
+
         # Выполняем поиск
         results = await service.search("Москва", "Квартира")
-        
+
         # Проверяем, что результаты от второго парсера все еще возвращены
         assert len(results) == 1
         assert results[0].source == "cian"
+
 
 @pytest.mark.asyncio
 async def test_search_service_search_save_error():
     """Тест поиска с ошибкой сохранения."""
     service = SearchService()
-    
+
     # Мокаем парсер
     mock_parser = AsyncMock()
     mock_parser.parse.return_value = [
@@ -119,27 +125,28 @@ async def test_search_service_search_save_error():
             area=50.0,
             location=None,
             photos=[],
-            description="Описание"
+            description="Описание",
         )
     ]
     service.parsers = [mock_parser]
-    
+
     # Мокаем save_properties, чтобы выбрасывал исключение
     with patch('app.services.search.save_properties') as mock_save:
         mock_save.side_effect = Exception("Save error")
-        
+
         # Выполняем поиск - не должно выбрасывать исключение
         results = await service.search("Москва", "Квартира")
-        
+
         # Проверяем, что результаты все еще возвращены
         assert len(results) == 1
         assert results[0].source == "avito"
+
 
 @pytest.mark.asyncio
 async def test_search_service_parallel_parsing():
     """Тест параллельного выполнения парсеров."""
     service = SearchService()
-    
+
     # Создаем несколько моков парсеров
     mock_parser1 = AsyncMock()
     mock_parser1.parse.return_value = [
@@ -152,10 +159,10 @@ async def test_search_service_parallel_parsing():
             area=50.0,
             location=None,
             photos=[],
-            description="Описание 1"
+            description="Описание 1",
         )
     ]
-    
+
     mock_parser2 = AsyncMock()
     mock_parser2.parse.return_value = [
         PropertyCreate(
@@ -167,19 +174,19 @@ async def test_search_service_parallel_parsing():
             area=35.0,
             location=None,
             photos=[],
-            description="Описание 2"
+            description="Описание 2",
         )
     ]
-    
+
     service.parsers = [mock_parser1, mock_parser2]
-    
+
     # Мокаем save_properties
     with patch('app.services.search.save_properties') as mock_save:
         mock_save.return_value = None
-        
+
         # Выполняем поиск
         results = await service.search("Москва", "Квартира")
-        
+
         # Проверяем, что результаты от обоих парсеров возвращены
         assert len(results) == 2
         sources = [prop.source for prop in results]
