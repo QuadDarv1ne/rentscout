@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch, AsyncMock
 
 from app.db.crud import save_properties
 from app.models.schemas import PropertyCreate
@@ -7,10 +7,18 @@ from app.models.schemas import PropertyCreate
 
 @pytest.mark.asyncio
 async def test_save_properties_success():
-    """Test successful saving of properties to Elasticsearch."""
-    # Create test properties
+    """Test saving a single property to Elasticsearch."""
+    # Create a test property
     properties = [
-        PropertyCreate(source="avito", external_id="12345", title="Тестовая квартира", price=3000.0, rooms=1, area=30.0)
+        PropertyCreate(
+            source="avito",
+            external_id="12345",
+            title="Тестовая квартира",
+            price=3000.0,
+            rooms=1,
+            area=30.0,
+            link=None
+        )
     ]
 
     # Mock the Elasticsearch client
@@ -33,6 +41,7 @@ async def test_save_properties_success():
                 "location": None,
                 "photos": [],
                 "description": None,
+                "link": None
             },
             id="12345",
         )
@@ -43,8 +52,24 @@ async def test_save_properties_multiple():
     """Test saving multiple properties to Elasticsearch."""
     # Create multiple test properties
     properties = [
-        PropertyCreate(source="avito", external_id="12345", title="Первая квартира", price=3000.0, rooms=1, area=30.0),
-        PropertyCreate(source="avito", external_id="67890", title="Вторая квартира", price=4500.0, rooms=2, area=45.0),
+        PropertyCreate(
+            source="avito",
+            external_id="12345",
+            title="Первая квартира",
+            price=3000.0,
+            rooms=1,
+            area=30.0,
+            link=None
+        ),
+        PropertyCreate(
+            source="avito",
+            external_id="67890",
+            title="Вторая квартира",
+            price=4500.0,
+            rooms=2,
+            area=45.0,
+            link=None
+        ),
     ]
 
     # Mock the Elasticsearch client
@@ -70,6 +95,7 @@ async def test_save_properties_multiple():
                 "location": None,
                 "photos": [],
                 "description": None,
+                "link": None
             },
             id="12345",
         )
@@ -86,6 +112,7 @@ async def test_save_properties_multiple():
                 "location": None,
                 "photos": [],
                 "description": None,
+                "link": None
             },
             id="67890",
         )
@@ -96,7 +123,15 @@ async def test_save_properties_error_handling():
     """Test error handling when saving properties fails."""
     # Create test properties
     properties = [
-        PropertyCreate(source="avito", external_id="12345", title="Тестовая квартира", price=3000.0, rooms=1, area=30.0)
+        PropertyCreate(
+            source="avito",
+            external_id="12345",
+            title="Тестовая квартира",
+            price=3000.0,
+            rooms=1,
+            area=30.0,
+            link=None
+        )
     ]
 
     # Mock the Elasticsearch client to raise an exception

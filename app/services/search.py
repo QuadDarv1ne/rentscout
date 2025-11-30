@@ -2,19 +2,17 @@ import asyncio
 import logging
 from typing import List
 
-# from app.parsers.cian.parser import CianParser  # TODO: Implement CianParser
 from app.db.crud import save_properties
 from app.models.schemas import Property, PropertyCreate
 from app.parsers.avito.parser import AvitoParser
+from app.parsers.cian.parser import CianParser
 
 logger = logging.getLogger(__name__)
 
 
 class SearchService:
     def __init__(self):
-        self.parsers = [AvitoParser()]
-        # TODO: Add CianParser when implemented
-        # self.parsers = [AvitoParser(), CianParser()]
+        self.parsers = [AvitoParser(), CianParser()]
 
     async def search(self, city: str, property_type: str = "Квартира") -> List[Property]:
         """

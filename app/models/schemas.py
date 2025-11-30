@@ -14,6 +14,7 @@ class PropertyBase(BaseModel):
     location: Optional[dict] = None
     photos: list[str] = []
     description: Optional[str] = None
+    link: Optional[str] = None
 
 
 class PropertyCreate(PropertyBase):

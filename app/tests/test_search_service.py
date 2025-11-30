@@ -1,14 +1,13 @@
-import asyncio
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch, AsyncMock
 
-from app.models.schemas import PropertyCreate
 from app.services.search import SearchService
+from app.models.schemas import PropertyCreate
 
 
 @pytest.fixture
 def sample_properties():
-    """Фикстура с тестовыми данными недвижимости."""
+    """Фикстура с примерами объектов недвижимости."""
     return [
         PropertyCreate(
             source="avito",
@@ -19,7 +18,8 @@ def sample_properties():
             area=50.0,
             location=None,
             photos=[],
-            description="Тестовое описание",
+            description="Описание",
+            link=None
         ),
         PropertyCreate(
             source="cian",
@@ -30,8 +30,9 @@ def sample_properties():
             area=35.0,
             location=None,
             photos=[],
-            description="Еще одно описание",
-        ),
+            description="Описание",
+            link=None
+        )
     ]
 
 
@@ -40,8 +41,10 @@ async def test_search_service_initialization():
     """Тест инициализации поискового сервиса."""
     service = SearchService()
     assert service is not None
-    assert len(service.parsers) == 1
-    assert service.parsers[0].__class__.__name__ == "AvitoParser"
+    assert len(service.parsers) == 2  # Теперь у нас два парсера: Avito и Cian
+    parser_names = [parser.__class__.__name__ for parser in service.parsers]
+    assert "AvitoParser" in parser_names
+    assert "CianParser" in parser_names
 
 
 @pytest.mark.asyncio
@@ -91,6 +94,7 @@ async def test_search_service_search_with_parser_error():
             location=None,
             photos=[],
             description="Описание",
+            link=None
         )
     ]
 
@@ -126,6 +130,7 @@ async def test_search_service_search_save_error():
             location=None,
             photos=[],
             description="Описание",
+            link=None
         )
     ]
     service.parsers = [mock_parser]
@@ -160,6 +165,7 @@ async def test_search_service_parallel_parsing():
             location=None,
             photos=[],
             description="Описание 1",
+            link=None
         )
     ]
 
@@ -175,6 +181,7 @@ async def test_search_service_parallel_parsing():
             location=None,
             photos=[],
             description="Описание 2",
+            link=None
         )
     ]
 

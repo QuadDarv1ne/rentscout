@@ -107,12 +107,15 @@ class AvitoParser(BaseParser):
                 location = self._extract_location(item)
                 description = self._extract_description(item)
 
+                # Extract link
+                link = self.BASE_URL + link_elem["href"] if link_elem.get("href") else None
+
                 props = {
                     "source": "avito",
                     "external_id": item["data-item-id"],
                     "title": title,
                     "price": float(price_elem["content"]),
-                    "link": self.BASE_URL + link_elem["href"],
+                    "link": link,
                     "rooms": rooms,
                     "area": area,
                     "photos": photos[:5],  # Limit to 5 photos
