@@ -4,6 +4,7 @@ from typing import Dict
 
 from app.core.config import settings
 from app.services.advanced_cache import advanced_cache_manager
+from app.utils.ip_ratelimiter import ip_rate_limiter
 from app.utils.logger import logger
 
 router = APIRouter()
@@ -48,3 +49,11 @@ async def get_cache_stats() -> Dict[str, object]:
     cache_stats = await advanced_cache_manager.get_stats()
     logger.info(f"Cache stats: {cache_stats}")
     return cache_stats
+
+
+@router.get("/ratelimit/stats", tags=["health"])
+async def get_ratelimit_stats() -> Dict[str, object]:
+    """Получение статистики rate limiting."""
+    stats = ip_rate_limiter.get_stats()
+    logger.info(f"Rate limit stats: {stats}")
+    return stats

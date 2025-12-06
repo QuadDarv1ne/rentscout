@@ -12,6 +12,7 @@ from app.services.search import SearchService
 from app.utils.logger import logger
 from app.utils.metrics import MetricsMiddleware
 from app.utils.correlation_middleware import CorrelationIDMiddleware
+from app.utils.ip_ratelimiter import RateLimitMiddleware
 
 # Глобальное состояние приложения с правильной инициализацией
 app_state: Dict[str, Any] = {
@@ -89,6 +90,9 @@ app = FastAPI(
 
 # Добавление middleware для correlation IDs (добавляем первым)
 app.add_middleware(CorrelationIDMiddleware)
+
+# Добавление middleware для rate limiting по IP
+app.add_middleware(RateLimitMiddleware)
 
 # Добавление middleware для сбора метрик
 app.add_middleware(MetricsMiddleware)
