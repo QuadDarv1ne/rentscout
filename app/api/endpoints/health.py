@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends
 from typing import Dict
 
 from app.core.config import settings
+from app.services.advanced_cache import advanced_cache_manager
 from app.utils.logger import logger
 
 router = APIRouter()
@@ -27,8 +28,23 @@ async def detailed_health_check() -> Dict[str, object]:
 @router.get("/stats", tags=["health"])
 async def get_stats() -> Dict[str, object]:
     """Получение статистики приложения."""
-    # Здесь можно добавить сбор статистики по использованию API
-    stats = {"uptime": time.time(), "app_name": settings.APP_NAME, "version": "1.0.0"}
+    # Собираем статистику кеша
+    cache_stats = await advanced_cache_manager.get_stats()
+    
+    stats = {
+        "uptime": time.time(),
+        "app_name": settings.APP_NAME,
+        "version": "1.0.0",
+        "cache": cache_stats,
+    }
 
     logger.info("Stats requested")
     return stats
+
+
+@router.get("/cache/stats", tags=["health"])
+async def get_cache_stats() -> Dict[str, object]:
+    """Получение детальной статистики кеша."""
+    cache_stats = await advanced_cache_manager.get_stats()
+    logger.info(f"Cache stats: {cache_stats}")
+    return cache_stats

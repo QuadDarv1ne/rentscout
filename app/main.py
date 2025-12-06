@@ -7,8 +7,11 @@ from typing import AsyncGenerator, Dict, Any
 
 from app.api.endpoints import health, properties
 from app.core.config import settings
+from app.services.advanced_cache import advanced_cache_manager
+from app.services.search import SearchService
 from app.utils.logger import logger
 from app.utils.metrics import MetricsMiddleware
+from app.utils.correlation_middleware import CorrelationIDMiddleware
 
 # Глобальное состояние приложения с правильной инициализацией
 app_state: Dict[str, Any] = {
@@ -25,11 +28,32 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     app_state["is_shutting_down"] = False
     app_state["active_requests"] = 0
     
+    # Подключаемся к Redis
+    await advanced_cache_manager.connect()
+    
+    # Cache warming для популярных городов (асинхронно, не блокируем старт)
+    if advanced_cache_manager.redis_client:
+        search_service = SearchService()
+        asyncio.create_task(
+            advanced_cache_manager.warm_cache(
+                search_service.search,
+                cities=["Москва", "Санкт-Петербург"]  # Топ-2 города
+            )
+        )
+        logger.info("Cache warming task started in background")
+    
     yield
     
     # Shutdown
     logger.info(f"{settings.APP_NAME} starting graceful shutdown")
     app_state["is_shutting_down"] = True
+    
+    # Логируем статистику кеша перед выключением
+    cache_stats = await advanced_cache_manager.get_stats()
+    logger.info(f"Final cache statistics: {cache_stats}")
+    
+    # Отключаемся от Redis
+    await advanced_cache_manager.disconnect()
     
     # Ждем завершения активных запросов (максимум 30 секунд)
     max_wait_time = 30
@@ -62,6 +86,9 @@ app = FastAPI(
 )
 
 
+
+# Добавление middleware для correlation IDs (добавляем первым)
+app.add_middleware(CorrelationIDMiddleware)
 
 # Добавление middleware для сбора метрик
 app.add_middleware(MetricsMiddleware)

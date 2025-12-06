@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 from app.core.config import settings
 from app.models.schemas import PropertyCreate
 from app.parsers.base_parser import BaseParser, metrics_collector_decorator
+from app.services.advanced_cache import cached_parser
 from app.utils.parser_errors import (
     ParserErrorHandler,
     RateLimitError,
@@ -29,6 +30,7 @@ class CianParser(BaseParser):
         super().__init__()
         self.name = "CianParser"
         
+    @cached_parser(expire=600, source="cian")  # Кеш на 10 минут
     @retry(max_attempts=3, initial_delay=1.0, max_delay=10.0)
     @metrics_collector_decorator
     async def parse(self, location: str, params: Dict[str, Any] = None) -> List[PropertyCreate]:
