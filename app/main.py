@@ -3,15 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 import asyncio
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Dict, Any
 
 from app.api.endpoints import health, properties
 from app.core.config import settings
 from app.utils.logger import logger
 from app.utils.metrics import MetricsMiddleware
 
-# Глобальное состояние приложения
-app_state = {
+# Глобальное состояние приложения с правильной инициализацией
+app_state: Dict[str, Any] = {
     "is_shutting_down": False,
     "active_requests": 0,
 }
@@ -23,7 +23,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     # Startup
     logger.info(f"{settings.APP_NAME} application started")
     app_state["is_shutting_down"] = False
+    app_state["active_requests"] = 0
+    
     yield
+    
     # Shutdown
     logger.info(f"{settings.APP_NAME} starting graceful shutdown")
     app_state["is_shutting_down"] = True
