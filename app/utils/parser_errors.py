@@ -149,9 +149,31 @@ class ErrorClassifier:
         Returns:
             Словарь с параметрами обработки
         """
-        # Ищем точное совпадение типа
-        for exc_type, properties in cls.ERROR_MAP.items():
-            if isinstance(exception, exc_type):
+        # Сначала проверяем точное совпадение типа (в порядке специфичности)
+        exc_type = type(exception)
+        if exc_type in cls.ERROR_MAP:
+            properties = cls.ERROR_MAP[exc_type]
+            return {
+                "type": exc_type.__name__,
+                **properties,
+                "exception": exception,
+            }
+
+        # Затем проверяем наследование (по порядку, специфичные типы первыми)
+        # Порядок важен: проверяем подклассы ДО их родителей
+        specificity_order = [
+            RateLimitError,
+            TimeoutError,
+            SourceUnavailableError,
+            AuthenticationError,
+            NetworkError,
+            ParsingError,
+            ValidationError,
+        ]
+
+        for exc_type in specificity_order:
+            if isinstance(exception, exc_type) and exc_type in cls.ERROR_MAP:
+                properties = cls.ERROR_MAP[exc_type]
                 return {
                     "type": exc_type.__name__,
                     **properties,

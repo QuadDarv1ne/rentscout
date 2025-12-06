@@ -1,5 +1,7 @@
 """Tests for parser error handling system."""
 
+import logging
+
 import pytest
 
 from app.utils.parser_errors import (
@@ -235,20 +237,37 @@ class TestParserErrorHandler:
 
         assert isinstance(converted, SourceUnavailableError)
 
-    def test_log_error_critical(self, caplog):
+    def test_log_error_critical(self, caplog, monkeypatch):
         """Тест логирования critical ошибки."""
+        # Используем монкипатч для перехвата вывода логера
+        from unittest.mock import MagicMock
+
+        mock_logger = MagicMock()
+        monkeypatch.setattr("app.utils.parser_errors.logger", mock_logger)
+
         error = AuthenticationError("Invalid token")
         ParserErrorHandler.log_error(error, context="test_function")
 
-        assert "AuthenticationError" in caplog.text
-        assert "test_function" in caplog.text
+        # Проверяем что critical был вызван
+        assert mock_logger.critical.called
+        args = mock_logger.critical.call_args[0][0]
+        assert "AuthenticationError" in args
+        assert "test_function" in args
 
-    def test_log_error_warning(self, caplog):
+    def test_log_error_warning(self, caplog, monkeypatch):
         """Тест логирования warning ошибки."""
+        from unittest.mock import MagicMock
+
+        mock_logger = MagicMock()
+        monkeypatch.setattr("app.utils.parser_errors.logger", mock_logger)
+
         error = NetworkError("Connection failed")
         ParserErrorHandler.log_error(error, context="test_function")
 
-        assert "NetworkError" in caplog.text
+        # Проверяем что warning был вызван
+        assert mock_logger.warning.called
+        args = mock_logger.warning.call_args[0][0]
+        assert "NetworkError" in args
 
     def test_convert_preserves_original_message(self):
         """Тест что конвертация сохраняет оригинальное сообщение."""
