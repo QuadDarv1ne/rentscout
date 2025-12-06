@@ -7,6 +7,7 @@ from app.models.schemas import Property, PropertyCreate
 from app.parsers.avito.parser import AvitoParser
 from app.parsers.cian.parser import CianParser
 from app.parsers.base_parser import BaseParser
+from app.utils.parser_errors import ErrorClassifier, ErrorSeverity
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +36,22 @@ class SearchService:
         # Ждем завершения всех задач
         parser_results = await asyncio.gather(*parser_tasks, return_exceptions=True)
 
-        # Собираем результаты, игнорируя ошибки
+        # Собираем результаты, логируя ошибки с учетом их типа
         all_properties = []
         for i, result in enumerate(parser_results):
             if isinstance(result, Exception):
                 parser_name = self.parsers[i].__class__.__name__
-                logger.error(f"Parser {parser_name} failed: {result}")
+                classification = ErrorClassifier.classify(result)
+                
+                # Логируем критичные ошибки на CRITICAL уровне
+                if classification["severity"] == ErrorSeverity.CRITICAL:
+                    logger.critical(
+                        f"Critical error in {parser_name}: {classification['type']}: {result}"
+                    )
+                else:
+                    logger.warning(
+                        f"Parser {parser_name} failed ({classification['type']}): {result}"
+                    )
             else:
                 all_properties.extend(result)
 

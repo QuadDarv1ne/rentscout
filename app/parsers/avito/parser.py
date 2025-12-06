@@ -8,8 +8,17 @@ from typing import Any, Dict, List, Optional
 from app.core.config import settings
 from app.models.schemas import PropertyCreate
 from app.parsers.base_parser import BaseParser, metrics_collector_decorator
-from app.utils.error_handler import NetworkError, ParsingError, retry_on_failure
+from app.utils.parser_errors import (
+    ParserErrorHandler,
+    RateLimitError,
+    TimeoutError as ParserTimeoutError,
+    NetworkError,
+    ParsingError,
+    ErrorClassifier,
+)
+from app.utils.retry import retry
 from app.utils.ratelimiter import rate_limiter
+from app.utils.circuit_breaker import get_circuit_breaker, CircuitBreakerOpen
 
 logger = logging.getLogger(__name__)
 
@@ -21,13 +30,20 @@ class AvitoParser(BaseParser):
         super().__init__()
         self.name = "AvitoParser"
 
-    @retry_on_failure(
-        max_retries=3,
-        base_delay=1.0,
-        retry_exceptions=(httpx.NetworkError, httpx.TimeoutException, httpx.HTTPStatusError),
-    )
+    @retry(max_attempts=3, initial_delay=1.0, max_delay=10.0)
     @metrics_collector_decorator
     async def parse(self, location: str, params: Dict[str, Any] = None) -> List[PropertyCreate]:
+        # Проверяем circuit breaker перед попыткой
+        circuit_breaker = get_circuit_breaker("avito")
+        
+        try:
+            return await circuit_breaker.call_async(self._parse_internal, location, params)
+        except CircuitBreakerOpen as e:
+            logger.warning(f"Avito parser circuit is open: {e}")
+            raise NetworkError(f"Avito service temporarily unavailable: {e}")
+
+    async def _parse_internal(self, location: str, params: Dict[str, Any]) -> List[PropertyCreate]:
+        """Внутренний метод парсинга."""
         # Preprocess params
         processed_params = await self.preprocess_params(params)
 
@@ -38,24 +54,37 @@ class AvitoParser(BaseParser):
         await rate_limiter.acquire("avito")
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=settings.REQUEST_TIMEOUT) as client:
                 response = await client.get(url)
                 response.raise_for_status()  # Raise an exception for bad status codes
                 results = self._parse_html(response.text)
                 return await self.postprocess_results(results)
+        except asyncio.TimeoutError as e:
+            parser_error = ParserTimeoutError(f"Timeout while fetching {url}: {e}")
+            ParserErrorHandler.log_error(parser_error, context="AvitoParser._parse_internal")
+            raise parser_error
+        except httpx.TimeoutException as e:
+            parser_error = ParserTimeoutError(f"HTTP timeout: {e}")
+            ParserErrorHandler.log_error(parser_error, context="AvitoParser._parse_internal")
+            raise parser_error
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error occurred while fetching {url}: {e}")
             if e.response.status_code == 429:
-                # Rate limit exceeded
-                logger.warning("Rate limit exceeded, waiting before retry...")
-                await asyncio.sleep(60)  # Wait for 1 minute before retry
-            raise NetworkError(f"HTTP error: {e}")
+                parser_error = RateLimitError(f"Rate limit exceeded (429)")
+            elif e.response.status_code in (503, 502, 504):
+                parser_error = NetworkError(f"Service unavailable ({e.response.status_code})")
+            else:
+                parser_error = NetworkError(f"HTTP error {e.response.status_code}: {e}")
+            ParserErrorHandler.log_error(parser_error, context="AvitoParser._parse_internal")
+            raise parser_error
         except httpx.RequestError as e:
-            logger.error(f"Request error occurred while fetching {url}: {e}")
-            raise NetworkError(f"Request error: {e}")
+            parser_error = ParserErrorHandler.convert_to_parser_exception(e)
+            ParserErrorHandler.log_error(parser_error, context="AvitoParser.parse")
+            raise parser_error
         except Exception as e:
-            logger.error(f"Unexpected error occurred while parsing {url}: {e}")
-            raise ParsingError(f"Parsing error: {e}")
+            parser_error = ParserErrorHandler.convert_to_parser_exception(e)
+            ParserErrorHandler.log_error(parser_error, context="AvitoParser.parse")
+            raise parser_error
 
     async def validate_params(self, params: Dict[str, Any]) -> bool:
         """Validate Avito-specific parameters."""

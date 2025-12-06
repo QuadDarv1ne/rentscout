@@ -161,7 +161,8 @@ async def test_cian_parser_parse_success(mock_get, cian_parser, mock_html_respon
 @pytest.mark.asyncio
 async def test_cian_parser_parse_http_error(mock_get, cian_parser):
     """Test handling of HTTP errors."""
-    from app.utils.error_handler import NetworkError
+    from app.utils.parser_errors import NetworkError
+    from app.utils.retry import RetryError
     from httpx import HTTPStatusError
     
     # Setup mock to raise HTTP error
@@ -169,8 +170,8 @@ async def test_cian_parser_parse_http_error(mock_get, cian_parser):
     mock_response.status_code = 500
     mock_get.side_effect = HTTPStatusError("HTTP error", request=Mock(), response=mock_response)
     
-    # Should raise NetworkError
-    with pytest.raises(NetworkError):
+    # Should raise RetryError (after 3 attempts) with NetworkError as cause
+    with pytest.raises(RetryError):
         await cian_parser.parse("Москва", {"type": "квартира"})
 
 

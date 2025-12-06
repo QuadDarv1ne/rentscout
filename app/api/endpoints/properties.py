@@ -8,6 +8,12 @@ from app.services.filter import PropertyFilter
 from app.services.search import SearchService
 from app.utils.logger import logger
 from app.utils.retry import retry
+from app.utils.parser_errors import (
+    ErrorClassifier,
+    ErrorSeverity,
+    ErrorRetryability,
+    AuthenticationError,
+)
 
 router = APIRouter()
 
@@ -90,8 +96,36 @@ async def get_properties(
         return filtered_properties
 
     except Exception as e:
-        logger.critical(f"API Error during property search: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail="Internal Server Error. Search service temporarily unavailable.",
-        )
+        # Классифицируем ошибку для умной обработки
+        classification = ErrorClassifier.classify(e)
+        
+        # Логируем с учетом серьезности
+        if classification["severity"] == ErrorSeverity.CRITICAL:
+            logger.critical(f"Critical API Error: {classification['type']}: {str(e)}", exc_info=True)
+            
+            # AuthenticationError требует немедленного внимания
+            if isinstance(e, AuthenticationError):
+                raise HTTPException(
+                    status_code=401,
+                    detail="Authentication failed. Please check API credentials.",
+                )
+            
+            raise HTTPException(
+                status_code=500,
+                detail="Internal Server Error.",
+            )
+        else:
+            logger.warning(f"API Error during property search ({classification['type']}): {str(e)}")
+            
+            # Для временных ошибок возвращаем 503 Service Unavailable
+            if classification["retryability"] != ErrorRetryability.NO_RETRY:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Service temporarily unavailable. Please try again later.",
+                )
+            
+            # Для постоянных ошибок (парсинг) возвращаем 400 Bad Request
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid search parameters or data format.",
+            )
