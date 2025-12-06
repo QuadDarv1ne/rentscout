@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from enum import Enum
-from typing import Any, Callable, Optional, Tuple, Type
+from typing import Any, Callable, Optional, Tuple, Type, Dict
 
 from app.utils.logger import logger
 
@@ -139,7 +139,7 @@ class ErrorClassifier:
     }
 
     @classmethod
-    def classify(cls, exception: Exception) -> dict:
+    def classify(cls, exception: Exception) -> Dict[str, Any]:
         """
         Классифицирует исключение и возвращает стратегию обработки.
 
@@ -150,14 +150,15 @@ class ErrorClassifier:
             Словарь с параметрами обработки
         """
         # Сначала проверяем точное совпадение типа (в порядке специфичности)
-        exc_type = type(exception)
-        if exc_type in cls.ERROR_MAP:
-            properties = cls.ERROR_MAP[exc_type]
-            return {
-                "type": exc_type.__name__,
-                **properties,
-                "exception": exception,
-            }
+        exc_type: Type[Exception] = type(exception)
+        if isinstance(exception, tuple(cls.ERROR_MAP.keys())):
+            for error_class, properties in cls.ERROR_MAP.items():
+                if type(exception) is error_class:
+                    return {
+                        "type": error_class.__name__,
+                        **properties,
+                        "exception": exception,
+                    }
 
         # Затем проверяем наследование (по порядку, специфичные типы первыми)
         # Порядок важен: проверяем подклассы ДО их родителей
@@ -194,7 +195,8 @@ class ErrorClassifier:
     def should_retry(cls, exception: Exception) -> bool:
         """Проверяет нужно ли повторять при данной ошибке."""
         classification = cls.classify(exception)
-        return classification["retryability"] != ErrorRetryability.NO_RETRY
+        retryability = classification.get("retryability")
+        return retryability != ErrorRetryability.NO_RETRY
 
 
 # ============================================================================
