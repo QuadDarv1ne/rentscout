@@ -1,9 +1,11 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from app.models.schemas import PropertyCreate
 
 
 class PropertyFilter:
+    """Фильтр для свойств недвижимости с поддержкой различных критериев."""
+
     def __init__(
         self,
         min_price: Optional[float] = None,
@@ -17,21 +19,46 @@ class PropertyFilter:
         has_photos: Optional[bool] = None,
         source: Optional[str] = None,
         max_price_per_sqm: Optional[float] = None,
-    ):
-        self.min_price = min_price
-        self.max_price = max_price
-        self.min_rooms = min_rooms
-        self.max_rooms = max_rooms
-        self.min_area = min_area
-        self.max_area = max_area
-        self.property_type = property_type
-        self.district = district
-        self.has_photos = has_photos
-        self.source = source
-        self.max_price_per_sqm = max_price_per_sqm
+    ) -> None:
+        """
+        Инициализация фильтра.
+
+        Args:
+            min_price: Минимальная цена
+            max_price: Максимальная цена
+            min_rooms: Минимальное количество комнат
+            max_rooms: Максимальное количество комнат
+            min_area: Минимальная площадь
+            max_area: Максимальная площадь
+            property_type: Тип недвижимости
+            district: Район
+            has_photos: Наличие фотографий
+            source: Источник
+            max_price_per_sqm: Максимальная цена за квадратный метр
+        """
+        self.min_price: Optional[float] = min_price
+        self.max_price: Optional[float] = max_price
+        self.min_rooms: Optional[int] = min_rooms
+        self.max_rooms: Optional[int] = max_rooms
+        self.min_area: Optional[float] = min_area
+        self.max_area: Optional[float] = max_area
+        self.property_type: Optional[str] = property_type
+        self.district: Optional[str] = district
+        self.has_photos: Optional[bool] = has_photos
+        self.source: Optional[str] = source
+        self.max_price_per_sqm: Optional[float] = max_price_per_sqm
 
     def filter(self, properties: List[PropertyCreate]) -> List[PropertyCreate]:
-        filtered = []
+        """
+        Фильтрует список свойств согласно установленным критериям.
+
+        Args:
+            properties: Список свойств для фильтрации
+
+        Returns:
+            Отфильтрованный и отсортированный список свойств
+        """
+        filtered: List[PropertyCreate] = []
         for prop in properties:
             # Skip properties with invalid prices
             if prop.price <= 0:
@@ -61,7 +88,7 @@ class PropertyFilter:
 
             # District filtering (based on title or location)
             if self.district is not None:
-                district_found = False
+                district_found: bool = False
                 # Проверяем в названии
                 if self.district.lower() in prop.title.lower():
                     district_found = True
@@ -77,7 +104,7 @@ class PropertyFilter:
 
             # Photos filtering
             if self.has_photos is not None:
-                has_photos = len(prop.photos) > 0 if prop.photos else False
+                has_photos: bool = len(prop.photos) > 0 if prop.photos else False
                 if self.has_photos != has_photos:
                     continue
 

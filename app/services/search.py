@@ -1,18 +1,22 @@
 import asyncio
 import logging
-from typing import List
+from typing import List, Dict, Any
 
 from app.db.crud import save_properties
 from app.models.schemas import Property, PropertyCreate
 from app.parsers.avito.parser import AvitoParser
 from app.parsers.cian.parser import CianParser
+from app.parsers.base_parser import BaseParser
 
 logger = logging.getLogger(__name__)
 
 
 class SearchService:
-    def __init__(self):
-        self.parsers = [AvitoParser(), CianParser()]
+    """Сервис поиска недвижимости с поддержкой множества парсеров."""
+
+    def __init__(self) -> None:
+        """Инициализация сервиса поиска."""
+        self.parsers: List[BaseParser] = [AvitoParser(), CianParser()]
 
     async def search(self, city: str, property_type: str = "Квартира") -> List[Property]:
         """
@@ -67,7 +71,9 @@ class SearchService:
 
         return result_properties
 
-    async def _parse_with_parser(self, parser, city: str, property_type: str) -> List[PropertyCreate]:
+    async def _parse_with_parser(
+        self, parser: BaseParser, city: str, property_type: str
+    ) -> List[PropertyCreate]:
         """
         Выполнение парсинга с конкретным парсером.
 
@@ -78,9 +84,12 @@ class SearchService:
 
         Returns:
             Список найденных объектов недвижимости
+
+        Raises:
+            Exception: Если парсер выбросит исключение
         """
         try:
-            results = await parser.parse(city, {"type": property_type})
+            results: List[PropertyCreate] = await parser.parse(city, {"type": property_type})
             return results
         except Exception as e:
             logger.error(f"Parser {parser.__class__.__name__} failed: {e}")

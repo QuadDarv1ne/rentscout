@@ -1,16 +1,64 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
+import asyncio
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
 
 from app.api.endpoints import health, properties
 from app.core.config import settings
 from app.utils.logger import logger
 from app.utils.metrics import MetricsMiddleware
 
-# Создание экземпляра FastAPI приложения
+# Глобальное состояние приложения
+app_state = {
+    "is_shutting_down": False,
+    "active_requests": 0,
+}
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator:
+    """Управление жизненным циклом приложения с graceful shutdown."""
+    # Startup
+    logger.info(f"{settings.APP_NAME} application started")
+    app_state["is_shutting_down"] = False
+    yield
+    # Shutdown
+    logger.info(f"{settings.APP_NAME} starting graceful shutdown")
+    app_state["is_shutting_down"] = True
+    
+    # Ждем завершения активных запросов (максимум 30 секунд)
+    max_wait_time = 30
+    start_time = asyncio.get_event_loop().time()
+    
+    while app_state["active_requests"] > 0:
+        elapsed = asyncio.get_event_loop().time() - start_time
+        if elapsed > max_wait_time:
+            logger.warning(
+                f"Graceful shutdown timeout reached. "
+                f"{app_state['active_requests']} requests still active."
+            )
+            break
+        
+        logger.info(
+            f"Waiting for {app_state['active_requests']} active requests to complete... "
+            f"({elapsed:.1f}s/{max_wait_time}s)"
+        )
+        await asyncio.sleep(1)
+    
+    logger.info(f"{settings.APP_NAME} application shut down successfully")
+
+
+# Создание экземпляра FastAPI приложения с lifespan
 app = FastAPI(
-    title=settings.APP_NAME, description="API для агрегации данных об аренде жилья с ведущих площадок", version="1.0.0"
+    title=settings.APP_NAME,
+    description="API для агрегации данных об аренде жилья с ведущих площадок",
+    version="1.0.0",
+    lifespan=lifespan,
 )
+
+
 
 # Добавление middleware для сбора метрик
 app.add_middleware(MetricsMiddleware)
@@ -30,20 +78,6 @@ app.include_router(health.router, prefix="/api", tags=["health"])
 
 # Инициализация Prometheus инструментатора
 Instrumentator().instrument(app).expose(app)
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Действия при запуске приложения."""
-    logger.info(f"{settings.APP_NAME} application started")
-    # Здесь можно добавить инициализацию подключений к базам данных, кэша и т.д.
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Действия при остановке приложения."""
-    logger.info(f"{settings.APP_NAME} application shutting down")
-    # Здесь можно добавить закрытие подключений и освобождение ресурсов
 
 
 @app.get("/", tags=["root"])

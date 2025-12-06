@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import List, Optional
 
 from app.dependencies.parsers import get_parsers
 from app.models.schemas import Property, PropertyCreate
@@ -6,8 +7,16 @@ from app.services.cache import cache
 from app.services.filter import PropertyFilter
 from app.services.search import SearchService
 from app.utils.logger import logger
+from app.utils.retry import retry
 
 router = APIRouter()
+
+
+@retry(max_attempts=3, initial_delay=1.0, exceptions=(Exception,))
+async def _search_properties(city: str, property_type: str) -> List[PropertyCreate]:
+    """Вспомогательная функция поиска с поддержкой повторных попыток."""
+    search_service = SearchService()
+    return await search_service.search(city, property_type)
 
 
 @router.get("/properties", response_model=list[Property])
@@ -15,22 +24,45 @@ router = APIRouter()
 async def get_properties(
     city: str = Query(..., min_length=2),
     property_type: str = Query("Квартира"),
-    min_price: float = Query(None, ge=0),
-    max_price: float = Query(None, ge=0),
-    min_rooms: int = Query(None, ge=0),
-    max_rooms: int = Query(None, ge=0),
-    min_area: float = Query(None, ge=0),
-    max_area: float = Query(None, ge=0),
-    district: str = Query(None, description="Фильтр по району города"),
-    has_photos: bool = Query(None, description="Фильтр по наличию фотографий"),
-    source: str = Query(None, description="Фильтр по источнику (avito, cian и т.д.)"),
-    max_price_per_sqm: float = Query(None, ge=0, description="Максимальная цена за квадратный метр"),
+    min_price: Optional[float] = Query(None, ge=0),
+    max_price: Optional[float] = Query(None, ge=0),
+    min_rooms: Optional[int] = Query(None, ge=0),
+    max_rooms: Optional[int] = Query(None, ge=0),
+    min_area: Optional[float] = Query(None, ge=0),
+    max_area: Optional[float] = Query(None, ge=0),
+    district: Optional[str] = Query(None, description="Фильтр по району города"),
+    has_photos: Optional[bool] = Query(None, description="Фильтр по наличию фотографий"),
+    source: Optional[str] = Query(None, description="Фильтр по источнику (avito, cian и т.д.)"),
+    max_price_per_sqm: Optional[float] = Query(None, ge=0, description="Максимальная цена за квадратный метр"),
     parsers: list = Depends(get_parsers),
-):
+) -> List[Property]:
+    """
+    Получить список свойств с поддержкой фильтрации.
+
+    Args:
+        city: Название города для поиска
+        property_type: Тип недвижимости
+        min_price: Минимальная цена
+        max_price: Максимальная цена
+        min_rooms: Минимальное количество комнат
+        max_rooms: Максимальное количество комнат
+        min_area: Минимальная площадь
+        max_area: Максимальная площадь
+        district: Район
+        has_photos: Наличие фотографий
+        source: Источник
+        max_price_per_sqm: Максимальная цена за кв.м
+        parsers: Зависимость парсеров
+
+    Returns:
+        Список свойств, отфильтрованных по заданным критериям
+
+    Raises:
+        HTTPException: Если поиск не удался после всех повторных попыток
+    """
     try:
-        # Используем оптимизированный поисковый сервис
-        search_service = SearchService()
-        all_properties = await search_service.search(city, property_type)
+        # Используем вспомогательную функцию с retry логикой
+        all_properties = await _search_properties(city, property_type)
 
         # Apply filters
         property_filter = PropertyFilter(
@@ -49,8 +81,17 @@ async def get_properties(
 
         filtered_properties = property_filter.filter(all_properties)
 
+        logger.info(
+            f"Search completed for {city}: "
+            f"found {len(all_properties)} properties, "
+            f"after filtering: {len(filtered_properties)}"
+        )
+
         return filtered_properties
 
     except Exception as e:
-        logger.critical(f"API Error: {str(e)}")
-        raise HTTPException(500, "Internal Server Error")
+        logger.critical(f"API Error during property search: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Internal Server Error. Search service temporarily unavailable.",
+        )
