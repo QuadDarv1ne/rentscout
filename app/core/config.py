@@ -22,6 +22,13 @@ class Settings(BaseSettings):
         default="http://elasticsearch:9200",
         description="URL для подключения к Elasticsearch"
     )
+    DATABASE_URL: str = Field(
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/rentscout",
+        description="URL для подключения к PostgreSQL"
+    )
+    
+    # Testing flag
+    TESTING: bool = Field(default=False, description="Режим тестирования")
     
     # Parser settings
     PROXY_ENABLED: bool = Field(default=False, description="Включить использование proxy")
