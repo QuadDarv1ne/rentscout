@@ -5,7 +5,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Dict, Any
 
-from app.api.endpoints import health, properties
+from app.api.endpoints import health, properties, tasks
 from app.core.config import settings
 from app.services.advanced_cache import advanced_cache_manager
 from app.services.search import SearchService
@@ -109,6 +109,7 @@ app.add_middleware(
 # Подключение маршрутов
 app.include_router(properties.router, prefix="/api", tags=["properties"])
 app.include_router(health.router, prefix="/api", tags=["health"])
+app.include_router(tasks.router, prefix="/api", tags=["tasks"])
 
 # Инициализация Prometheus инструментатора
 Instrumentator().instrument(app).expose(app)
