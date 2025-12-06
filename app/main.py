@@ -5,7 +5,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Dict, Any
 
-from app.api.endpoints import health, properties, tasks
+from app.api.endpoints import health, properties, tasks, properties_db
 from app.core.config import settings
 from app.services.advanced_cache import advanced_cache_manager
 from app.services.search import SearchService
@@ -13,6 +13,7 @@ from app.utils.logger import logger
 from app.utils.metrics import MetricsMiddleware
 from app.utils.correlation_middleware import CorrelationIDMiddleware
 from app.utils.ip_ratelimiter import RateLimitMiddleware
+from app.db.models.session import init_db, close_db
 
 # Глобальное состояние приложения с правильной инициализацией
 app_state: Dict[str, Any] = {
@@ -28,6 +29,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     logger.info(f"{settings.APP_NAME} application started")
     app_state["is_shutting_down"] = False
     app_state["active_requests"] = 0
+    
+    # Инициализация PostgreSQL (опционально, в production используем Alembic)
+    if settings.DEBUG:
+        try:
+            await init_db()
+            logger.info("PostgreSQL database initialized")
+        except Exception as e:
+            logger.warning(f"PostgreSQL initialization skipped: {e}")
     
     # Подключаемся к Redis
     await advanced_cache_manager.connect()
@@ -55,6 +64,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     
     # Отключаемся от Redis
     await advanced_cache_manager.disconnect()
+    
+    # Закрываем PostgreSQL соединения
+    await close_db()
     
     # Ждем завершения активных запросов (максимум 30 секунд)
     max_wait_time = 30
@@ -108,6 +120,7 @@ app.add_middleware(
 
 # Подключение маршрутов
 app.include_router(properties.router, prefix="/api", tags=["properties"])
+app.include_router(properties_db.router, prefix="/api/db", tags=["properties-db"])
 app.include_router(health.router, prefix="/api", tags=["health"])
 app.include_router(tasks.router, prefix="/api", tags=["tasks"])
 

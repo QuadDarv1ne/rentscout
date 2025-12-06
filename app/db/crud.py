@@ -1,3 +1,8 @@
+"""
+Legacy CRUD operations for Elasticsearch.
+This file is kept for backward compatibility.
+For new PostgreSQL operations, see app/db/repositories/property.py
+"""
 import logging
 from typing import List
 
@@ -22,3 +27,4 @@ async def save_properties(properties: List[PropertyCreate]):
     except Exception as e:
         logger.error(f"Error saving properties to Elasticsearch: {e}")
         raise
+
