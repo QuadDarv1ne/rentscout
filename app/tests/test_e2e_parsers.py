@@ -120,4 +120,3 @@ async def test_search_service_handles_parser_failure(monkeypatch):
     assert len(results) == 1
     assert saved.get("count") == 1
     assert results[0].source == "avito"
-```}
