@@ -286,6 +286,40 @@ def schedule_parse_task(
     }
 
 
+@celery_app.task(bind=True, acks_late=True)
+def send_property_alerts_task(self) -> Dict[str, Any]:
+    """
+    Task to send property alerts to users based on their criteria.
+    
+    Returns:
+        Alert sending results
+    """
+    logger.info("Starting property alerts sending task")
+    
+    try:
+        # This would need to be implemented with actual email sending logic
+        # For now, we'll just log that the task is running
+        logger.info("Property alerts task completed")
+        
+        return {
+            "status": "completed",
+            "alerts_sent": 0,
+            "errors": 0
+        }
+    except Exception as e:
+        logger.error(f"Error in property alerts task: {e}")
+        raise self.retry(exc=e, countdown=60, max_retries=3)
+
+
+# Periodic tasks (Celery Beat)
+celery_app.conf.beat_schedule.update({
+    # Send property alerts every hour
+    "send-property-alerts": {
+        "task": "app.tasks.celery.send_property_alerts_task",
+        "schedule": crontab(minute=0),  # Every hour
+    },
+})
+
 # Утилиты для работы с задачами
 
 def get_task_status(task_id: str) -> Dict[str, Any]:
