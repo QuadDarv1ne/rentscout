@@ -19,6 +19,16 @@ class PropertyFilter:
         has_photos: Optional[bool] = None,
         source: Optional[str] = None,
         max_price_per_sqm: Optional[float] = None,
+        min_floor: Optional[int] = None,
+        max_floor: Optional[int] = None,
+        min_total_floors: Optional[int] = None,
+        max_total_floors: Optional[int] = None,
+        features: Optional[List[str]] = None,
+        min_first_seen: Optional[str] = None,
+        max_first_seen: Optional[str] = None,
+        min_last_seen: Optional[str] = None,
+        max_last_seen: Optional[str] = None,
+        has_contact: Optional[bool] = None,
     ) -> None:
         """
         Инициализация фильтра.
@@ -35,6 +45,16 @@ class PropertyFilter:
             has_photos: Наличие фотографий
             source: Источник
             max_price_per_sqm: Максимальная цена за квадратный метр
+            min_floor: Минимальный этаж
+            max_floor: Максимальный этаж
+            min_total_floors: Минимальное количество этажей в здании
+            max_total_floors: Максимальное количество этажей в здании
+            features: Список обязательных характеристик (например, ["wifi", "parking"])
+            min_first_seen: Минимальная дата первого появления (ISO format)
+            max_first_seen: Максимальная дата первого появления (ISO format)
+            min_last_seen: Минимальная дата последнего появления (ISO format)
+            max_last_seen: Максимальная дата последнего появления (ISO format)
+            has_contact: Наличие контактной информации
         """
         self.min_price: Optional[float] = min_price
         self.max_price: Optional[float] = max_price
@@ -47,6 +67,16 @@ class PropertyFilter:
         self.has_photos: Optional[bool] = has_photos
         self.source: Optional[str] = source
         self.max_price_per_sqm: Optional[float] = max_price_per_sqm
+        self.min_floor: Optional[int] = min_floor
+        self.max_floor: Optional[int] = max_floor
+        self.min_total_floors: Optional[int] = min_total_floors
+        self.max_total_floors: Optional[int] = max_total_floors
+        self.features: Optional[List[str]] = features
+        self.min_first_seen: Optional[str] = min_first_seen
+        self.max_first_seen: Optional[str] = max_first_seen
+        self.min_last_seen: Optional[str] = min_last_seen
+        self.max_last_seen: Optional[str] = max_last_seen
+        self.has_contact: Optional[bool] = has_contact
 
     def filter(self, properties: List[PropertyCreate]) -> List[PropertyCreate]:
         """
