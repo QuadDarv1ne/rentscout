@@ -184,12 +184,16 @@ class StructuredLogger:
         level: int,
         message: str,
         extra_data: Optional[Dict[str, Any]] = None,
+        exc_info: bool = False,
         **kwargs,
     ):
         """Внутренний метод логирования."""
         extra = {"extra_data": extra_data} if extra_data else {}
-        extra.update(kwargs)
-        self.logger.log(level, message, extra=extra)
+        # Отфильтруем известные параметры logging
+        for key, value in kwargs.items():
+            if key not in ('exc_info', 'stack_info', 'stacklevel'):
+                extra[key] = value
+        self.logger.log(level, message, exc_info=exc_info, extra=extra)
 
     def debug(self, message: str, **kwargs):
         """Лог уровня DEBUG."""

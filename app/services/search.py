@@ -51,12 +51,12 @@ class SearchService:
                 parser_name = self.parsers[i].__class__.__name__
                 # Классифицируем ошибку для более точного логирования
                 classification = ErrorClassifier.classify(result)
-                severity = classification.get("severity", ErrorSeverity.LOW)
+                severity = classification.get("severity", ErrorSeverity.INFO)
                 
                 # Логируем в зависимости от уровня серьезности
-                if severity == ErrorSeverity.HIGH:
+                if severity == ErrorSeverity.CRITICAL or severity == ErrorSeverity.ERROR:
                     logger.error(f"Critical error in {parser_name}: {result}", exc_info=True)
-                elif severity == ErrorSeverity.MEDIUM:
+                elif severity == ErrorSeverity.WARNING:
                     logger.warning(f"Warning in {parser_name}: {result}")
                 else:
                     logger.info(f"Minor issue in {parser_name}: {result}")
