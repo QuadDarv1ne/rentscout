@@ -107,21 +107,32 @@ class PropertyFilter:
         Returns:
             Кортеж (отфильтрованный список свойств, общее количество свойств)
         """
+        # Предварительная обработка дат (один раз вместо каждого цикла)
         min_first_dt = self._parse_dt(self.min_first_seen)
         max_first_dt = self._parse_dt(self.max_first_seen)
         min_last_dt = self._parse_dt(self.min_last_seen)
         max_last_dt = self._parse_dt(self.max_last_seen)
 
+        # Оптимизация: преобразуем строки в нижний регистр один раз
+        district_lower = self.district.lower() if self.district else None
+        source_lower = self.source.lower() if self.source else None
+        property_type_lower = self.property_type.lower() if self.property_type else None
+
         filtered: List[PropertyCreate] = []
         for prop in properties:
+            # Быстрые проверки сначала (оптимизация производительности)
             # Skip properties with invalid prices
             if prop.price <= 0:
                 continue
 
-            # Price filtering
+            # Price filtering (наиболее часто используемый фильтр)
             if self.min_price is not None and prop.price < self.min_price:
                 continue
             if self.max_price is not None and prop.price > self.max_price:
+                continue
+
+            # Source filtering (простая проверка строки)
+            if source_lower is not None and prop.source.lower() != source_lower:
                 continue
 
             # Room filtering
@@ -137,20 +148,20 @@ class PropertyFilter:
                 continue
 
             # Property type filtering (based on title)
-            if self.property_type is not None and self.property_type.lower() not in prop.title.lower():
+            if property_type_lower is not None and property_type_lower not in prop.title.lower():
                 continue
 
             # District filtering (based on title or location)
-            if self.district is not None:
+            if district_lower is not None:
                 district_found: bool = False
                 # Проверяем в названии
-                if self.district.lower() in prop.title.lower():
+                if district_lower in prop.title.lower():
                     district_found = True
                 # Проверяем в локации, если она есть
                 elif prop.location and isinstance(prop.location, dict):
                     # Проверяем различные поля локации
                     for key, value in prop.location.items():
-                        if isinstance(value, str) and self.district.lower() in value.lower():
+                        if isinstance(value, str) and district_lower in value.lower():
                             district_found = True
                             break
                 if not district_found:

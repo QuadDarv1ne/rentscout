@@ -143,18 +143,21 @@ async def get_properties(
 
         filtered_properties, total_count = property_filter.filter(all_properties, skip=skip, limit=limit)
 
+        # Вычисляем значения для пагинации
+        page = (skip // limit) + 1
+        pages = (total_count + limit - 1) // limit if total_count > 0 else 1
+        has_next = (skip + limit) < total_count
+        has_prev = skip > 0
+
+        # Записываем метрики пагинации
+        metrics_collector.record_pagination(page_size=limit, page_number=page)
+
         logger.info(
             f"Search completed for {city}: "
             f"found {len(all_properties)} properties, "
             f"after filtering: {total_count} total, "
             f"returned {len(filtered_properties)} (skip={skip}, limit={limit})"
         )
-
-        # Вычисляем значения для пагинации
-        page = (skip // limit) + 1
-        pages = (total_count + limit - 1) // limit if total_count > 0 else 1
-        has_next = (skip + limit) < total_count
-        has_prev = skip > 0
 
         return PaginatedProperties(
             items=filtered_properties,
@@ -251,6 +254,13 @@ async def export_properties(
         # Начинаем таймер для метрик
         start_time = time.time()
         
+        # Валидация формата
+        if format not in ["csv", "json", "jsonl"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid format: {format}. Supported formats: csv, json, jsonl"
+            )
+        
         # Получаем свойства
         search_service = SearchService()
         all_properties = await search_service.search(city, property_type)
@@ -270,7 +280,13 @@ async def export_properties(
             sort_order=sort_order,
         )
         
-        filtered_properties, _ = property_filter.filter(all_properties, skip=0, limit=10000)
+        # Ограничиваем максимальное количество экспортируемых записей (защита от перегрузки)
+        MAX_EXPORT_ITEMS = 10000
+        filtered_properties, total = property_filter.filter(all_properties, skip=0, limit=MAX_EXPORT_ITEMS)
+        
+        # Предупреждаем если записей больше лимита
+        if total > MAX_EXPORT_ITEMS:
+            logger.warning(f"Export limited to {MAX_EXPORT_ITEMS} items (total: {total})")
         
         # Экспортируем в выбранном формате
         export_service = ExportService()
