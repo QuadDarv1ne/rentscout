@@ -767,6 +767,16 @@ async def deactivate_property_alert(
     """
     Деактивирует оповещение (не удаляет его).
     """
+    if db is None:
+        if alert_id not in memory_alerts:
+            raise HTTPException(status_code=404, detail="Alert not found")
+        alert = memory_alerts[alert_id]
+        memory_alerts[alert_id] = PropertyAlert(
+            **alert.model_dump(exclude={"is_active"}),
+            is_active=False,
+        )
+        return OperationStatus(success=True, message="Alert deactivated successfully")
+
     try:
         from app.db.repositories import alerts as alerts_repo
         success = await alerts_repo.deactivate_alert(db, alert_id)
