@@ -1,9 +1,13 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Dict, Any
+from pathlib import Path
 
 from app.api.endpoints import health, properties, tasks, properties_db
 from app.core.config import settings
@@ -14,6 +18,10 @@ from app.utils.metrics import MetricsMiddleware
 from app.utils.correlation_middleware import CorrelationIDMiddleware
 from app.utils.ip_ratelimiter import RateLimitMiddleware
 from app.db.models.session import init_db, close_db
+
+# Пути к статическим файлам и шаблонам
+BASE_DIR = Path(__file__).resolve().parent
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 # Глобальное состояние приложения с правильной инициализацией
 app_state: Dict[str, Any] = {
