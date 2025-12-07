@@ -6,6 +6,7 @@ import json
 import pickle
 import logging
 import zlib
+import fnmatch
 from datetime import datetime, timedelta
 from typing import Any, Callable, Optional, Dict, List, Set
 from functools import wraps
@@ -17,6 +18,62 @@ from app.models.schemas import PropertyCreate
 from app.utils.metrics import metrics_collector
 
 logger = logging.getLogger(__name__)
+
+
+class InMemoryAsyncRedis:
+    """Простейшая in-memory реализация Redis API для тестов и fallback."""
+
+    def __init__(self):
+        self.store: Dict[str, Any] = {}
+        self.sets: Dict[str, Set[str]] = {}
+
+    async def ping(self):
+        return True
+
+    async def get(self, key: str):
+        return self.store.get(key)
+
+    async def setex(self, key: str, expire: int, value: Any):
+        self.store[key] = value
+        return True
+
+    async def delete(self, *keys: str):
+        deleted = 0
+        for key in keys:
+            if key in self.store:
+                del self.store[key]
+                deleted += 1
+        return deleted
+
+    async def sadd(self, key: str, *values: str):
+        if key not in self.sets:
+            self.sets[key] = set()
+        before = len(self.sets[key])
+        self.sets[key].update(values)
+        return len(self.sets[key]) - before
+
+    async def smembers(self, key: str):
+        return self.sets.get(key, set())
+
+    async def expire(self, key: str, expire: int):
+        # В in-memory режиме TTL не учитываем
+        return True
+
+    async def scan(self, cursor: int = 0, match: Optional[str] = None, count: int = 100):
+        keys = list(self.store.keys())
+        if match:
+            keys = fnmatch.filter(keys, match)
+        # Эмулируем однопроходный SCAN
+        return 0, keys[:count]
+
+    async def info(self, section: Optional[str] = None):
+        return {}
+
+    async def dbsize(self):
+        return len(self.store)
+
+    async def close(self):
+        return True
 
 
 class AdvancedCacheManager:
@@ -69,9 +126,9 @@ class AdvancedCacheManager:
                 if attempt < max_retries - 1:
                     await asyncio.sleep(retry_delay)
                 else:
-                    logger.info("ℹ️  Redis unavailable - running without cache (use Docker: 'docker run -d -p 6379:6379 redis:7-alpine')")
-                    self.redis_client = None
-                    return False
+                    logger.info("ℹ️  Redis unavailable - using in-memory cache fallback (for dev/tests)")
+                    self.redis_client = InMemoryAsyncRedis()
+                    return True
 
     async def disconnect(self):
         """Отключение от Redis."""
@@ -377,6 +434,10 @@ def cached_parser(expire: int = settings.CACHE_TTL, source: str = "unknown", com
             # Генерируем ключ кеша с префиксом парсера
             cache_key = get_cache_key(f"parser:{source}", *args, **kwargs)
 
+            # Обеспечиваем готовность клиента кеша (lazily connect)
+            if advanced_cache_manager.redis_client is None:
+                await advanced_cache_manager.connect()
+
             # Record access for adaptive caching
             if adaptive:
                 adaptive_cache.record_access(cache_key)
@@ -424,6 +485,10 @@ def cached(expire: int = settings.CACHE_TTL, prefix: str = "default", adaptive: 
         async def wrapper(*args, **kwargs):
             # Генерируем ключ кеша
             cache_key = get_cache_key(prefix, func.__name__, *args, **kwargs)
+
+            # Обеспечиваем готовность клиента кеша (lazily connect)
+            if advanced_cache_manager.redis_client is None:
+                await advanced_cache_manager.connect()
 
             # Record access for adaptive caching
             if adaptive:

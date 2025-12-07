@@ -1,409 +1,309 @@
-# RentScout API Documentation
+## Property Comparison
 
-## Overview
+Compare two properties to help users make informed decisions.
 
-RentScout is a high-performance API for aggregating rental property data from leading platforms. It collects up-to-date information, filters duplicates, and provides a convenient interface for integration.
+### Compare Properties
 
-## Base URL
+`GET /api/properties/compare/{property_id1}/{property_id2}`
 
+Compare two properties by their IDs.
+
+#### Parameters
+
+| Name | Type | In | Description |
+|------|------|----|-------------|
+| property_id1 | integer | path | First property ID |
+| property_id2 | integer | path | Second property ID |
+
+#### Response
+
+```json
+{
+  "property1": {
+    "id": 123,
+    "title": "2-комнатная квартира в центре",
+    "source": "avito",
+    "price": 50000,
+    "rooms": 2,
+    "area": 60,
+    "price_per_sqm": 833.33,
+    "city": "Москва",
+    "address": "Тверская, 1"
+  },
+  "property2": {
+    "id": 456,
+    "title": "Студия в бизнес-центре",
+    "source": "cian",
+    "price": 45000,
+    "rooms": 1,
+    "area": 40,
+    "price_per_sqm": 1125.0,
+    "city": "Москва",
+    "address": "Арбат, 10"
+  },
+  "differences": {
+    "price_difference": 5000,
+    "price_per_sqm_diff": 291.67,
+    "area_difference": 20,
+    "rooms_difference": 1
+  },
+  "better_value": "property1"
+}
 ```
-http://localhost:8000/api
-```
 
-## Authentication
-
-Most endpoints are publicly accessible. Some administrative endpoints may require authentication (to be implemented).
-
-## Rate Limiting
-
-The API implements rate limiting to prevent abuse:
-- 100 requests per minute per IP address
-- Exceeding the limit returns a 429 status code
-
-## Error Responses
-
-The API uses standard HTTP status codes:
+#### Response Codes
 
 | Status Code | Description |
 |-------------|-------------|
 | 200 | Success |
-| 400 | Bad Request - Invalid parameters |
-| 401 | Unauthorized - Authentication required |
-| 404 | Not Found - Resource doesn't exist |
-| 429 | Too Many Requests - Rate limit exceeded |
-| 500 | Internal Server Error - Something went wrong |
-| 503 | Service Unavailable - Temporary issue |
+| 404 | One or both properties not found |
+| 500 | Internal server error |
 
-## Endpoints
+## Property Recommendations
 
-### Properties (Real-time Search)
+Get personalized property recommendations based on user criteria.
 
-#### GET /properties
+### Get Recommendations
 
-Search for properties in real-time from multiple sources with filtering.
+`GET /api/properties/recommendations`
 
-**Query Parameters:**
+Get property recommendations based on various criteria.
 
-| Parameter | Type | Description | Example |
-|-----------|------|-------------|---------|
-| city* | string | City name for search | Москва |
-| property_type | string | Property type | Квартира |
-| min_price | number | Minimum price | 3000 |
-| max_price | number | Maximum price | 10000 |
-| min_rooms | integer | Minimum rooms | 1 |
-| max_rooms | integer | Maximum rooms | 3 |
-| min_area | number | Minimum area (sq.m) | 30 |
-| max_area | number | Maximum area (sq.m) | 100 |
-| min_floor | integer | Minimum floor | 1 |
-| max_floor | integer | Maximum floor | 10 |
-| min_total_floors | integer | Minimum total floors in building | 5 |
-| max_total_floors | integer | Maximum total floors in building | 20 |
-| district | string | District filter | Центральный |
-| has_photos | boolean | Filter by photo availability | true |
-| source | string | Filter by source (avito, cian, etc.) | avito |
-| features | array[string] | Required features | wifi,parking |
-| max_price_per_sqm | number | Max price per sq.m | 100 |
-| has_contact | boolean | Filter by contact info availability | true |
-| min_first_seen | string | Min first seen date (ISO) | 2023-01-01 |
-| max_first_seen | string | Max first seen date (ISO) | 2023-12-31 |
-| min_last_seen | string | Min last seen date (ISO) | 2023-01-01 |
-| max_last_seen | string | Max last seen date (ISO) | 2023-12-31 |
-| sort_by | string | Sort field (price, area, rooms, floor, first_seen, last_seen) | price |
-| sort_order | string | Sort order (asc, desc) | asc |
+#### Parameters
 
-**Example Request:**
+| Name | Type | In | Required | Description |
+|------|------|----|----------|-------------|
+| city | string | query | Yes | City to search in |
+| budget | number | query | No | Maximum budget |
+| rooms | integer | query | No | Number of rooms |
+| min_area | number | query | No | Minimum area in square meters |
+| max_area | number | query | No | Maximum area in square meters |
+| limit | integer | query | No | Number of recommendations (default: 10, max: 50) |
 
-```http
-GET /api/properties?city=Москва&property_type=Квартира&min_price=3000&max_price=8000&min_rooms=1&max_rooms=3&min_area=30&max_area=80
-```
+#### Response
 
-**Response:**
+Array of property objects sorted by value (price per square meter).
 
-```json
-[
-  {
-    "id": 12345678,
-    "source": "avito",
-    "external_id": "987654321",
-    "title": "2-комн. квартира, 45 м², ЦАО",
-    "description": "Сдается 2-комнатная квартира в центре Москвы",
-    "link": "https://www.avito.ru/moskva/sdam/na_sutki/...",
-    "price": 5000,
-    "currency": "RUB",
-    "price_per_sqm": 111.11,
-    "rooms": 2,
-    "area": 45,
-    "floor": 3,
-    "total_floors": 9,
-    "city": "Москва",
-    "district": "Центральный",
-    "address": "ул. Тверская, 10",
-    "latitude": 55.7558,
-    "longitude": 37.6176,
-    "location": {
-      "city": "Москва",
-      "district": "Центральный",
-      "address": "ул. Тверская, 10"
-    },
-    "photos": [
-      "https://img.avito.ru/...",
-      "https://img.avito.ru/..."
-    ],
-    "features": {
-      "wifi": true,
-      "parking": false,
-      "furniture": true
-    },
-    "contact_name": "Иван Петров",
-    "contact_phone": "+7 (999) 123-45-67",
-    "is_active": true,
-    "is_verified": false,
-    "first_seen": "2023-06-15T10:30:00",
-    "last_seen": "2023-06-15T10:30:00",
-    "created_at": "2023-06-15T10:30:00",
-    "last_updated": "2023-06-15T10:30:00"
-  }
-]
-```
+#### Response Codes
 
-#### GET /properties/search
+| Status Code | Description |
+|-------------|-------------|
+| 200 | Success |
+| 400 | Invalid parameters |
+| 500 | Internal server error |
 
-Alias for `/properties` endpoint.
+## Price Trends
 
-### Properties (Database Storage)
+Analyze price trends over time to understand market dynamics.
 
-#### POST /properties
+### Get Price Trends
 
-Create a new property in the database.
+`GET /api/properties/trends/{city}`
 
-**Request Body:**
+Get price trends for a specific city over a period of time.
+
+#### Parameters
+
+| Name | Type | In | Required | Description |
+|------|------|----|----------|-------------|
+| city | string | path | Yes | City to analyze |
+| days | integer | query | No | Number of days to analyze (default: 30, max: 365) |
+
+#### Response
 
 ```json
 {
-  "source": "avito",
-  "external_id": "987654321",
-  "title": "2-комн. квартира, 45 м², ЦАО",
-  "description": "Сдается 2-комнатная квартира в центре Москвы",
-  "link": "https://www.avito.ru/moskva/sdam/na_sutki/...",
-  "price": 5000,
-  "currency": "RUB",
+  "city": "Москва",
+  "days": 30,
+  "trends": [
+    {
+      "date": "2023-06-01",
+      "average_price": 55000,
+      "property_count": 1250,
+      "min_price": 30000,
+      "max_price": 120000
+    }
+  ],
+  "average_change": -2.5
+}
+```
+
+#### Response Codes
+
+| Status Code | Description |
+|-------------|-------------|
+| 200 | Success |
+| 400 | Invalid parameters |
+| 500 | Internal server error |
+
+## Property Alerts
+
+Create and manage property alerts to get notified about new listings.
+
+### Create Alert
+
+`POST /api/properties/alerts`
+
+Create a new property alert.
+
+#### Request Body
+
+```json
+{
+  "city": "Москва",
+  "max_price": 60000,
+  "min_price": 40000,
   "rooms": 2,
-  "area": 45,
-  "photos": ["https://img.avito.ru/..."]
+  "min_area": 50,
+  "max_area": 70,
+  "email": "user@example.com"
 }
 ```
 
-#### GET /properties/{property_id}
+#### Response
 
-Get a property by its internal ID.
+Property alert object.
 
-#### GET /properties/
+#### Response Codes
 
-Search properties stored in the database.
+| Status Code | Description |
+|-------------|-------------|
+| 201 | Alert created successfully |
+| 400 | Invalid parameters |
+| 500 | Internal server error |
 
-**Query Parameters:**
+### List Alerts
 
-| Parameter | Type | Description | Example |
-|-----------|------|-------------|---------|
-| city | string | Filter by city | Москва |
-| source | string | Filter by source | avito |
-| district | string | Filter by district | Центральный |
-| min_price | number | Minimum price | 3000 |
-| max_price | number | Maximum price | 10000 |
-| min_rooms | integer | Minimum rooms | 1 |
-| max_rooms | integer | Maximum rooms | 3 |
-| min_area | number | Minimum area | 30 |
-| max_area | number | Maximum area | 100 |
-| is_active | boolean | Filter by active status | true |
-| sort_by | string | Sort field (created_at, price, area, rooms) | created_at |
-| sort_order | string | Sort order (asc, desc) | desc |
-| limit | integer | Max results (1-1000) | 100 |
-| offset | integer | Results to skip | 0 |
+`GET /api/properties/alerts`
 
-#### GET /properties/stats/overview
+List all active alerts for a specific email.
 
-Get property statistics.
+#### Parameters
 
-**Query Parameters:**
+| Name | Type | In | Required | Description |
+|------|------|----|----------|-------------|
+| email | string | query | Yes | Email to filter alerts |
 
-| Parameter | Type | Description | Example |
-|-----------|------|-------------|---------|
-| city | string | Filter by city | Москва |
-| source | string | Filter by source | avito |
-| district | string | Filter by district | Центральный |
+#### Response
 
-#### GET /properties/{property_id}/price-history
+Array of property alert objects.
 
-Get price history for a property.
+#### Response Codes
 
-**Query Parameters:**
+| Status Code | Description |
+|-------------|-------------|
+| 200 | Success |
+| 400 | Invalid parameters |
+| 500 | Internal server error |
 
-| Parameter | Type | Description | Example |
-|-----------|------|-------------|---------|
-| limit | integer | Max entries (1-100) | 10 |
+### Update Alert
 
-#### POST /properties/{property_id}/view
+`PUT /api/properties/alerts/{alert_id}`
 
-Track a property view.
+Update an existing property alert.
 
-#### GET /properties/stats/popular
+#### Parameters
 
-Get popular properties.
+| Name | Type | In | Required | Description |
+|------|------|----|----------|-------------|
+| alert_id | integer | path | Yes | Alert ID to update |
 
-**Query Parameters:**
+#### Request Body
 
-| Parameter | Type | Description | Example |
-|-----------|------|-------------|---------|
-| limit | integer | Max results (1-100) | 10 |
-| days | integer | Period in days (1-365) | 7 |
+Same as create alert.
 
-#### GET /properties/stats/searches
+#### Response
 
-Get popular search queries.
+Updated property alert object.
 
-**Query Parameters:**
+#### Response Codes
 
-| Parameter | Type | Description | Example |
-|-----------|------|-------------|---------|
-| limit | integer | Max results (1-100) | 10 |
-| days | integer | Period in days (1-365) | 7 |
+| Status Code | Description |
+|-------------|-------------|
+| 200 | Alert updated successfully |
+| 404 | Alert not found |
+| 500 | Internal server error |
 
-#### POST /properties/bulk
+### Deactivate Alert
 
-Bulk create/update properties.
+`POST /api/properties/alerts/{alert_id}/deactivate`
 
-#### POST /properties/deactivate-old
+Deactivate an existing property alert (does not delete it).
 
-Deactivate old properties.
+#### Parameters
 
-**Query Parameters:**
+| Name | Type | In | Required | Description |
+|------|------|----|----------|-------------|
+| alert_id | integer | path | Yes | Alert ID to deactivate |
 
-| Parameter | Type | Description | Example |
-|-----------|------|-------------|---------|
-| source* | string | Source to deactivate from | avito |
-| hours | integer | Hours since last seen (1-720) | 24 |
-
-#### GET /properties/by-price-per-sqm
-
-Search properties sorted by price per square meter.
-
-### Tasks (Background Jobs)
-
-#### POST /tasks/parse
-
-Create a background parsing task for a city.
-
-**Request Body:**
+#### Response
 
 ```json
 {
-  "city": "Москва",
-  "property_type": "Квартира"
+  "success": true,
+  "message": "Alert deactivated successfully"
 }
 ```
 
-#### POST /tasks/parse/batch
+#### Response Codes
 
-Create batch parsing tasks for multiple cities.
+| Status Code | Description |
+|-------------|-------------|
+| 200 | Alert deactivated successfully |
+| 404 | Alert not found |
+| 500 | Internal server error |
 
-**Request Body:**
+### Delete Alert
+
+`DELETE /api/properties/alerts/{alert_id}`
+
+Delete an existing property alert.
+
+#### Parameters
+
+| Name | Type | In | Required | Description |
+|------|------|----|----------|-------------|
+| alert_id | integer | path | Yes | Alert ID to delete |
+
+#### Response
 
 ```json
 {
-  "cities": ["Москва", "Санкт-Петербург"],
-  "property_type": "Квартира"
+  "success": true,
+  "message": "Alert deleted successfully"
 }
 ```
 
-#### POST /tasks/parse/schedule
+#### Response Codes
 
-Schedule a parsing task.
+| Status Code | Description |
+|-------------|-------------|
+| 200 | Alert deleted successfully |
+| 404 | Alert not found |
+| 500 | Internal server error |
 
-**Request Body:**
+## Metrics and Monitoring
 
-```json
-{
-  "city": "Москва",
-  "property_type": "Квартира",
-  "eta_seconds": 3600
-}
-```
-
-#### GET /tasks/{task_id}
-
-Get task information by ID.
-
-#### DELETE /tasks/{task_id}
-
-Cancel a task.
-
-#### GET /tasks
-
-List active and recent tasks.
-
-**Query Parameters:**
-
-| Parameter | Type | Description | Example |
-|-----------|------|-------------|---------|
-| limit | integer | Number of tasks (1-100) | 10 |
-| status | string | Filter by status | PENDING |
-
-#### GET /tasks/workers/stats
-
-Get Celery worker statistics.
-
-### Health Checks
-
-#### GET /health
-
-Basic health check.
-
-#### GET /health/detailed
-
-Detailed health check.
-
-#### GET /stats
-
-Application statistics.
-
-#### GET /cache/stats
-
-Cache statistics.
-
-#### GET /ratelimit/stats
-
-Rate limit statistics.
-
-#### GET /errors/diagnostic
-
-Error diagnostics.
-
-**Query Parameters:**
-
-| Parameter | Type | Description | Example |
-|-----------|------|-------------|---------|
-| error_type | string | Specific error type | TimeoutError |
-
-## Supported Sources
-
-The API currently supports parsing from the following sources:
-
-1. **Avito** - https://www.avito.ru
-2. **CIAN** - https://www.cian.ru
-3. **Domofond** - https://domofond.ru
-4. **Yandex Realty** - https://realty.yandex.ru
-
-## Response Formats
-
-All endpoints return JSON responses with UTF-8 encoding.
-
-## Caching
-
-Results are cached for 5 minutes to improve performance and reduce load on external sources.
-
-## Examples
-
-### Example 1: Find affordable apartments in Moscow
-
-```http
-GET /api/properties?city=Москва&property_type=Квартира&max_price=6000&min_rooms=1&max_rooms=2
-```
-
-### Example 2: Find properties with specific features
-
-```http
-GET /api/properties?city=Санкт-Петербург&features=wifi,parking&has_photos=true
-```
-
-### Example 3: Find properties sorted by price per square meter
-
-```http
-GET /api/properties?city=Москва&sort_by=price_per_sqm&sort_order=asc
-```
-
-### Example 4: Create a background parsing task
-
-```http
-POST /api/tasks/parse
-Content-Type: application/json
-
-{
-  "city": "Новосибирск",
-  "property_type": "Квартира"
-}
-```
-
-## Monitoring and Metrics
-
-The API exposes Prometheus metrics at `/metrics` endpoint, including:
+The API exposes Prometheus metrics at `/metrics` for monitoring:
 
 - HTTP request counts and durations
 - Parser performance metrics
 - Active request counts
 - Cache hit/miss ratios
 - Error rates
+- Property processing metrics
+- Business metrics (comparisons, recommendations, trends, alerts)
 
 ## Changelog
+
+### v1.1.0 (2023-06-16)
+- Added property comparison endpoint
+- Added property recommendations endpoint
+- Added price trends analysis endpoint
+- Added property alerts system
+- Enhanced metrics collection with business metrics
+- Improved database connection pooling
+- Added bulk insert operations for better performance
 
 ### v1.0.0 (2023-06-15)
 - Initial release

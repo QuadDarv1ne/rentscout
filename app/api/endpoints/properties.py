@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
 import io
@@ -213,7 +213,7 @@ async def get_properties(
     tags=["export"],
 )
 async def export_properties(
-    format: str = Query(..., regex="^(csv|json|jsonl)$", description="Формат экспорта (csv, json, jsonl)"),
+    format: str = Path(..., pattern="^(csv|json|jsonl)$", description="Формат экспорта (csv, json, jsonl)"),
     city: str = Query(..., min_length=2),
     property_type: str = Query("Квартира"),
     min_price: Optional[float] = Query(None, ge=0),
