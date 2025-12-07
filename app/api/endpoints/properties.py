@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
 import io
+import time
 
 from app.dependencies.parsers import get_parsers
 from app.models.schemas import Property, PropertyCreate, PaginatedProperties
@@ -11,6 +12,7 @@ from app.services.search import SearchService
 from app.services.export import ExportService
 from app.utils.logger import logger
 from app.utils.retry import retry
+from app.utils.metrics import metrics_collector
 from app.utils.parser_errors import (
     ErrorClassifier,
     ErrorSeverity,
@@ -246,6 +248,9 @@ async def export_properties(
         StreamingResponse с файлом
     """
     try:
+        # Начинаем таймер для метрик
+        start_time = time.time()
+        
         # Получаем свойства
         search_service = SearchService()
         all_properties = await search_service.search(city, property_type)
@@ -283,6 +288,15 @@ async def export_properties(
             media_type = "application/json"
             filename = f"properties_{city.lower()}.json"
         
+        # Записываем метрики экспорта
+        duration = time.time() - start_time
+        metrics_collector.record_export(
+            format=format,
+            status="success",
+            duration=duration,
+            items_count=len(filtered_properties)
+        )
+        
         logger.info(f"Exporting {len(filtered_properties)} properties to {format} for {city}")
         
         # Преобразуем строку в BytesIO для StreamingResponse
@@ -295,6 +309,15 @@ async def export_properties(
         )
         
     except Exception as e:
+        # Записываем метрику ошибки
+        duration = time.time() - start_time
+        metrics_collector.record_export(
+            format=format,
+            status="error",
+            duration=duration,
+            items_count=0
+        )
+        
         logger.error(f"Export error: {e}")
         raise HTTPException(
             status_code=500,

@@ -70,6 +70,18 @@ PROPERTIES_SAVED = Counter('properties_saved_total', 'Total properties saved to 
 
 PROPERTIES_DUPLICATES = Counter('properties_duplicates_total', 'Total duplicate properties detected')
 
+# Export metrics
+EXPORT_REQUESTS = Counter('export_requests_total', 'Total export requests', ['format', 'status'])
+
+EXPORT_DURATION = Histogram('export_duration_seconds', 'Export operation duration in seconds', ['format'])
+
+EXPORT_ITEMS = Histogram('export_items_count', 'Number of items exported', ['format'], buckets=(10, 50, 100, 500, 1000, 5000, 10000))
+
+# Pagination metrics
+PAGINATION_REQUESTS = Counter('pagination_requests_total', 'Total paginated requests', ['page_size'])
+
+PAGINATION_PAGES_ACCESSED = Histogram('pagination_pages_accessed', 'Pages accessed in pagination', buckets=(1, 2, 5, 10, 20, 50, 100))
+
 
 class MetricsCollector:
     """Коллектор метрик для мониторинга производительности."""
@@ -166,6 +178,19 @@ class MetricsCollector:
     def update_memory_usage(self, bytes_used: int):
         """Обновление метрики использования памяти."""
         MEMORY_USAGE.set(bytes_used)
+
+    def record_export(self, format: str, status: str, duration: float, items_count: int):
+        """Запись метрик экспорта."""
+        EXPORT_REQUESTS.labels(format=format, status=status).inc()
+        EXPORT_DURATION.labels(format=format).observe(duration)
+        EXPORT_ITEMS.labels(format=format).observe(items_count)
+        logger.info(f"Export {format}: {items_count} items in {duration:.4f}s, status={status}")
+
+    def record_pagination(self, page_size: int, page_number: int):
+        """Запись метрик пагинации."""
+        PAGINATION_REQUESTS.labels(page_size=str(page_size)).inc()
+        PAGINATION_PAGES_ACCESSED.observe(page_number)
+        logger.debug(f"Pagination: page {page_number}, size {page_size}")
 
 
 # Глобальный экземпляр коллектора метрик
