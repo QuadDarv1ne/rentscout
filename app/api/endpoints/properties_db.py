@@ -74,6 +74,7 @@ async def get_property(
 async def search_properties(
     city: Optional[str] = Query(None, description="Filter by city"),
     source: Optional[str] = Query(None, description="Filter by source (avito, cian, etc.)"),
+    district: Optional[str] = Query(None, description="Filter by district"),
     min_price: Optional[float] = Query(None, description="Minimum price"),
     max_price: Optional[float] = Query(None, description="Maximum price"),
     min_rooms: Optional[int] = Query(None, description="Minimum number of rooms"),
@@ -81,6 +82,8 @@ async def search_properties(
     min_area: Optional[float] = Query(None, description="Minimum area in sq meters"),
     max_area: Optional[float] = Query(None, description="Maximum area in sq meters"),
     is_active: Optional[bool] = Query(True, description="Filter by active status"),
+    sort_by: str = Query("created_at", description="Sort by field (created_at, price, area, rooms)"),
+    sort_order: str = Query("desc", description="Sort order (asc or desc)"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
     db: AsyncSession = Depends(get_db),
@@ -101,6 +104,7 @@ async def search_properties(
         properties = await property_repo.search_properties(
             db=db,
             city=city,
+            district=district,
             min_price=min_price,
             max_price=max_price,
             min_rooms=min_rooms,
@@ -109,6 +113,8 @@ async def search_properties(
             max_area=max_area,
             source=source,
             is_active=is_active,
+            sort_by=sort_by,
+            sort_order=sort_order,
             limit=limit,
             offset=offset
         )
@@ -147,6 +153,7 @@ async def search_properties(
 async def get_statistics(
     city: Optional[str] = Query(None, description="Filter by city"),
     source: Optional[str] = Query(None, description="Filter by source"),
+    district: Optional[str] = Query(None, description="Filter by district"),
     db: AsyncSession = Depends(get_db)
 ):
     """Возвращает количество, средние и экстремальные значения цены и площади."""
@@ -154,7 +161,8 @@ async def get_statistics(
         stats = await property_repo.get_property_statistics(
             db=db,
             city=city,
-            source=source
+            source=source,
+            district=district
         )
         return stats
     except Exception as e:
@@ -306,4 +314,59 @@ async def deactivate_old_properties(
         return DeactivateResult(status="ok", deactivated_count=count)
     except Exception as e:
         logger.error(f"Error deactivating old properties: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/by-price-per-sqm",
+    response_model=List[Property],
+    summary="Поиск объявлений по цене за квадратный метр",
+    response_description="Список объявлений, отсортированных по цене за квадратный метр",
+)
+async def search_properties_by_price_per_sqm(
+    city: Optional[str] = Query(None, description="Filter by city"),
+    source: Optional[str] = Query(None, description="Filter by source (avito, cian, etc.)"),
+    district: Optional[str] = Query(None, description="Filter by district"),
+    max_price_per_sqm: Optional[float] = Query(None, description="Maximum price per square meter"),
+    is_active: Optional[bool] = Query(True, description="Filter by active status"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum number of results"),
+    offset: int = Query(0, ge=0, description="Number of results to skip"),
+    db: AsyncSession = Depends(get_db),
+    request: Request = None
+):
+    """
+    Search properties sorted by price per square meter.
+    
+    This endpoint is optimized for finding the best value properties.
+    """
+    try:
+        properties = await property_repo.search_properties_by_price_per_sqm(
+            db=db,
+            city=city,
+            source=source,
+            district=district,
+            max_price_per_sqm=max_price_per_sqm,
+            is_active=is_active,
+            limit=limit,
+            offset=offset
+        )
+        
+        # Track search query for analytics
+        if request:
+            ip_address = request.client.host if request.client else None
+            user_agent = request.headers.get("user-agent")
+            
+            await property_repo.track_search_query(
+                db=db,
+                city=city,
+                source=source,
+                max_price_per_sqm=max_price_per_sqm,
+                results_count=len(properties),
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+        
+        return properties
+    except Exception as e:
+        logger.error(f"Error searching properties by price per sqm: {e}")
         raise HTTPException(status_code=500, detail=str(e))

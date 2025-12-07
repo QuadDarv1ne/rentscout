@@ -77,6 +77,15 @@ class Property(Base):
         Index('ix_source_city', 'source', 'city'),
         Index('ix_active_price', 'is_active', 'price'),
         Index('ix_rooms_area', 'rooms', 'area'),
+        
+        # Additional indexes for performance optimization
+        Index('ix_created_at', 'created_at'),
+        Index('ix_last_seen', 'last_seen'),
+        Index('ix_is_active_created', 'is_active', 'created_at'),
+        Index('ix_source_is_active', 'source', 'is_active'),
+        Index('ix_district', 'district'),
+        Index('ix_price_area', 'price', 'area'),
+        Index('ix_source_price', 'source', 'price'),
     )
     
     def __repr__(self):

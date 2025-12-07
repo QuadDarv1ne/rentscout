@@ -178,7 +178,10 @@ async def search_properties(
     min_area: Optional[float] = None,
     max_area: Optional[float] = None,
     source: Optional[str] = None,
+    district: Optional[str] = None,
     is_active: bool = True,
+    sort_by: str = "created_at",
+    sort_order: str = "desc",
     limit: int = 100,
     offset: int = 0
 ) -> List[Property]:
@@ -192,6 +195,8 @@ async def search_properties(
         filters.append(Property.city == city)
     if source:
         filters.append(Property.source == source)
+    if district:
+        filters.append(Property.district == district)
     if min_price is not None:
         filters.append(Property.price >= min_price)
     if max_price is not None:
@@ -206,7 +211,28 @@ async def search_properties(
         filters.append(Property.area <= max_area)
     
     query = query.where(and_(*filters))
-    query = query.order_by(desc(Property.created_at))
+    
+    # Apply sorting
+    if sort_order == "desc":
+        if sort_by == "price":
+            query = query.order_by(desc(Property.price))
+        elif sort_by == "area":
+            query = query.order_by(desc(Property.area))
+        elif sort_by == "rooms":
+            query = query.order_by(desc(Property.rooms))
+        else:  # default to created_at
+            query = query.order_by(desc(Property.created_at))
+    else:  # asc
+        if sort_by == "price":
+            query = query.order_by(Property.price)
+        elif sort_by == "area":
+            query = query.order_by(Property.area)
+        elif sort_by == "rooms":
+            query = query.order_by(Property.rooms)
+        else:  # default to created_at
+            query = query.order_by(Property.created_at)
+    
+    # Apply pagination
     query = query.limit(limit).offset(offset)
     
     result = await db.execute(query)
@@ -216,7 +242,8 @@ async def search_properties(
 async def get_property_statistics(
     db: AsyncSession,
     city: Optional[str] = None,
-    source: Optional[str] = None
+    source: Optional[str] = None,
+    district: Optional[str] = None
 ) -> Dict[str, Any]:
     """Get statistics for properties."""
     filters = [Property.is_active == True]
@@ -225,7 +252,10 @@ async def get_property_statistics(
         filters.append(Property.city == city)
     if source:
         filters.append(Property.source == source)
+    if district:
+        filters.append(Property.district == district)
     
+    # Use a single query with all aggregations
     result = await db.execute(
         select(
             func.count(Property.id).label("total"),
@@ -233,6 +263,9 @@ async def get_property_statistics(
             func.min(Property.price).label("min_price"),
             func.max(Property.price).label("max_price"),
             func.avg(Property.area).label("avg_area"),
+            func.min(Property.area).label("min_area"),
+            func.max(Property.area).label("max_area"),
+            func.avg(Property.rooms).label("avg_rooms"),
         ).where(and_(*filters))
     )
     
@@ -244,7 +277,48 @@ async def get_property_statistics(
         "min_price": float(row.min_price) if row.min_price else None,
         "max_price": float(row.max_price) if row.max_price else None,
         "avg_area": float(row.avg_area) if row.avg_area else None,
+        "min_area": float(row.min_area) if row.min_area else None,
+        "max_area": float(row.max_area) if row.max_area else None,
+        "avg_rooms": float(row.avg_rooms) if row.avg_rooms else None,
     }
+
+
+async def search_properties_by_price_per_sqm(
+    db: AsyncSession,
+    city: Optional[str] = None,
+    source: Optional[str] = None,
+    district: Optional[str] = None,
+    max_price_per_sqm: Optional[float] = None,
+    is_active: bool = True,
+    limit: int = 100,
+    offset: int = 0
+) -> List[Property]:
+    """Search properties with price per square meter filter."""
+    query = select(Property)
+    
+    # Build filters
+    filters = [Property.is_active == is_active] if is_active is not None else []
+    
+    if city:
+        filters.append(Property.city == city)
+    if source:
+        filters.append(Property.source == source)
+    if district:
+        filters.append(Property.district == district)
+    
+    # Filter by price per square meter (only for properties with valid area)
+    if max_price_per_sqm is not None:
+        filters.append(and_(
+            Property.area > 0,
+            (Property.price / Property.area) <= max_price_per_sqm
+        ))
+    
+    query = query.where(and_(*filters))
+    query = query.order_by(Property.price / Property.area)  # Sort by price per sqm ascending
+    query = query.limit(limit).offset(offset)
+    
+    result = await db.execute(query)
+    return list(result.scalars().all())
 
 
 # ==================== Price History CRUD ====================

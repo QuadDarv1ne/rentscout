@@ -74,6 +74,9 @@ class PropertyStatistics(BaseModel):
     min_price: Optional[float]
     max_price: Optional[float]
     avg_area: Optional[float]
+    min_area: Optional[float]
+    max_area: Optional[float]
+    avg_rooms: Optional[float]
 
 
 class PopularProperty(BaseModel):
