@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Статус системы - RentScout</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏠</text></svg>">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <h1>🏠 RentScout</h1>
+            </div>
+            <nav>
+                <a href="/">Главная</a>
+                <a href="/search">Поиск</a>
+                <a href="/docs" target="_blank">API Docs</a>
+                <a href="/health-page">Статус</a>
+            </nav>
+        </header>
+
+        <section class="health-page">
+            <h2>Статус системы</h2>
+            
+            <div id="healthStatus" class="health-container">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Загрузка статуса...</p>
+                </div>
+            </div>
+
+            <div class="system-info">
+                <h3>О системе</h3>
+                <div class="info-grid">
+                    <div class="info-card">
+                        <strong>Версия:</strong> 1.0.0
+                    </div>
+                    <div class="info-card">
+                        <strong>Framework:</strong> FastAPI
+                    </div>
+                    <div class="info-card">
+                        <strong>Python:</strong> 3.9+
+                    </div>
+                    <div class="info-card">
+                        <strong>Окружение:</strong> Development
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            <div class="footer-bottom">
+                <p>&copy; 2025 RentScout</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="/static/js/health.js"></script>
+</body>
+</html>
