@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List, Optional, Dict, Any
 
 from app.models.schemas import PropertyCreate
@@ -29,6 +30,8 @@ class PropertyFilter:
         min_last_seen: Optional[str] = None,
         max_last_seen: Optional[str] = None,
         has_contact: Optional[bool] = None,
+        sort_by: str = "price",
+        sort_order: str = "asc",
     ) -> None:
         """
         Инициализация фильтра.
@@ -55,6 +58,8 @@ class PropertyFilter:
             min_last_seen: Минимальная дата последнего появления (ISO format)
             max_last_seen: Максимальная дата последнего появления (ISO format)
             has_contact: Наличие контактной информации
+            sort_by: Поле для сортировки (price, area, rooms, floor, first_seen, last_seen)
+            sort_order: Порядок сортировки (asc или desc)
         """
         self.min_price: Optional[float] = min_price
         self.max_price: Optional[float] = max_price
@@ -77,6 +82,18 @@ class PropertyFilter:
         self.min_last_seen: Optional[str] = min_last_seen
         self.max_last_seen: Optional[str] = max_last_seen
         self.has_contact: Optional[bool] = has_contact
+        self.sort_by: str = sort_by
+        self.sort_order: str = sort_order
+
+    @staticmethod
+    def _parse_dt(value: Optional[str]) -> Optional[datetime]:
+        """Безопасно парсит ISO-дату, возвращает None при ошибке/отсутствии."""
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return None
 
     def filter(self, properties: List[PropertyCreate]) -> List[PropertyCreate]:
         """
@@ -88,6 +105,11 @@ class PropertyFilter:
         Returns:
             Отфильтрованный и отсортированный список свойств
         """
+        min_first_dt = self._parse_dt(self.min_first_seen)
+        max_first_dt = self._parse_dt(self.max_first_seen)
+        min_last_dt = self._parse_dt(self.min_last_seen)
+        max_last_dt = self._parse_dt(self.max_last_seen)
+
         filtered: List[PropertyCreate] = []
         for prop in properties:
             # Skip properties with invalid prices
@@ -143,12 +165,79 @@ class PropertyFilter:
                 continue
 
             # Price per square meter filtering
-            if self.max_price_per_sqm is not None and prop.area and prop.area > 0:
-                price_per_sqm = prop.price / prop.area
-                if price_per_sqm > self.max_price_per_sqm:
+            if self.max_price_per_sqm is not None:
+                if prop.area and prop.area > 0:
+                    price_per_sqm = prop.price / prop.area
+                    if price_per_sqm > self.max_price_per_sqm:
+                        continue
+                else:
+                    # Нет площади — не можем оценить цену за м², исключаем
+                    continue
+
+            # Floor filtering
+            if self.min_floor is not None and (prop.floor is None or prop.floor < self.min_floor):
+                continue
+            if self.max_floor is not None and (prop.floor is None or prop.floor > self.max_floor):
+                continue
+
+            # Total floors filtering
+            if self.min_total_floors is not None and (
+                prop.total_floors is None or prop.total_floors < self.min_total_floors
+            ):
+                continue
+            if self.max_total_floors is not None and (
+                prop.total_floors is None or prop.total_floors > self.max_total_floors
+            ):
+                continue
+
+            # Feature filtering: require all requested features to be truthy/present
+            if self.features:
+                prop_features: Dict[str, Any] = prop.features or {}
+                if not all(feature in prop_features and prop_features[feature] for feature in self.features):
+                    continue
+
+            # Contact filtering
+            if self.has_contact is not None:
+                has_contact_info = bool((prop.contact_name or prop.contact_phone))
+                if has_contact_info != self.has_contact:
+                    continue
+
+            # Date-based filtering (first_seen / last_seen) if present on object
+            if min_first_dt or max_first_dt:
+                first_seen = getattr(prop, "first_seen", None)
+                if first_seen:
+                    if min_first_dt and first_seen < min_first_dt:
+                        continue
+                    if max_first_dt and first_seen > max_first_dt:
+                        continue
+                elif min_first_dt or max_first_dt:
+                    # Нет даты — не можем подтвердить попадание в диапазон
+                    continue
+
+            if min_last_dt or max_last_dt:
+                last_seen = getattr(prop, "last_seen", None)
+                if last_seen:
+                    if min_last_dt and last_seen < min_last_dt:
+                        continue
+                    if max_last_dt and last_seen > max_last_dt:
+                        continue
+                elif min_last_dt or max_last_dt:
                     continue
 
             filtered.append(prop)
 
-        # Sort by price ascending and limit to 1000 results
-        return sorted(filtered, key=lambda x: x.price)[:1000]
+        # Apply custom sorting
+        sort_key_map = {
+            "price": lambda x: x.price or 0,
+            "area": lambda x: x.area or 0,
+            "rooms": lambda x: x.rooms or 0,
+            "floor": lambda x: x.floor or 0,
+            "first_seen": lambda x: x.first_seen or datetime.min,
+            "last_seen": lambda x: x.last_seen or datetime.min,
+        }
+        
+        sort_key = sort_key_map.get(self.sort_by, sort_key_map["price"])
+        reverse_order = self.sort_order.lower() == "desc"
+        
+        # Sort and limit to 1000 results
+        return sorted(filtered, key=sort_key, reverse=reverse_order)[:1000]

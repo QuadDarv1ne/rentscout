@@ -47,10 +47,22 @@ async def get_properties(
     max_rooms: Optional[int] = Query(None, ge=0),
     min_area: Optional[float] = Query(None, ge=0),
     max_area: Optional[float] = Query(None, ge=0),
+    min_floor: Optional[int] = Query(None, ge=0),
+    max_floor: Optional[int] = Query(None, ge=0),
+    min_total_floors: Optional[int] = Query(None, ge=0),
+    max_total_floors: Optional[int] = Query(None, ge=0),
     district: Optional[str] = Query(None, description="Фильтр по району города"),
     has_photos: Optional[bool] = Query(None, description="Фильтр по наличию фотографий"),
     source: Optional[str] = Query(None, description="Фильтр по источнику (avito, cian и т.д.)"),
+    features: Optional[List[str]] = Query(None, description="Список обязательных характеристик"),
     max_price_per_sqm: Optional[float] = Query(None, ge=0, description="Максимальная цена за квадратный метр"),
+    has_contact: Optional[bool] = Query(None, description="Фильтр по наличию контактной информации"),
+    min_first_seen: Optional[str] = Query(None, description="Минимальная дата первого появления (ISO format)"),
+    max_first_seen: Optional[str] = Query(None, description="Максимальная дата первого появления (ISO format)"),
+    min_last_seen: Optional[str] = Query(None, description="Минимальная дата последнего появления (ISO format)"),
+    max_last_seen: Optional[str] = Query(None, description="Максимальная дата последнего появления (ISO format)"),
+    sort_by: str = Query("price", regex="^(price|area|rooms|floor|first_seen|last_seen)$", description="Поле для сортировки (price, area, rooms, floor, first_seen, last_seen)"),
+    sort_order: str = Query("asc", regex="^(asc|desc)$", description="Порядок сортировки (asc или desc)"),
     parsers: list = Depends(get_parsers),
 ) -> List[Property]:
     """
@@ -65,10 +77,20 @@ async def get_properties(
         max_rooms: Максимальное количество комнат
         min_area: Минимальная площадь
         max_area: Максимальная площадь
+        min_floor: Минимальный этаж
+        max_floor: Максимальный этаж
+        min_total_floors: Минимальное количество этажей в здании
+        max_total_floors: Максимальное количество этажей в здании
         district: Район
         has_photos: Наличие фотографий
         source: Источник
+        features: Список обязательных характеристик
         max_price_per_sqm: Максимальная цена за кв.м
+        has_contact: Наличие контактной информации
+        min_first_seen: Минимальная дата первого появления (ISO format)
+        max_first_seen: Максимальная дата первого появления (ISO format)
+        min_last_seen: Минимальная дата последнего появления (ISO format)
+        max_last_seen: Максимальная дата последнего появления (ISO format)
         parsers: Зависимость парсеров
 
     Returns:
@@ -94,9 +116,33 @@ async def get_properties(
             has_photos=has_photos,
             source=source,
             max_price_per_sqm=max_price_per_sqm,
+            min_floor=min_floor,
+            max_floor=max_floor,
+            min_total_floors=min_total_floors,
+            max_total_floors=max_total_floors,
+            features=features,
+            has_contact=has_contact,
+            min_first_seen=min_first_seen,
+            max_first_seen=max_first_seen,
+            min_last_seen=min_last_seen,
+            max_last_seen=max_last_seen,
         )
 
         filtered_properties = property_filter.filter(all_properties)
+
+        # Apply sorting on the filtered list with a guarded key
+        allowed_sort_fields = {
+            "price": lambda p: getattr(p, "price", 0) or 0,
+            "area": lambda p: getattr(p, "area", 0) or 0,
+            "rooms": lambda p: getattr(p, "rooms", 0) or 0,
+            "floor": lambda p: getattr(p, "floor", 0) or 0,
+            "first_seen": lambda p: getattr(p, "first_seen", None) or 0,
+            "last_seen": lambda p: getattr(p, "last_seen", None) or 0,
+        }
+
+        sort_key = allowed_sort_fields.get(sort_by, allowed_sort_fields["price"])
+        reverse = sort_order.lower() == "desc"
+        filtered_properties = sorted(filtered_properties, key=sort_key, reverse=reverse)
 
         logger.info(
             f"Search completed for {city}: "
