@@ -1,11 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from typing import List, Optional
+import io
 
 from app.dependencies.parsers import get_parsers
 from app.models.schemas import Property, PropertyCreate, PaginatedProperties
 from app.services.cache import cache
 from app.services.filter import PropertyFilter
 from app.services.search import SearchService
+from app.services.export import ExportService
 from app.utils.logger import logger
 from app.utils.retry import retry
 from app.utils.parser_errors import (
@@ -196,3 +199,104 @@ async def get_properties(
                 status_code=400,
                 detail="Invalid search parameters or data format.",
             )
+
+
+@router.get(
+    "/properties/export/{format}",
+    summary="Экспортировать результаты поиска",
+    response_description="Файл с результатами поиска",
+    tags=["export"],
+)
+async def export_properties(
+    format: str = Query(..., regex="^(csv|json|jsonl)$", description="Формат экспорта (csv, json, jsonl)"),
+    city: str = Query(..., min_length=2),
+    property_type: str = Query("Квартира"),
+    min_price: Optional[float] = Query(None, ge=0),
+    max_price: Optional[float] = Query(None, ge=0),
+    min_rooms: Optional[int] = Query(None, ge=0),
+    max_rooms: Optional[int] = Query(None, ge=0),
+    min_area: Optional[float] = Query(None, ge=0),
+    max_area: Optional[float] = Query(None, ge=0),
+    district: Optional[str] = Query(None),
+    has_photos: Optional[bool] = Query(None),
+    source: Optional[str] = Query(None),
+    sort_by: str = Query("price", regex="^(price|area|rooms|floor|first_seen|last_seen)$"),
+    sort_order: str = Query("asc", regex="^(asc|desc)$"),
+) -> StreamingResponse:
+    """
+    Экспортировать результаты поиска в выбранном формате.
+    
+    Args:
+        format: Формат экспорта (csv, json, jsonl)
+        city: Город для поиска
+        property_type: Тип недвижимости
+        min_price: Минимальная цена
+        max_price: Максимальная цена
+        min_rooms: Минимальное количество комнат
+        max_rooms: Максимальное количество комнат
+        min_area: Минимальная площадь
+        max_area: Максимальная площадь
+        district: Район
+        has_photos: Фильтр по фотографиям
+        source: Источник
+        sort_by: Поле для сортировки
+        sort_order: Порядок сортировки
+        
+    Returns:
+        StreamingResponse с файлом
+    """
+    try:
+        # Получаем свойства
+        search_service = SearchService()
+        all_properties = await search_service.search(city, property_type)
+        
+        # Применяем фильтры
+        property_filter = PropertyFilter(
+            min_price=min_price,
+            max_price=max_price,
+            min_rooms=min_rooms,
+            max_rooms=max_rooms,
+            min_area=min_area,
+            max_area=max_area,
+            district=district,
+            has_photos=has_photos,
+            source=source,
+            sort_by=sort_by,
+            sort_order=sort_order,
+        )
+        
+        filtered_properties, _ = property_filter.filter(all_properties, skip=0, limit=10000)
+        
+        # Экспортируем в выбранном формате
+        export_service = ExportService()
+        
+        if format == "csv":
+            content = export_service.to_csv(filtered_properties)
+            media_type = "text/csv"
+            filename = f"properties_{city.lower()}.csv"
+        elif format == "jsonl":
+            content = export_service.to_jsonl(filtered_properties)
+            media_type = "application/x-ndjson"
+            filename = f"properties_{city.lower()}.jsonl"
+        else:  # json
+            content = export_service.to_json(filtered_properties, pretty=True)
+            media_type = "application/json"
+            filename = f"properties_{city.lower()}.json"
+        
+        logger.info(f"Exporting {len(filtered_properties)} properties to {format} for {city}")
+        
+        # Преобразуем строку в BytesIO для StreamingResponse
+        output = io.BytesIO(content.encode("utf-8"))
+        
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type=media_type,
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+        
+    except Exception as e:
+        logger.error(f"Export error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Export failed: {str(e)}",
+        )

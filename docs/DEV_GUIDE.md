@@ -1,541 +1,432 @@
-# 📚 Руководство разработчика RentScout
+# RentScout Developer Guide
 
-## Оглавление
-1. [Архитектура](#архитектура)
-2. [Установка окружения](#установка-окружения)
-3. [Структура проекта](#структура-проекта)
-4. [Запуск разработки](#запуск-разработки)
-5. [Добавление нового парсера](#добавление-нового-парсера)
-6. [Тестирование](#тестирование)
-7. [Деплой](#деплой)
-8. [Лучшие практики](#лучшие-практики)
+## Project Overview
 
----
+RentScout is a high-performance rental property aggregator that collects data from multiple real estate platforms, filters duplicates, and provides a unified API for accessing rental listings.
 
-## Архитектура
+## Architecture
 
-### Общая схема
+The application follows a layered architecture:
+
+1. **API Layer** - FastAPI endpoints for external access
+2. **Service Layer** - Business logic implementation
+3. **Parser Layer** - Data extraction from various sources
+4. **Data Layer** - Database interactions and caching
+5. **Utility Layer** - Common utilities and helpers
+
+## Technology Stack
+
+- **Framework**: FastAPI (Python 3.9+)
+- **Database**: PostgreSQL with SQLAlchemy 2.0
+- **Caching**: Redis
+- **Task Queue**: Celery with Redis backend
+- **Monitoring**: Prometheus
+- **Containerization**: Docker
+- **Testing**: pytest
+
+## Project Structure
 
 ```
-Client → FastAPI → Router → Service → Parser → Database (Elasticsearch)
-                               ↓
-                             Cache (Redis)
+app/
+├── api/                 # API endpoints
+│   └── endpoints/       # Individual endpoint modules
+├── core/                # Core application configuration
+├── db/                  # Database models and repositories
+├── models/              # Data transfer objects (Pydantic models)
+├── parsers/             # Data parsers for different sources
+├── services/            # Business logic services
+├── tasks/               # Background task definitions
+├── utils/               # Utility functions and helpers
+└── main.py             # Application entry point
 ```
 
-### Слои приложения
+## Getting Started
 
-| Слой | Описание | Файлы |
-|------|----------|-------|
-| **API Layer** | REST endpoints, валидация | `app/api/endpoints/` |
-| **Service Layer** | Бизнес-логика поиска и фильтрации | `app/services/` |
-| **Parser Layer** | Парсеры для разных площадок | `app/parsers/` |
-| **Data Layer** | Взаимодействие с БД и кешем | `app/db/` |
-| **Utils Layer** | Логирование, метрики, обработка ошибок | `app/utils/` |
+### Prerequisites
 
----
+- Python 3.9 or higher
+- Docker and Docker Compose (recommended)
+- PostgreSQL (if running locally)
+- Redis (if running locally)
 
-## Установка окружения
+### Installation
 
-### Требования
-- Python 3.9+
-- Docker и Docker Compose
-- Redis (в контейнере или локально)
-- Elasticsearch (в контейнере или локально)
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/QuadDarv1ne/rentscout.git
+   cd rentscout
+   ```
 
-### Локальная установка (без Docker)
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. Set up environment variables:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your configuration
+   ```
+
+### Running the Application
+
+#### Using Docker (Recommended)
 
 ```bash
-# Клонировать репозиторий
-git clone https://github.com/QuadDarv1ne/rentscout.git
-cd rentscout
-
-# Создать виртуальное окружение
-python -m venv venv
-
-# Активировать окружение
-# На Windows:
-.\venv\Scripts\Activate.ps1
-# На Linux/Mac:
-source venv/bin/activate
-
-# Установить зависимости
-pip install -r requirements-dev.txt
-
-# Создать файл .env
-cp .env.example .env  # Если файл существует
-# или создать вручную с переменными:
-# REDIS_URL=redis://localhost:6379/0
-# ELASTICSEARCH_URL=http://localhost:9200
+docker-compose -f docker-compose.dev.yml up --build
 ```
 
-### Установка с Docker
+#### Local Development
 
 ```bash
-docker-compose up --build
+python -m uvicorn app.main:app --reload
 ```
 
-Это запустит:
-- FastAPI приложение на http://localhost:8000
-- Prometheus на http://localhost:9090
-- Nginx на http://localhost:80
-- Redis и Elasticsearch в фоне
+## Adding a New Parser
 
----
+To add support for a new real estate platform:
 
-## Структура проекта
+1. Create a new directory in `app/parsers/` with the platform name
+2. Implement a parser class that inherits from `BaseParser`
+3. Add the parser to the search service in `app/services/search.py`
+4. Add the parser to the dependencies in `app/dependencies/parsers.py`
+5. Create tests in `app/tests/`
 
-```
-rentscout/
-├── app/
-│   ├── api/                          # REST API endpoints
-│   │   ├── endpoints/
-│   │   │   ├── health.py            # Health check
-│   │   │   └── properties.py        # Поиск недвижимости
-│   │   └── deps.py                   # Зависимости (dependency injection)
-│   │
-│   ├── core/
-│   │   ├── config.py                # Конфигурация приложения
-│   │   └── security.py              # Безопасность, JWT (если используется)
-│   │
-│   ├── db/
-│   │   ├── crud.py                  # CRUD операции
-│   │   ├── elastic.py               # Клиент Elasticsearch
-│   │   └── models/
-│   │       └── session.py           # Сессии БД
-│   │
-│   ├── models/
-│   │   └── schemas.py               # Pydantic схемы валидации
-│   │
-│   ├── parsers/                     # Парсеры площадок
-│   │   ├── base_parser.py           # Базовый класс парсера
-│   │   ├── avito/                   # Парсер Avito
-│   │   ├── cian/                    # Парсер Cian
-│   │   ├── ostrovok/                # Парсер Ostrovok
-│   │   ├── sutochno/                # Парсер Sutochno
-│   │   ├── tvil/                    # Парсер Tvil
-│   │   ├── otello/                  # Парсер Otello
-│   │   └── yandex_travel/           # Парсер Yandex.Travel
-│   │
-│   ├── services/                    # Бизнес-логика
-│   │   ├── search.py                # Сервис поиска
-│   │   ├── filter.py                # Фильтрация результатов
-│   │   └── cache.py                 # Кеширование
-│   │
-│   ├── utils/                       # Утилиты
-│   │   ├── error_handler.py         # Обработка ошибок
-│   │   ├── logger.py                # Логирование
-│   │   ├── metrics.py               # Метрики (Prometheus)
-│   │   └── ratelimiter.py           # Ограничение частоты запросов
-│   │
-│   ├── tasks/
-│   │   └── celery.py                # Celery задачи (если используется)
-│   │
-│   ├── tests/                       # Unit тесты
-│   │   ├── conftest.py              # Pytest конфигурация
-│   │   └── test_*.py                # Тестовые файлы
-│   │
-│   ├── main.py                      # Точка входа приложения
-│   └── __init__.py
-│
-├── docker/                          # Docker конфигурация
-│   ├── nginx/
-│   │   └── nginx.conf               # Конфигурация Nginx
-│   └── prometheus/
-│       └── prometheus.yml           # Конфигурация Prometheus
-│
-├── docs/                            # Документация
-│   ├── API.md                       # API документация
-│   ├── METRICS.md                   # Метрики документация
-│   └── DEV_GUIDE.md                 # Этот файл
-│
-├── scripts/                         # Вспомогательные скрипты
-│   ├── db_seed.py                   # Инициализация БД
-│   ├── deploy.sh                    # Развертывание
-│   ├── dev_server.py                # Локальный сервер
-│   └── run_tests.py                 # Запуск тестов
-│
-├── requirements.txt                 # Production зависимости
-├── requirements-dev.txt             # Development зависимости
-├── requirements-test.txt            # Testing зависимости
-├── pyproject.toml                   # Конфигурация tools (black, mypy, isort)
-├── docker-compose.yml               # Docker Compose конфигурация
-└── README.md                        # Основная документация
-```
+### Parser Implementation Requirements
 
----
-
-## Запуск разработки
-
-### Локально без Docker
-
-```bash
-# 1. Убедиться, что Redis и Elasticsearch запущены
-# Если они локальные, запустить в отдельных терминалах:
-redis-server
-# и
-elasticsearch
-
-# 2. Запустить приложение
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-### С Docker Compose
-
-```bash
-# Запустить все сервисы
-docker-compose up -d
-
-# Просмотреть логи
-docker-compose logs -f api
-
-# Остановить
-docker-compose down
-```
-
-### Отладка
+Your parser must implement the following methods:
 
 ```python
-# Используйте встроенный логгер
-from app.utils.logger import logger
-
-logger.info("Информационное сообщение")
-logger.error("Сообщение об ошибке", exc_info=True)
-```
-
----
-
-## Добавление нового парсера
-
-### Шаг 1: Создать папку парсера
-
-```bash
-mkdir -p app/parsers/mynewsite/
-touch app/parsers/mynewsite/__init__.py
-```
-
-### Шаг 2: Реализовать базовый парсер
-
-```python
-# app/parsers/mynewsite/parser.py
 from app.parsers.base_parser import BaseParser
-from app.models.schemas import Property
-from typing import List
-from app.utils.logger import logger
 
-class MyNewSiteParser(BaseParser):
-    """Парсер для MyNewSite."""
+class NewPlatformParser(BaseParser):
+    async def parse(self, location: str, params: Dict[str, Any] = None) -> List[PropertyCreate]:
+        """Parse properties from the platform"""
+        pass
     
-    def __init__(self):
-        super().__init__(name="mynewsite", base_url="https://mynewsite.com")
+    async def validate_params(self, params: Dict[str, Any]) -> bool:
+        """Validate parser-specific parameters"""
+        pass
+```
+
+### Example Parser Implementation
+
+```python
+import asyncio
+import httpx
+from typing import Any, Dict, List
+
+from app.core.config import settings
+from app.models.schemas import PropertyCreate
+from app.parsers.base_parser import BaseParser, metrics_collector_decorator
+from app.services.advanced_cache import cached_parser
+from app.utils.parser_errors import ParserErrorHandler, NetworkError
+from app.utils.retry import retry
+
+class ExampleParser(BaseParser):
+    BASE_URL = "https://example-platform.com"
     
-    async def parse(self, city: str, **filters) -> List[Property]:
-        """Парсить объявления."""
-        logger.info(f"Parsing {self.name} for {city}")
+    @cached_parser(expire=600, source="example")
+    @retry(max_attempts=3, initial_delay=1.0)
+    @metrics_collector_decorator
+    async def parse(self, location: str, params: Dict[str, Any] = None) -> List[PropertyCreate]:
+        # Process parameters
+        processed_params = await self.preprocess_params(params)
+        
+        # Build request
+        url = f"{self.BASE_URL}/search"
+        query_params = self._build_query_params(location, processed_params)
         
         try:
-            # Ваша логика парсинга
-            properties = []
-            
-            # Пример парсинга
-            response = await self.session.get(
-                f"{self.base_url}/search",
-                params={"city": city, **filters}
-            )
-            
-            # Обработка результатов
-            data = response.json()
-            for item in data.get("listings", []):
-                prop = Property(
-                    id=item["id"],
-                    title=item["title"],
-                    price=item["price"],
-                    # ... остальные поля
-                )
-                properties.append(prop)
-            
-            return properties
-            
+            async with httpx.AsyncClient(timeout=settings.REQUEST_TIMEOUT) as client:
+                response = await client.get(url, params=query_params)
+                response.raise_for_status()
+                results = self._parse_html(response.text)
+                return await self.postprocess_results(results)
+        except httpx.RequestError as e:
+            parser_error = ParserErrorHandler.convert_to_parser_exception(e)
+            ParserErrorHandler.log_error(parser_error, context="ExampleParser.parse")
+            raise parser_error
         except Exception as e:
-            logger.error(f"Error parsing {self.name}: {e}", exc_info=True)
-            return []
-```
-
-### Шаг 3: Зарегистрировать парсер
-
-```python
-# app/services/search.py
-from app.parsers.mynewsite.parser import MyNewSiteParser
-
-class SearchService:
-    def __init__(self):
-        self.parsers = {
-            "mynewsite": MyNewSiteParser(),
-            # ... остальные парсеры
+            parser_error = ParserErrorHandler.convert_to_parser_exception(e)
+            ParserErrorHandler.log_error(parser_error, context="ExampleParser.parse")
+            raise parser_error
+    
+    def _build_query_params(self, location: str, params: Dict[str, Any]) -> Dict[str, str]:
+        """Build query parameters for the platform's API"""
+        return {
+            "location": location,
+            "type": params.get("type", "apartment"),
         }
+    
+    def _parse_html(self, html: str) -> List[PropertyCreate]:
+        """Parse HTML response and extract property data"""
+        # Implementation depends on the platform's HTML structure
+        pass
 ```
 
-### Шаг 4: Добавить тесты
+## Extending the API
+
+To add new API endpoints:
+
+1. Create a new module in `app/api/endpoints/`
+2. Define your routes using FastAPI decorators
+3. Register the router in `app/main.py`
+
+### Example API Endpoint
 
 ```python
-# app/tests/test_mynewsite_parser.py
-import pytest
-from app.parsers.mynewsite.parser import MyNewSiteParser
+from fastapi import APIRouter, HTTPException
+from typing import List
 
-@pytest.mark.asyncio
-async def test_mynewsite_parser():
-    parser = MyNewSiteParser()
-    results = await parser.parse("Москва")
-    assert isinstance(results, list)
-    assert len(results) > 0
-```
-
----
-
-## Тестирование
-
-### Запуск тестов
-
-```bash
-# Все тесты
-pytest
-
-# Тесты конкретного файла
-pytest app/tests/test_search_service.py
-
-# С покрытием
-pytest --cov=app --cov-report=html
-
-# Конкретный тест
-pytest app/tests/test_search_service.py::test_search_service_initialization
-
-# Verbose режим
-pytest -v
-```
-
-### Написание тестов
-
-```python
-# app/tests/test_example.py
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
-
-@pytest.fixture
-def sample_data():
-    """Фикстура для данных."""
-    return {"name": "Test Property"}
-
-@pytest.mark.asyncio
-async def test_async_function(sample_data):
-    """Тест асинхронной функции."""
-    result = await some_async_function(sample_data)
-    assert result is not None
-
-def test_sync_function(sample_data):
-    """Тест синхронной функции."""
-    result = some_sync_function(sample_data)
-    assert result == expected_value
-```
-
-### Конфигурация pytest
-
-```python
-# app/tests/conftest.py
-import pytest
 from app.models.schemas import Property
+from app.services.example_service import ExampleService
+
+router = APIRouter(prefix="/example", tags=["example"])
+
+@router.get("/properties", response_model=List[Property])
+async def get_example_properties(limit: int = 10):
+    """Get example properties"""
+    try:
+        service = ExampleService()
+        properties = await service.get_properties(limit)
+        return properties
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+```
+
+## Database Schema
+
+The application uses PostgreSQL with the following main tables:
+
+### Properties Table
+
+Stores property listings with the following fields:
+- `id` - Internal identifier
+- `source` - Source platform (avito, cian, etc.)
+- `external_id` - Identifier on the source platform
+- `title` - Property title
+- `description` - Property description
+- `link` - Link to the property listing
+- `price` - Rental price
+- `currency` - Currency code
+- `rooms` - Number of rooms
+- `area` - Area in square meters
+- `location` - JSON field with location data
+- `photos` - Array of photo URLs
+- `is_active` - Whether the listing is still active
+- `created_at` - When the record was created
+- `last_updated` - When the record was last updated
+
+### Price History Table
+
+Tracks price changes for properties:
+- `id` - Internal identifier
+- `property_id` - Reference to the property
+- `old_price` - Previous price
+- `new_price` - New price
+- `changed_at` - When the change occurred
+
+## Testing
+
+### Running Tests
+
+```bash
+# Run all tests
+python -m pytest
+
+# Run specific test file
+python -m pytest app/tests/test_example.py
+
+# Run with coverage
+python -m pytest --cov=app
+```
+
+### Writing Tests
+
+Tests should follow the AAA pattern (Arrange, Act, Assert):
+
+```python
+import pytest
+from unittest.mock import AsyncMock, patch
+
+from app.parsers.example_parser import ExampleParser
+from app.models.schemas import PropertyCreate
 
 @pytest.fixture
-def sample_property():
-    return Property(
-        id="test_123",
-        title="Test Property",
-        price=50000,
-        # ... остальные поля
-    )
+def example_parser():
+    return ExampleParser()
+
+@pytest.mark.asyncio
+async def test_example_parser_parse_success(example_parser):
+    """Test successful parsing"""
+    # Arrange
+    mock_html = "<html>...</html>"
+    
+    with patch("httpx.AsyncClient.get") as mock_get:
+        mock_response = AsyncMock()
+        mock_response.text = mock_html
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+        
+        # Act
+        results = await example_parser.parse("Moscow")
+        
+        # Assert
+        assert isinstance(results, list)
+        assert len(results) > 0
 ```
 
----
+## Error Handling
 
-## Деплой
+The application uses a comprehensive error handling system:
 
-### На сервер
+1. **Custom Exceptions** - Defined in `app/utils/parser_errors.py`
+2. **Error Classification** - Errors are classified by severity and retryability
+3. **Logging** - All errors are logged with appropriate context
+4. **Retry Logic** - Automatic retries with exponential backoff
+
+### Error Types
+
+- `NetworkError` - Network connectivity issues
+- `TimeoutError` - Request timeouts
+- `RateLimitError` - API rate limiting
+- `AuthenticationError` - Authentication failures
+- `ParsingError` - Data parsing failures
+- `ValidationError` - Data validation failures
+
+## Caching Strategy
+
+The application uses Redis for caching with the following strategies:
+
+1. **Result Caching** - Cache parsed results for 5 minutes
+2. **Adaptive Caching** - Adjust TTL based on usage patterns
+3. **Compression** - Compress large cache values
+4. **Cache Warming** - Pre-populate cache with popular queries
+
+## Monitoring and Metrics
+
+Metrics are collected using Prometheus:
+
+1. **HTTP Metrics** - Request counts, durations, error rates
+2. **Parser Metrics** - Parser performance and error rates
+3. **Cache Metrics** - Hit/miss ratios, error rates
+4. **Database Metrics** - Query performance, connection counts
+
+See `docs/METRICS.md` for detailed metrics documentation.
+
+## Deployment
+
+### Docker Deployment
+
+The application can be deployed using Docker Compose:
 
 ```bash
-# 1. SSH на сервер
-ssh user@server.com
-
-# 2. Клонировать репозиторий
-git clone https://github.com/QuadDarv1ne/rentscout.git
-cd rentscout
-
-# 3. Запустить Docker Compose
 docker-compose up -d
-
-# 4. Проверить статус
-docker-compose ps
-curl http://localhost:8000/api/health
 ```
 
-### Переменные окружения
+### Environment Variables
 
-Создайте `.env` файл:
+Key environment variables:
 
-```env
-# App
-APP_NAME=RentScout
-LOG_LEVEL=INFO
+- `DATABASE_URL` - PostgreSQL connection string
+- `REDIS_URL` - Redis connection string
+- `REQUEST_TIMEOUT` - HTTP request timeout in seconds
+- `CACHE_TTL` - Default cache TTL in seconds
 
-# Redis
-REDIS_URL=redis://redis:6379/0
+### Scaling
 
-# Elasticsearch
-ELASTICSEARCH_URL=http://elasticsearch:9200
+The application can be scaled horizontally:
 
-# Parsers
-PROXY_ENABLED=false
-CIAN_MAX_RETRIES=3
-AVITO_RATE_LIMIT=5
-RATE_LIMIT_WINDOW=60
+1. **Multiple API instances** - Behind a load balancer
+2. **Multiple Celery workers** - For background task processing
+3. **Database connection pooling** - For database scalability
 
-# Security (если используется)
-SECRET_KEY=your-secret-key-here
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-```
+## Contributing
 
----
+### Code Style
 
-## Лучшие практики
+- Follow PEP 8 guidelines
+- Use type hints for all function signatures
+- Write docstrings for all public functions and classes
+- Keep functions small and focused
+- Use descriptive variable names
 
-### Кодирование
+### Pull Request Process
 
-1. **Type Hints** - всегда используйте типизацию
-   ```python
-   async def parse(self, city: str) -> List[Property]:
-       pass
-   ```
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Update documentation
+6. Submit a pull request
 
-2. **Документация** - добавляйте docstrings
-   ```python
-   def my_function(param: str) -> int:
-       """Описание функции.
-       
-       Args:
-           param: Описание параметра
-           
-       Returns:
-           Описание возвращаемого значения
-       """
-       pass
-   ```
+### Code Review Guidelines
 
-3. **Логирование** - логируйте события
-   ```python
-   logger.info(f"Processing city: {city}")
-   logger.error(f"Error occurred: {e}", exc_info=True)
-   ```
+- Review for correctness and performance
+- Check for security vulnerabilities
+- Ensure proper error handling
+- Verify test coverage
+- Confirm documentation updates
 
-4. **Обработка ошибок**
-   ```python
-   try:
-       # code
-   except SpecificException as e:
-       logger.error(f"Specific error: {e}")
-       raise
-   except Exception as e:
-       logger.error(f"Unexpected error: {e}", exc_info=True)
-   ```
+## Troubleshooting
 
-### Структура кода
+### Common Issues
 
-1. **Следуйте PEP 8** - используйте black для форматирования
-   ```bash
-   black app/
-   ```
+1. **Database Connection Failed** - Check DATABASE_URL environment variable
+2. **Redis Connection Failed** - Check REDIS_URL environment variable
+3. **Parser Failures** - Platform HTML structure may have changed
+4. **Rate Limiting** - Reduce request frequency or implement delays
 
-2. **Используйте isort** для сортировки импортов
-   ```bash
-   isort app/
-   ```
+### Debugging Tips
 
-3. **Проверяйте типы с mypy**
-   ```bash
-   mypy app/
-   ```
+1. Enable debug logging by setting `LOG_LEVEL=DEBUG`
+2. Check application logs for error messages
+3. Use the health check endpoints to verify service status
+4. Monitor metrics for performance degradation
 
-4. **Пишите тесты** - минимум 80% покрытия
-   ```bash
-   pytest --cov=app
-   ```
+## Performance Optimization
 
-### Git рабочий поток
+### Database Optimization
 
-```bash
-# 1. Создать ветку для функции
-git checkout -b feature/my-new-feature
+- Use database indexes for frequently queried fields
+- Optimize complex queries with proper JOINs
+- Use connection pooling to reduce overhead
+- Implement pagination for large result sets
 
-# 2. Внести изменения и коммитить
-git add .
-git commit -m "Add: Description of changes"
+### Caching Optimization
 
-# 3. Отправить ветку
-git push origin feature/my-new-feature
+- Use appropriate TTL values for different data types
+- Implement cache warming for popular queries
+- Use compression for large cache values
+- Monitor cache hit rates and adjust strategies
 
-# 4. Создать Pull Request на GitHub
+### Parser Optimization
 
-# 5. После merge, удалить ветку
-git checkout master
-git pull
-git branch -d feature/my-new-feature
-```
+- Implement efficient HTML parsing algorithms
+- Use connection pooling for HTTP requests
+- Implement proper rate limiting
+- Cache intermediate parsing results when appropriate
 
-### Коммит сообщения
+## Security Considerations
 
-Используйте convention commits:
-- `feat:` - новая функция
-- `fix:` - исправление ошибки
-- `docs:` - изменение документации
-- `style:` - форматирование кода
-- `refactor:` - рефакторинг без изменения функциональности
-- `perf:` - улучшение производительности
-- `test:` - добавление тестов
-- `chore:` - изменения конфигурации, зависимостей
+### Input Validation
 
-Примеры:
-```
-feat: Add new Yandex.Travel parser
-fix: Handle connection errors in Elasticsearch client
-docs: Update API documentation
-test: Add unit tests for filter service
-```
+- Validate all user inputs
+- Sanitize HTML content
+- Use parameterized queries for database access
+- Implement proper authentication and authorization
 
----
+### Rate Limiting
 
-## Полезные ссылки
+- Implement IP-based rate limiting
+- Use appropriate limits for different endpoints
+- Monitor for abuse patterns
+- Implement automatic blocking for malicious activity
 
-- [FastAPI документация](https://fastapi.tiangolo.com/)
-- [Pydantic документация](https://docs.pydantic.dev/)
-- [Pytest документация](https://docs.pytest.org/)
-- [Elasticsearch документация](https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html)
-- [Redis документация](https://redis.io/documentation)
-- [Prometheus документация](https://prometheus.io/docs/)
+### Data Protection
 
----
-
-## FAQ
-
-### Q: Как добавить новый фильтр?
-**A:** Добавьте параметр в `Property` схему в `app/models/schemas.py` и реализуйте логику фильтрации в `app/services/filter.py`.
-
-### Q: Как дебагировать парсер?
-**A:** Используйте `logger` для вывода информации и добавьте breakpoints в IDE.
-
-### Q: Как обновить зависимости?
-**A:** `pip install -U pip && pip install -r requirements-dev.txt`
-
-### Q: Как запустить только интеграционные тесты?
-**A:** `pytest app/tests/ -m integration`
-
----
-
-**Последнее обновление:** Декабрь 2025
-**Разработчик:** QuadDarv1ne
+- Encrypt sensitive data at rest
+- Use HTTPS for all communications
+- Implement proper access controls
+- Regularly audit security permissions

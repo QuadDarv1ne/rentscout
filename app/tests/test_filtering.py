@@ -15,9 +15,10 @@ def test_property_filter_basic():
 
     # Test basic filtering
     filter_obj = PropertyFilter(min_price=3500, max_price=5000)
-    filtered = filter_obj.filter(properties)
+    filtered, total = filter_obj.filter(properties)
 
     assert len(filtered) == 1
+    assert total == 1
     assert filtered[0].external_id == "2"
     assert filtered[0].price == 4500
 
