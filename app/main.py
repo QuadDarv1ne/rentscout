@@ -187,6 +187,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Монтируем статические файлы
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
 # Подключение маршрутов
 app.include_router(properties.router, prefix="/api", tags=["properties"])
 app.include_router(properties_db.router, prefix="/api/db", tags=["properties-db"])
@@ -197,7 +200,27 @@ app.include_router(tasks.router, prefix="/api", tags=["tasks"])
 Instrumentator().instrument(app).expose(app)
 
 
-@app.get("/", tags=["root"])
+# HTML страницы
+@app.get("/", response_class=HTMLResponse, tags=["pages"])
+async def home_page(request: Request):
+    """Главная страница с информацией о сервисе"""
+    return templates.TemplateResponse("index.html", {"request": request})
+
+
+@app.get("/search", response_class=HTMLResponse, tags=["pages"])
+async def search_page(request: Request):
+    """Страница расширенного поиска"""
+    return templates.TemplateResponse("search.html", {"request": request})
+
+
+@app.get("/health-page", response_class=HTMLResponse, tags=["pages"])
+async def health_page(request: Request):
+    """Страница статуса системы"""
+    return templates.TemplateResponse("health.html", {"request": request})
+
+
+# API endpoint (корневой для API)
+@app.get("/api", tags=["root"])
 async def root():
     """
     # Корневой endpoint
