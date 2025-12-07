@@ -38,16 +38,16 @@ async function loadHealthStatus() {
 function displayHealthStatus(data, statusContainer, systemInfoContainer) {
     // Общий статус
     const isHealthy = data.status === 'healthy' || data.status === 'ok';
-    const statusIcon = isHealthy ? '✅' : '⚠️';
-    const statusClass = isHealthy ? 'status-healthy' : 'status-unhealthy';
+    const statusIcon = isHealthy ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill';
+    const statusClass = isHealthy ? 'alert-success' : 'alert-warning';
     
     statusContainer.innerHTML = `
-        <div class="status-card ${statusClass}">
-            <div class="status-header">
-                <span class="status-icon">${statusIcon}</span>
-                <h3>Статус системы: ${data.status.toUpperCase()}</h3>
+        <div class="alert ${statusClass} d-flex align-items-center" role="alert">
+            <i class="bi ${statusIcon} fs-3 me-3"></i>
+            <div>
+                <h4 class="alert-heading mb-1">Статус системы: ${data.status.toUpperCase()}</h4>
+                <p class="mb-0 small">Последнее обновление: ${new Date().toLocaleString('ru-RU')}</p>
             </div>
-            <p>Последнее обновление: ${new Date().toLocaleString('ru-RU')}</p>
         </div>
     `;
 
@@ -81,18 +81,22 @@ function createServiceCard(name, data) {
         statusText = data;
     }
     
-    const statusIcon = isHealthy ? '✅' : '❌';
-    const statusClass = isHealthy ? 'status-healthy' : 'status-unhealthy';
+    const statusIcon = isHealthy ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger';
+    const borderClass = isHealthy ? 'border-success' : 'border-danger';
     
-    card.className = `status-card ${statusClass}`;
+    card.className = `card mb-3 ${borderClass}`;
     card.innerHTML = `
-        <div class="status-header">
-            <span class="status-icon">${statusIcon}</span>
-            <h4>${formatServiceName(name)}</h4>
+        <div class="card-body">
+            <div class="d-flex align-items-center mb-2">
+                <i class="bi ${statusIcon} fs-4 me-3"></i>
+                <h5 class="card-title mb-0">${formatServiceName(name)}</h5>
+            </div>
+            <p class="card-text">
+                <span class="badge ${isHealthy ? 'bg-success' : 'bg-danger'}">${statusText}</span>
+                ${typeof data === 'object' && data.message ? `<br><small class="text-muted">${escapeHtml(data.message)}</small>` : ''}
+                ${typeof data === 'object' && data.latency ? `<br><small class="text-muted">Задержка: ${data.latency}ms</small>` : ''}
+            </p>
         </div>
-        <p>Статус: <strong>${statusText}</strong></p>
-        ${typeof data === 'object' && data.message ? `<p>${escapeHtml(data.message)}</p>` : ''}
-        ${typeof data === 'object' && data.latency ? `<p>Задержка: ${data.latency}ms</p>` : ''}
     `;
     
     return card;
@@ -105,7 +109,7 @@ function displaySystemInfo(data, container) {
         infoCards.push({
             label: 'Версия',
             value: data.version,
-            icon: '📦'
+            icon: 'bi-box'
         });
     }
     
@@ -113,7 +117,7 @@ function displaySystemInfo(data, container) {
         infoCards.push({
             label: 'Время работы',
             value: formatUptime(data.uptime),
-            icon: '⏱️'
+            icon: 'bi-clock'
         });
     }
     
@@ -121,7 +125,7 @@ function displaySystemInfo(data, container) {
         infoCards.push({
             label: 'Время сервера',
             value: new Date(data.timestamp).toLocaleString('ru-RU'),
-            icon: '🕐'
+            icon: 'bi-calendar'
         });
     }
     
@@ -129,15 +133,19 @@ function displaySystemInfo(data, container) {
         infoCards.push({
             label: 'Окружение',
             value: data.environment,
-            icon: '🔧'
+            icon: 'bi-gear'
         });
     }
     
     container.innerHTML = infoCards.map(card => `
-        <div class="info-card">
-            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">${card.icon}</div>
-            <div style="font-weight: 600; margin-bottom: 0.25rem;">${card.label}</div>
-            <div style="color: var(--text-light);">${card.value}</div>
+        <div class="col-md-6 col-lg-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="bi ${card.icon} fs-1 text-primary mb-3"></i>
+                    <h6 class="card-subtitle mb-2 text-muted">${card.label}</h6>
+                    <p class="card-text fw-bold">${card.value}</p>
+                </div>
+            </div>
         </div>
     `).join('');
 }

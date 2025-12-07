@@ -4,165 +4,228 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🏠 RentScout - Поиск Аренды Недвижимости</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <!-- Custom CSS -->
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏠</text></svg>">
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <header>
-            <div class="logo">
-                <h1>🏠 RentScout</h1>
-                <p class="tagline">Агрегатор аренды недвижимости</p>
+    <!-- Bootstrap Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-house-door-fill text-primary fs-3"></i>
+                <strong class="ms-2">RentScout</strong>
+                <small class="text-muted d-none d-md-inline ms-2">Умный поиск жилья</small>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/"><i class="bi bi-house me-1"></i>Главная</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/search"><i class="bi bi-search me-1"></i>Поиск</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/docs"><i class="bi bi-code-slash me-1"></i>API</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/health-page"><i class="bi bi-heart-pulse me-1"></i>Статус</a>
+                    </li>
+                </ul>
             </div>
-            <nav>
-                <a href="/">Главная</a>
-                <a href="/search">Поиск</a>
-                <a href="/docs" target="_blank">API Docs</a>
-                <a href="/health-page">Статус</a>
-            </nav>
-        </header>
+        </div>
+    </nav>
 
-        <!-- Hero Section -->
-        <section class="hero">
-            <h2>Найдите идеальное жильё для аренды</h2>
-            <p>Агрегируем объявления с Avito, Cian и других популярных площадок</p>
-            <div class="stats">
-                <div class="stat-card">
-                    <div class="stat-number">15+</div>
-                    <div class="stat-label">Фильтров</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">2+</div>
-                    <div class="stat-label">Источника</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">24/7</div>
-                    <div class="stat-label">Мониторинг</div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Quick Search -->
-        <section class="quick-search">
-            <h3>Быстрый поиск</h3>
-            <form id="searchForm" action="/search" method="get">
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label for="city">Город</label>
-                        <input type="text" id="city" name="city" placeholder="Москва, Санкт-Петербург..." required>
+    <!-- Hero Section -->
+    <section class="hero py-5" style="background: linear-gradient(135deg, rgba(37, 99, 235, 0.05) 0%, rgba(124, 58, 237, 0.05) 100%);">
+        <div class="container text-center">
+            <h1 class="display-4 fw-bold mb-3">Найдите идеальное жильё для аренды</h1>
+            <p class="lead mb-4 text-muted">Агрегируем объявления с Avito, Cian и других популярных площадок</p>
+            
+            <div class="row g-4 justify-content-center mb-5">
+                <div class="col-md-3 col-sm-6">
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-body text-center">
+                            <h2 class="display-5 text-primary fw-bold stat-number">15</h2>
+                            <p class="text-muted mb-0">Фильтров</p>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="property_type">Тип жилья</label>
-                        <select id="property_type" name="property_type">
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-body text-center">
+                            <h2 class="display-5 text-primary fw-bold stat-number">5</h2>
+                            <p class="text-muted mb-0">Источников</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-body text-center">
+                            <h2 class="display-5 text-primary fw-bold">24/7</h2>
+                            <p class="text-muted mb-0">Доступность</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quick Search -->
+    <section class="py-5 bg-light">
+        <div class="container">
+            <h2 class="text-center mb-4">Быстрый поиск</h2>
+            <form id="quickSearchForm">
+                <div class="row g-3 justify-content-center">
+                    <div class="col-md-4">
+                        <label for="city" class="form-label"><i class="bi bi-geo-alt text-primary"></i> Город</label>
+                        <input type="text" class="form-control form-control-lg" id="city" name="city" placeholder="Например: Москва">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="property_type" class="form-label"><i class="bi bi-house text-primary"></i> Тип жилья</label>
+                        <select class="form-select form-select-lg" id="property_type" name="property_type">
                             <option value="">Любой</option>
-                            <option value="Квартира">Квартира</option>
-                            <option value="Комната">Комната</option>
-                            <option value="Дом">Дом</option>
-                            <option value="Студия">Студия</option>
+                            <option value="apartment">Квартира</option>
+                            <option value="room">Комната</option>
+                            <option value="house">Дом</option>
+                            <option value="studio">Студия</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label for="min_price">Цена от</label>
-                        <input type="number" id="min_price" name="min_price" placeholder="10000">
-                    </div>
-                    <div class="form-group">
-                        <label for="max_price">Цена до</label>
-                        <input type="number" id="max_price" name="max_price" placeholder="50000">
-                    </div>
-                    <div class="form-group">
-                        <label for="min_rooms">Комнат от</label>
-                        <input type="number" id="min_rooms" name="min_rooms" min="1" max="10" placeholder="1">
-                    </div>
-                    <div class="form-group">
-                        <label for="max_rooms">Комнат до</label>
-                        <input type="number" id="max_rooms" name="max_rooms" min="1" max="10" placeholder="3">
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary btn-lg w-100">
+                            <i class="bi bi-search me-2"></i>Найти
+                        </button>
                     </div>
                 </div>
-                <button type="submit" class="btn-primary">🔍 Найти жильё</button>
             </form>
-        </section>
+        </div>
+    </section>
 
-        <!-- Features -->
-        <section class="features">
-            <h3>Возможности</h3>
-            <div class="feature-grid">
-                <div class="feature-card">
-                    <div class="feature-icon">🔍</div>
-                    <h4>Умный поиск</h4>
-                    <p>Более 15 параметров фильтрации для точного поиска</p>
+    <!-- Features -->
+    <section class="py-5">
+        <div class="container">
+            <h2 class="text-center mb-5">Возможности</h2>
+            <div class="row g-4">
+                <div class="col-md-6 col-lg-3">
+                    <div class="card h-100 text-center border-0 shadow-sm hover-card">
+                        <div class="card-body p-4">
+                            <div class="fs-1 mb-3">🔍</div>
+                            <h5 class="card-title">Умный поиск</h5>
+                            <p class="card-text text-muted">Расширенные фильтры для точного подбора</p>
+                        </div>
+                    </div>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">⚡</div>
-                    <h4>Быстро</h4>
-                    <p>Кеширование результатов для мгновенного отклика</p>
+                <div class="col-md-6 col-lg-3">
+                    <div class="card h-100 text-center border-0 shadow-sm hover-card">
+                        <div class="card-body p-4">
+                            <div class="fs-1 mb-3">⚡</div>
+                            <h5 class="card-title">Быстрая работа</h5>
+                            <p class="card-text text-muted">Результаты за миллисекунды благодаря кешированию</p>
+                        </div>
+                    </div>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🔄</div>
-                    <h4>Актуально</h4>
-                    <p>Регулярное обновление объявлений с площадок</p>
+                <div class="col-md-6 col-lg-3">
+                    <div class="card h-100 text-center border-0 shadow-sm hover-card">
+                        <div class="card-body p-4">
+                            <div class="fs-1 mb-3">🔄</div>
+                            <h5 class="card-title">Актуальность</h5>
+                            <p class="card-text text-muted">Обновление данных в реальном времени</p>
+                        </div>
+                    </div>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">📊</div>
-                    <h4>Аналитика</h4>
-                    <p>Статистика цен и метрики в реальном времени</p>
+                <div class="col-md-6 col-lg-3">
+                    <div class="card h-100 text-center border-0 shadow-sm hover-card">
+                        <div class="card-body p-4">
+                            <div class="fs-1 mb-3">📊</div>
+                            <h5 class="card-title">Аналитика</h5>
+                            <p class="card-text text-muted">Статистика и метрики по объявлениям</p>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </section>
+        </div>
+    </section>
 
-        <!-- API Info -->
-        <section class="api-info">
-            <h3>Для разработчиков</h3>
-            <div class="api-links">
-                <a href="/docs" class="api-card" target="_blank">
-                    <div class="api-icon">📚</div>
-                    <h4>API Документация</h4>
-                    <p>Swagger UI с интерактивными примерами</p>
-                </a>
-                <a href="/redoc" class="api-card" target="_blank">
-                    <div class="api-icon">📖</div>
-                    <h4>ReDoc</h4>
-                    <p>Альтернативная документация API</p>
-                </a>
-                <a href="/metrics" class="api-card" target="_blank">
-                    <div class="api-icon">📈</div>
-                    <h4>Метрики</h4>
-                    <p>Prometheus метрики для мониторинга</p>
-                </a>
-            </div>
-        </section>
-
-        <!-- Footer -->
-        <footer>
-            <div class="footer-content">
-                <div class="footer-section">
-                    <h4>RentScout</h4>
-                    <p>Современный агрегатор аренды недвижимости</p>
+    <!-- API Info -->
+    <section class="py-5 bg-light">
+        <div class="container">
+            <h2 class="text-center mb-5">Для разработчиков</h2>
+            <div class="row g-4 justify-content-center">
+                <div class="col-md-4">
+                    <a href="/docs" class="text-decoration-none">
+                        <div class="card h-100 text-center border-primary shadow-sm hover-card">
+                            <div class="card-body p-4">
+                                <div class="fs-1 mb-3">📖</div>
+                                <h5 class="card-title">Документация</h5>
+                                <p class="card-text text-muted">Swagger UI</p>
+                            </div>
+                        </div>
+                    </a>
                 </div>
-                <div class="footer-section">
-                    <h4>Ссылки</h4>
-                    <ul>
-                        <li><a href="/api/health">Health Check</a></li>
-                        <li><a href="/docs">API Docs</a></li>
-                        <li><a href="https://github.com/QuadDarv1ne/rentscout" target="_blank">GitHub</a></li>
+                <div class="col-md-4">
+                    <a href="/redoc" class="text-decoration-none">
+                        <div class="card h-100 text-center border-primary shadow-sm hover-card">
+                            <div class="card-body p-4">
+                                <div class="fs-1 mb-3">📚</div>
+                                <h5 class="card-title">ReDoc</h5>
+                                <p class="card-text text-muted">Альтернативная документация</p>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                <div class="col-md-4">
+                    <a href="/metrics" class="text-decoration-none">
+                        <div class="card h-100 text-center border-primary shadow-sm hover-card">
+                            <div class="card-body p-4">
+                                <div class="fs-1 mb-3">📈</div>
+                                <h5 class="card-title">Метрики</h5>
+                                <p class="card-text text-muted">Prometheus</p>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-white py-5 mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <h5><i class="bi bi-house-door-fill"></i> RentScout</h5>
+                    <p class="text-muted">Умный поиск жилья</p>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <h5>Ссылки</h5>
+                    <ul class="list-unstyled">
+                        <li class="mb-2"><a href="/docs" class="text-muted text-decoration-none hover-link"><i class="bi bi-code-slash me-2"></i>API Документация</a></li>
+                        <li class="mb-2"><a href="/health-page" class="text-muted text-decoration-none hover-link"><i class="bi bi-heart-pulse me-2"></i>Статус системы</a></li>
+                        <li class="mb-2"><a href="https://github.com/QuadDarv1ne/rentscout" class="text-muted text-decoration-none hover-link" target="_blank" rel="noopener noreferrer"><i class="bi bi-github me-2"></i>GitHub</a></li>
                     </ul>
                 </div>
-                <div class="footer-section">
-                    <h4>Технологии</h4>
-                    <ul>
-                        <li>FastAPI</li>
-                        <li>Redis</li>
-                        <li>PostgreSQL</li>
-                        <li>Celery</li>
-                    </ul>
+                <div class="col-md-4 mb-3">
+                    <h5>Контакты</h5>
+                    <p class="text-muted"><i class="bi bi-envelope me-2"></i>support@rentscout.dev</p>
                 </div>
             </div>
-            <div class="footer-bottom">
-                <p>&copy; 2025 RentScout. Разработано с ❤️</p>
+            <hr class="bg-secondary my-4">
+            <div class="text-center text-muted">
+                <p class="mb-0">&copy; 2024-2025 RentScout. Все права защищены.</p>
             </div>
-        </footer>
-    </div>
+        </div>
+    </footer>
 
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom JS -->
     <script src="/static/js/main.js"></script>
 </body>
 </html>

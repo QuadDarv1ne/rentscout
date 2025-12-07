@@ -69,9 +69,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function displayResults(data) {
         if (!data.results || data.results.length === 0) {
             resultsContainer.innerHTML = `
-                <div style="padding: 2rem; text-align: center;">
-                    <h3>Ничего не найдено</h3>
-                    <p>Попробуйте изменить параметры поиска</p>
+                <div class="alert alert-info text-center" role="alert">
+                    <i class="bi bi-info-circle fs-1 d-block mb-3"></i>
+                    <h4>Ничего не найдено</h4>
+                    <p class="mb-0">Попробуйте изменить параметры поиска</p>
                 </div>
             `;
             return;
@@ -79,10 +80,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Заголовок с количеством результатов
         const header = document.createElement('div');
-        header.style.marginBottom = '1.5rem';
+        header.className = 'alert alert-success mb-4';
         header.innerHTML = `
-            <h3>Найдено объявлений: ${data.total || data.results.length}</h3>
-            ${data.took ? `<p style="color: var(--text-light);">Время поиска: ${data.took}ms</p>` : ''}
+            <i class="bi bi-check-circle me-2"></i>
+            <strong>Найдено объявлений: ${data.total || data.results.length}</strong>
+            ${data.took ? `<span class="text-muted ms-2">(${data.took}ms)</span>` : ''}
         `;
         resultsContainer.appendChild(header);
 
@@ -95,40 +97,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function createPropertyCard(property) {
         const card = document.createElement('div');
-        card.className = 'property-card';
+        card.className = 'property-card shadow-sm';
         
         // Формируем HTML карточки
         card.innerHTML = `
             <div class="property-header">
                 <div>
                     <h3 class="property-title">${escapeHtml(property.title || 'Без названия')}</h3>
-                    <span class="property-source">${escapeHtml(property.source || 'Неизвестный источник')}</span>
+                    <span class="property-source badge bg-primary">${escapeHtml(property.source || 'Неизвестный источник')}</span>
                 </div>
                 <div class="property-price">${formatPrice(property.price)}</div>
             </div>
             
             <div class="property-details">
-                ${property.city ? `<div class="property-detail">📍 ${escapeHtml(property.city)}</div>` : ''}
-                ${property.property_type ? `<div class="property-detail">🏠 ${escapeHtml(property.property_type)}</div>` : ''}
-                ${property.rooms ? `<div class="property-detail">🛏️ ${property.rooms} комн.</div>` : ''}
-                ${property.area ? `<div class="property-detail">📐 ${property.area} м²</div>` : ''}
+                ${property.city ? `<div class="property-detail"><i class="bi bi-geo-alt text-primary me-1"></i>${escapeHtml(property.city)}</div>` : ''}
+                ${property.property_type ? `<div class="property-detail"><i class="bi bi-house text-primary me-1"></i>${escapeHtml(property.property_type)}</div>` : ''}
+                ${property.rooms ? `<div class="property-detail"><i class="bi bi-door-closed text-primary me-1"></i>${property.rooms} комн.</div>` : ''}
+                ${property.area ? `<div class="property-detail"><i class="bi bi-bounding-box text-primary me-1"></i>${property.area} м²</div>` : ''}
             </div>
             
             ${property.description ? `
-                <div style="margin: 1rem 0; color: var(--text-light);">
+                <div class="mb-3 text-muted">
                     ${escapeHtml(property.description.substring(0, 200))}${property.description.length > 200 ? '...' : ''}
                 </div>
             ` : ''}
             
             ${property.url ? `
-                <a href="${escapeHtml(property.url)}" target="_blank" class="property-link">
-                    Посмотреть объявление →
+                <a href="${escapeHtml(property.url)}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-primary">
+                    <i class="bi bi-box-arrow-up-right me-2"></i>Посмотреть объявление
                 </a>
             ` : ''}
             
             ${property.metadata ? `
-                <div style="margin-top: 1rem; font-size: 0.85rem; color: var(--text-light);">
-                    Обновлено: ${new Date(property.metadata.last_updated || property.metadata.posted_at).toLocaleDateString('ru-RU')}
+                <div class="mt-3 small text-muted">
+                    <i class="bi bi-clock me-1"></i>Обновлено: ${new Date(property.metadata.last_updated || property.metadata.posted_at).toLocaleDateString('ru-RU')}
                 </div>
             ` : ''}
         `;
