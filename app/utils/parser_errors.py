@@ -63,6 +63,24 @@ class SourceUnavailableError(NetworkError):
     pass
 
 
+class DataIntegrityError(ParserException):
+    """Ошибка целостности данных - данные повреждены или некорректны."""
+
+    pass
+
+
+class ConfigurationError(ParserException):
+    """Ошибка конфигурации - неверные параметры настройки."""
+
+    pass
+
+
+class QuotaExceededError(RateLimitError):
+    """Превышена квота использования API - требуется увеличение лимита или ожидание.""" 
+
+    pass
+
+
 # ============================================================================
 # Классификация ошибок
 # ============================================================================
@@ -72,6 +90,7 @@ class ErrorSeverity(str, Enum):
     """Уровень серьезности ошибки."""
 
     CRITICAL = "critical"  # Не восстанавливается, логирует критичное
+    ERROR = "error"  # Серьезная ошибка, требует внимания
     WARNING = "warning"  # Может быть восстановлено, логирует warning
     INFO = "info"  # Информационная, логирует info
 
@@ -81,6 +100,7 @@ class ErrorRetryability(str, Enum):
 
     MUST_RETRY = "must_retry"  # Всегда повторять
     SHOULD_RETRY = "should_retry"  # Повторять если возможно
+    MAYBE_RETRY = "maybe_retry"  # Можно попробовать повторить
     NO_RETRY = "no_retry"  # Не повторять
 
 
@@ -130,11 +150,29 @@ class ErrorClassifier:
             "base_delay": 0,
             "max_retries": 0,
         },
+        DataIntegrityError: {
+            "severity": ErrorSeverity.ERROR,
+            "retryability": ErrorRetryability.MAYBE_RETRY,
+            "base_delay": 1.0,
+            "max_retries": 2,
+        },
+        ConfigurationError: {
+            "severity": ErrorSeverity.CRITICAL,
+            "retryability": ErrorRetryability.NO_RETRY,
+            "base_delay": 0,
+            "max_retries": 0,
+        },
         AuthenticationError: {
             "severity": ErrorSeverity.CRITICAL,
             "retryability": ErrorRetryability.NO_RETRY,
             "base_delay": 0,
             "max_retries": 0,
+        },
+        QuotaExceededError: {
+            "severity": ErrorSeverity.WARNING,
+            "retryability": ErrorRetryability.MUST_RETRY,
+            "base_delay": 30.0,  # Большая задержка
+            "max_retries": 2,
         },
     }
 
@@ -249,6 +287,12 @@ class ParserErrorHandler:
             status_code = exception.status_code
 
             if status_code == 429:
+                # Проверяем на квоту
+                if "quota" in exc_message.lower() or "limit exceeded" in exc_message.lower():
+                    return QuotaExceededError(
+                        f"API quota exceeded: {exc_message}",
+                        original_exception=exception,
+                    )
                 return RateLimitError(
                     f"Rate limit exceeded: {exc_message}",
                     original_exception=exception,
@@ -268,6 +312,16 @@ class ParserErrorHandler:
                     f"Source not found (HTTP {status_code}): {exc_message}",
                     original_exception=exception,
                 )
+            elif status_code == 400:
+                return ValidationError(
+                    f"Bad request/data validation error (HTTP {status_code}): {exc_message}",
+                    original_exception=exception,
+                )
+            elif status_code == 500:
+                return DataIntegrityError(
+                    f"Server internal error - possible data corruption (HTTP {status_code}): {exc_message}",
+                    original_exception=exception,
+                )
             else:
                 return NetworkError(
                     f"HTTP error: {exc_message}",
@@ -283,6 +337,28 @@ class ParserErrorHandler:
         elif "connection" in exc_message.lower() or "network" in exc_message.lower():
             return NetworkError(
                 f"Network error: {exc_message}",
+                original_exception=exception,
+            )
+        elif "certificate" in exc_message.lower() or "ssl" in exc_message.lower():
+            return NetworkError(
+                f"SSL/TLS certificate error: {exc_message}",
+                original_exception=exception,
+            )
+        elif "quota" in exc_message.lower() or "limit exceeded" in exc_message.lower():
+            return QuotaExceededError(
+                f"API quota exceeded: {exc_message}",
+                original_exception=exception,
+            )
+
+        # JSON/данные ошибки
+        if "json" in exc_message.lower() or "decode" in exc_message.lower():
+            return DataIntegrityError(
+                f"Data integrity error - malformed response: {exc_message}",
+                original_exception=exception,
+            )
+        elif "validation" in exc_message.lower() or "invalid" in exc_message.lower():
+            return ValidationError(
+                f"Validation error: {exc_message}",
                 original_exception=exception,
             )
 
@@ -313,5 +389,58 @@ def handle_parser_errors(func: Callable) -> Callable:
             parser_exception = ParserErrorHandler.convert_to_parser_exception(e)
             ParserErrorHandler.log_error(parser_exception, context=func.__name__)
             raise parser_exception
+
+
+# Дополнительные утилиты для работы с ошибками
+
+class ErrorUtils:
+    """Утилиты для работы с ошибками."""
+    
+    @staticmethod
+    def get_error_context(exception: Exception) -> Dict[str, Any]:
+        """
+        Получает контекст ошибки для логирования.
+        
+        Args:
+            exception: Исключение
+            
+        Returns:
+            Словарь с контекстом ошибки
+        """
+        context = {
+            "error_type": type(exception).__name__,
+            "error_message": str(exception),
+        }
+        
+        # Добавляем контекст из оригинального исключения
+        if hasattr(exception, "original_exception") and exception.original_exception:
+            orig_exc = exception.original_exception
+            context["original_error_type"] = type(orig_exc).__name__
+            context["original_error_message"] = str(orig_exc)
+            
+        return context
+    
+    @staticmethod
+    def format_error_chain(exception: Exception) -> str:
+        """
+        Форматирует цепочку ошибок для логирования.
+        
+        Args:
+            exception: Исключение
+            
+        Returns:
+            Строка с цепочкой ошибок
+        """
+        chain = []
+        current = exception
+        
+        while current:
+            chain.append(f"{type(current).__name__}: {current}")
+            if hasattr(current, "original_exception") and current.original_exception:
+                current = current.original_exception
+            else:
+                break
+                
+        return " -> ".join(chain)
 
     return wrapper

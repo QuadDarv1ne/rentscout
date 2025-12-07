@@ -51,6 +51,10 @@ class JSONFormatter(logging.Formatter):
                 "message": str(record.exc_info[1]),
                 "traceback": traceback.format_exception(*record.exc_info),
             }
+        
+        # Добавляем контекст ошибки, если он есть
+        if hasattr(record, "error_context"):
+            log_data["error_context"] = record.error_context
 
         # Добавляем дополнительные поля из extra
         if hasattr(record, "extra_data"):
@@ -238,6 +242,7 @@ class StructuredLogger:
         count: int,
         duration: float,
         success: bool = True,
+        error_message: Optional[str] = None,
         **kwargs,
     ):
         """
@@ -249,12 +254,17 @@ class StructuredLogger:
             count: Количество найденных объектов
             duration: Время выполнения
             success: Успешность парсинга
+            error_message: Сообщение об ошибке (если есть)
         """
         level = logging.INFO if success else logging.WARNING
         message = (
             f"Parser {source} for {city}: "
             f"{'✓' if success else '✗'} {count} items ({duration:.2f}s)"
         )
+        
+        if error_message:
+            message += f" | Error: {error_message}"
+        
         self._log(
             level,
             message,
@@ -263,6 +273,7 @@ class StructuredLogger:
             count=count,
             duration=duration,
             success=success,
+            error_message=error_message,
             **kwargs,
         )
 
@@ -271,6 +282,8 @@ class StructuredLogger:
         operation: str,
         hit: bool,
         key: Optional[str] = None,
+        size: Optional[int] = None,
+        ttl: Optional[int] = None,
         **kwargs,
     ):
         """
@@ -280,16 +293,26 @@ class StructuredLogger:
             operation: Тип операции (get, set, delete)
             hit: Попадание в кеш
             key: Ключ кеша
+            size: Размер данных (в байтах)
+            ttl: Время жизни (в секундах)
         """
         message = f"Cache {operation}: {'HIT' if hit else 'MISS'}"
         if key:
             message += f" [{key[:50]}...]"
+        if size:
+            message += f" ({size} bytes)"
+        if ttl:
+            message += f" TTL: {ttl}s"
 
-        self.debug(
+        level = logging.DEBUG if hit else logging.INFO
+        self._log(
+            level,
             message,
             operation=operation,
             hit=hit,
             key=key,
+            size=size,
+            ttl=ttl,
             **kwargs,
         )
 

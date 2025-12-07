@@ -1,6 +1,50 @@
-/* Дополнительные стили для Bootstrap улучшений */
+/* Базовые переменные и сброс */
+:root {
+    --primary: #2563eb;
+    --secondary: #7c3aed;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --dark: #1f2937;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --light: #f8fafc;
+    --white: #ffffff;
+}
 
-/* Hover эффекты для карточек */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.6;
+    color: var(--dark);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+/* Навигация */
+.navbar-brand strong {
+    font-size: 1.25rem;
+}
+
+.navbar .nav-link {
+    font-weight: 500;
+}
+
+/* Hero */
+.hero {
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.05) 0%, rgba(124, 58, 237, 0.05) 100%);
+}
+
+/* Быстрый поиск */
+#quickSearchForm .form-label {
+    font-weight: 600;
+}
+
+/* Карточки преимуществ и ссылок */
 .hover-card {
     transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
@@ -10,24 +54,18 @@
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15) !important;
 }
 
-/* Hover для ссылок в footer */
 .hover-link {
     transition: color 0.3s ease;
 }
 
 .hover-link:hover {
-    color: #2563eb !important;
-}
-
-/* Градиентный фон для hero */
-.hero {
-    background: linear-gradient(135deg, rgba(37, 99, 235, 0.05) 0%, rgba(124, 58, 237, 0.05) 100%) !important;
+    color: var(--primary) !important;
 }
 
 /* Карточки объявлений */
 .property-card {
-    background: white;
-    border: 2px solid #e5e7eb;
+    background: var(--white);
+    border: 2px solid var(--border);
     border-radius: 1rem;
     padding: 1.5rem;
     margin-bottom: 1.5rem;
@@ -35,7 +73,7 @@
 }
 
 .property-card:hover {
-    border-color: #2563eb;
+    border-color: var(--primary);
     box-shadow: 0 4px 15px rgba(37, 99, 235, 0.15);
 }
 
@@ -50,14 +88,14 @@
 
 .property-title {
     font-size: 1.3rem;
-    color: #1f2937;
+    color: var(--dark);
     font-weight: 600;
     margin: 0;
 }
 
 .property-price {
     font-size: 1.5rem;
-    color: #10b981;
+    color: var(--success);
     font-weight: bold;
 }
 
@@ -69,21 +107,21 @@
 }
 
 .property-detail {
-    font-size: 0.9rem;
-    color: #6b7280;
+    font-size: 0.95rem;
+    color: var(--muted);
 }
 
 .property-source {
     display: inline-block;
-    padding: 0.25rem 0.75rem;
-    background: #2563eb;
-    color: white;
+    padding: 0.35rem 0.75rem;
+    background: var(--primary);
+    color: var(--white);
     border-radius: 0.5rem;
     font-size: 0.85rem;
 }
 
 .property-link {
-    color: #2563eb;
+    color: var(--primary);
     text-decoration: none;
     font-weight: 500;
 }
@@ -92,21 +130,21 @@
     text-decoration: underline;
 }
 
-/* Карточки статуса системы */
+/* Статус системы */
 .status-card {
-    background: white;
-    border: 2px solid #e5e7eb;
+    background: var(--white);
+    border: 2px solid var(--border);
     border-radius: 1rem;
     padding: 1.5rem;
     margin-bottom: 1.5rem;
 }
 
 .status-healthy {
-    border-color: #10b981;
+    border-color: var(--success);
 }
 
 .status-unhealthy {
-    border-color: #ef4444;
+    border-color: var(--danger);
 }
 
 .status-header {
@@ -122,27 +160,26 @@
 
 /* Анимация для счетчиков */
 @keyframes countUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .stat-number {
     animation: countUp 0.6s ease-out;
 }
 
+/* Общие утилиты */
+.section-title {
+    font-weight: 700;
+}
+
 /* Адаптивность */
 @media (max-width: 768px) {
     .property-header {
         flex-direction: column;
-        align-items: start;
+        align-items: flex-start;
     }
-    
+
     .property-price {
         font-size: 1.3rem;
     }
