@@ -95,15 +95,17 @@ class PropertyFilter:
         except ValueError:
             return None
 
-    def filter(self, properties: List[PropertyCreate]) -> List[PropertyCreate]:
+    def filter(self, properties: List[PropertyCreate], skip: int = 0, limit: int = 50) -> tuple[List[PropertyCreate], int]:
         """
-        Фильтрует список свойств согласно установленным критериям.
+        Фильтрует список свойств согласно установленным критериям с поддержкой пагинации.
 
         Args:
             properties: Список свойств для фильтрации
+            skip: Количество записей для пропуска
+            limit: Максимальное количество записей для возврата
 
         Returns:
-            Отфильтрованный и отсортированный список свойств
+            Кортеж (отфильтрованный список свойств, общее количество свойств)
         """
         min_first_dt = self._parse_dt(self.min_first_seen)
         max_first_dt = self._parse_dt(self.max_first_seen)
@@ -239,5 +241,11 @@ class PropertyFilter:
         sort_key = sort_key_map.get(self.sort_by, sort_key_map["price"])
         reverse_order = self.sort_order.lower() == "desc"
         
-        # Sort and limit to 1000 results
-        return sorted(filtered, key=sort_key, reverse=reverse_order)[:1000]
+        # Sort (без лимита, лимит применяется на уровне пагинации)
+        sorted_filtered = sorted(filtered, key=sort_key, reverse=reverse_order)
+        
+        # Применяем пагинацию
+        total_count = len(sorted_filtered)
+        paginated_results = sorted_filtered[skip : skip + limit]
+        
+        return paginated_results, total_count

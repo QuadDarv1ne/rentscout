@@ -3,6 +3,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
+from celery.app.control import Inspect
 
 from app.tasks.celery import (
     parse_city_task,
@@ -10,6 +11,7 @@ from app.tasks.celery import (
     schedule_parse_task,
     get_task_status,
     cancel_task,
+    celery_app,
 )
 from app.utils.logger import logger
 
@@ -192,20 +194,142 @@ async def cancel_task_endpoint(task_id: str) -> Dict[str, Any]:
 @router.get("/tasks", tags=["tasks"])
 async def list_tasks(
     limit: int = Query(10, ge=1, le=100, description="Количество задач"),
+    status: Optional[str] = Query(None, description="Фильтр по статусу (PENDING, STARTED, SUCCESS, FAILURE)"),
 ) -> Dict[str, Any]:
     """
-    Получить список недавних задач.
+    Получить список активных и недавних задач через Celery Inspect.
     
     Args:
         limit: Максимальное количество задач
+        status: Фильтр по статусу (опционально)
         
     Returns:
-        Список задач
+        Словарь с информацией о задачах
     """
-    # TODO: Реализовать через Celery inspect
-    # Для полноценной реализации нужно использовать celery.control.inspect()
+    try:
+        # Используем Celery Inspect для получения информации о задачах
+        inspector = Inspect(app=celery_app)
+        
+        # Получаем активные задачи
+        active_tasks = inspector.active() or {}
+        # Получаем зарезервированные задачи (в очереди)
+        reserved_tasks = inspector.reserved() or {}
+        # Получаем зарегистрированные задачи
+        registered_tasks = inspector.registered() or {}
+        
+        # Собираем информацию о задачах
+        all_tasks = []
+        
+        # Обработка активных задач
+        for worker_name, tasks in active_tasks.items():
+            for task_info in tasks:
+                task_data = {
+                    "task_id": task_info.get("id"),
+                    "name": task_info.get("name"),
+                    "status": "STARTED",
+                    "worker": worker_name,
+                    "args": task_info.get("args"),
+                    "kwargs": task_info.get("kwargs"),
+                    "time_start": task_info.get("time_start"),
+                }
+                all_tasks.append(task_data)
+        
+        # Обработка зарезервированных задач
+        for worker_name, tasks in reserved_tasks.items():
+            for task_info in tasks:
+                task_data = {
+                    "task_id": task_info.get("id"),
+                    "name": task_info.get("name"),
+                    "status": "PENDING",
+                    "worker": worker_name,
+                    "args": task_info.get("args"),
+                    "kwargs": task_info.get("kwargs"),
+                }
+                all_tasks.append(task_data)
+        
+        # Фильтруем по статусу если указан
+        if status:
+            all_tasks = [t for t in all_tasks if t["status"] == status.upper()]
+        
+        # Сортируем по времени начала (новые первыми)
+        all_tasks.sort(
+            key=lambda x: x.get("time_start", 0), 
+            reverse=True
+        )
+        
+        # Ограничиваем количество результатов
+        all_tasks = all_tasks[:limit]
+        
+        logger.info(f"Retrieved {len(all_tasks)} tasks from Celery")
+        
+        return {
+            "total": len(all_tasks),
+            "limit": limit,
+            "status_filter": status,
+            "tasks": all_tasks,
+            "workers": list(inspector.stats().keys()) if inspector.stats() else [],
+            "registered_tasks": registered_tasks.get(
+                list(registered_tasks.keys())[0] if registered_tasks else None, 
+                []
+            ),
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to list tasks: {e}")
+        return {
+            "total": 0,
+            "limit": limit,
+            "status_filter": status,
+            "tasks": [],
+            "workers": [],
+            "error": str(e),
+            "tip": "Убедитесь, что Celery worker запущен",
+        }
+
+
+@router.get("/tasks/workers/stats", tags=["tasks"])
+async def get_workers_stats() -> Dict[str, Any]:
+    """
+    Получить статистику по всем Celery рабочим.
     
-    return {
-        "message": "Task listing not fully implemented yet",
-        "tip": "Use /tasks/{task_id} to check specific task status",
-    }
+    Returns:
+        Информация о рабочих и их статусе
+    """
+    try:
+        inspector = Inspect(app=celery_app)
+        
+        # Получаем статистику по рабочим
+        stats = inspector.stats() or {}
+        active_tasks = inspector.active() or {}
+        registered = inspector.registered() or {}
+        
+        workers_info = []
+        for worker_name, worker_stats in stats.items():
+            worker_data = {
+                "name": worker_name,
+                "status": "online",
+                "pool": worker_stats.get("pool", {}).get("implementation"),
+                "max_concurrency": worker_stats.get("pool", {}).get("max-concurrency", 0),
+                "active_tasks": len(active_tasks.get(worker_name, [])),
+                "processed_tasks": worker_stats.get("total", 0),
+                "system": worker_stats.get("rusage", {}),
+            }
+            workers_info.append(worker_data)
+        
+        return {
+            "online_workers": len(workers_info),
+            "workers": workers_info,
+            "total_active_tasks": sum(len(tasks) for tasks in active_tasks.values()),
+            "registered_task_count": sum(
+                len(tasks) for tasks in registered.values() if isinstance(tasks, list)
+            ),
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get worker stats: {e}")
+        return {
+            "online_workers": 0,
+            "workers": [],
+            "error": str(e),
+            "tip": "Убедитесь, что Celery worker запущен",
+        }

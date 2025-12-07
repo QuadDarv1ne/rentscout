@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import hashlib
 from typing import List, Dict, Any
 
 from app.db.crud import save_properties
@@ -66,10 +67,12 @@ class SearchService:
         # Конвертируем PropertyCreate объекты в Property объекты
         result_properties = []
         for prop in all_properties:
-            # Generate a simple ID based on source and external_id
-            prop_id = f"{prop.source}_{prop.external_id}"
+            # Generate a unique integer ID based on source and external_id hash
+            hash_input = f"{prop.source}_{prop.external_id}".encode('utf-8')
+            hash_int = int(hashlib.md5(hash_input).hexdigest(), 16) % (10 ** 8)
+            
             property_obj = Property(
-                id=prop_id,
+                id=hash_int,
                 source=prop.source,
                 external_id=prop.external_id,
                 title=prop.title,

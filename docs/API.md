@@ -1,528 +1,413 @@
-# 📡 API Документация RentScout
+# RentScout API Documentation
 
-## Оглавление
-1. [Общая информация](#общая-информация)
-2. [Аутентификация](#аутентификация)
-3. [Endpoints](#endpoints)
-4. [Коды ответов](#коды-ответов)
-5. [Примеры запросов](#примеры-запросов)
-6. [Лимиты и квоты](#лимиты-и-квоты)
+## Overview
 
----
+RentScout is a high-performance API for aggregating rental property data from leading platforms. It collects up-to-date information, filters duplicates, and provides a convenient interface for integration.
 
-## Общая информация
+## Base URL
 
-### URL базы
 ```
-Production: https://api.rentscout.com
-Development: http://localhost:8000
+http://localhost:8000/api
 ```
 
-### Версия API
-`1.0.0`
+## Authentication
 
-### Формат
-- **Request Content-Type**: `application/json`
-- **Response Content-Type**: `application/json`
-- **Кодировка**: UTF-8
+Most endpoints are publicly accessible. Some administrative endpoints may require authentication (to be implemented).
 
-### Headers
+## Rate Limiting
 
-Все запросы должны содержать стандартные HTTP headers:
+The API implements rate limiting to prevent abuse:
+- 100 requests per minute per IP address
+- Exceeding the limit returns a 429 status code
 
-```http
-GET /api/properties HTTP/1.1
-Host: api.rentscout.com
-Content-Type: application/json
-User-Agent: Mozilla/5.0
-```
+## Error Responses
 
----
+The API uses standard HTTP status codes:
 
-## Аутентификация
-
-На данный момент API открыт для всех (публичный). 
-
-Планируется добавить:
-- API Key аутентификация
-- OAuth 2.0
-- JWT tokens
-
-```http
-GET /api/properties?city=Москва
-Authorization: Bearer YOUR_API_KEY
-```
-
----
+| Status Code | Description |
+|-------------|-------------|
+| 200 | Success |
+| 400 | Bad Request - Invalid parameters |
+| 401 | Unauthorized - Authentication required |
+| 404 | Not Found - Resource doesn't exist |
+| 429 | Too Many Requests - Rate limit exceeded |
+| 500 | Internal Server Error - Something went wrong |
+| 503 | Service Unavailable - Temporary issue |
 
 ## Endpoints
 
-### 1. Health Check
+### Properties (Real-time Search)
 
-Проверить статус API.
+#### GET /properties
 
-#### Request
+Search for properties in real-time from multiple sources with filtering.
+
+**Query Parameters:**
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| city* | string | City name for search | Москва |
+| property_type | string | Property type | Квартира |
+| min_price | number | Minimum price | 3000 |
+| max_price | number | Maximum price | 10000 |
+| min_rooms | integer | Minimum rooms | 1 |
+| max_rooms | integer | Maximum rooms | 3 |
+| min_area | number | Minimum area (sq.m) | 30 |
+| max_area | number | Maximum area (sq.m) | 100 |
+| min_floor | integer | Minimum floor | 1 |
+| max_floor | integer | Maximum floor | 10 |
+| min_total_floors | integer | Minimum total floors in building | 5 |
+| max_total_floors | integer | Maximum total floors in building | 20 |
+| district | string | District filter | Центральный |
+| has_photos | boolean | Filter by photo availability | true |
+| source | string | Filter by source (avito, cian, etc.) | avito |
+| features | array[string] | Required features | wifi,parking |
+| max_price_per_sqm | number | Max price per sq.m | 100 |
+| has_contact | boolean | Filter by contact info availability | true |
+| min_first_seen | string | Min first seen date (ISO) | 2023-01-01 |
+| max_first_seen | string | Max first seen date (ISO) | 2023-12-31 |
+| min_last_seen | string | Min last seen date (ISO) | 2023-01-01 |
+| max_last_seen | string | Max last seen date (ISO) | 2023-12-31 |
+| sort_by | string | Sort field (price, area, rooms, floor, first_seen, last_seen) | price |
+| sort_order | string | Sort order (asc, desc) | asc |
+
+**Example Request:**
+
 ```http
-GET /api/health
+GET /api/properties?city=Москва&property_type=Квартира&min_price=3000&max_price=8000&min_rooms=1&max_rooms=3&min_area=30&max_area=80
 ```
 
-#### Response
-
-**Status Code:** `200 OK`
-
-```json
-{
-  "status": "healthy",
-  "timestamp": "2025-12-06T12:00:00Z",
-  "version": "1.0.0"
-}
-```
-
----
-
-### 2. Поиск недвижимости
-
-Получить список объектов недвижимости с поддержкой фильтрации.
-
-#### Request
-```http
-GET /api/properties?city=Москва&min_price=3000&max_price=5000&min_rooms=1&max_rooms=3
-```
-
-#### Query Parameters
-
-| Параметр | Тип | Требуется | Описание | Пример |
-|----------|-----|----------|---------|--------|
-| `city` | string | ✅ Да | Название города | `Москва` |
-| `property_type` | string | ❌ Нет | Тип недвижимости | `Квартира` |
-| `min_price` | number | ❌ Нет | Минимальная цена (≥0) | `3000` |
-| `max_price` | number | ❌ Нет | Максимальная цена (≥0) | `50000` |
-| `min_rooms` | integer | ❌ Нет | Минимум комнат (≥0) | `1` |
-| `max_rooms` | integer | ❌ Нет | Максимум комнат (≥0) | `3` |
-| `min_area` | number | ❌ Нет | Минимальная площадь м² (≥0) | `30` |
-| `max_area` | number | ❌ Нет | Максимальная площадь м² (≥0) | `80` |
-| `district` | string | ❌ Нет | Район города | `Центральный` |
-| `has_photos` | boolean | ❌ Нет | Наличие фотографий | `true` |
-| `source` | string | ❌ Нет | Источник (avito, cian, etc) | `avito` |
-| `max_price_per_sqm` | number | ❌ Нет | Макс цена за м² (≥0) | `1500` |
-
-#### Response
-
-**Status Code:** `200 OK`
+**Response:**
 
 ```json
 [
   {
-    "id": "avito_123456789",
+    "id": 12345678,
     "source": "avito",
-    "external_id": "123456789",
-    "title": "Квартира 1 комн. 45м² в центре",
-    "price": 45000,
-    "rooms": 1,
-    "area": 45.0,
+    "external_id": "987654321",
+    "title": "2-комн. квартира, 45 м², ЦАО",
+    "description": "Сдается 2-комнатная квартира в центре Москвы",
+    "link": "https://www.avito.ru/moskva/sdam/na_sutki/...",
+    "price": 5000,
+    "currency": "RUB",
+    "price_per_sqm": 111.11,
+    "rooms": 2,
+    "area": 45,
+    "floor": 3,
+    "total_floors": 9,
+    "city": "Москва",
+    "district": "Центральный",
+    "address": "ул. Тверская, 10",
+    "latitude": 55.7558,
+    "longitude": 37.6176,
     "location": {
       "city": "Москва",
       "district": "Центральный",
-      "address": "ул. Тверская, д. 5"
+      "address": "ул. Тверская, 10"
     },
     "photos": [
-      "https://example.com/photo1.jpg",
-      "https://example.com/photo2.jpg"
+      "https://img.avito.ru/...",
+      "https://img.avito.ru/..."
     ],
-    "description": "Уютная квартира в центре города",
-    "url": "https://avito.ru/moscow/квартиры/..."
-  },
-  {
-    "id": "cian_987654321",
-    "source": "cian",
-    "external_id": "987654321",
-    "title": "Квартира 2 комн. 65м² рядом с метро",
-    "price": 55000,
-    "rooms": 2,
-    "area": 65.0,
-    "location": {
-      "city": "Москва",
-      "district": "Красносельский",
-      "address": "ул. Красносельская, д. 10"
+    "features": {
+      "wifi": true,
+      "parking": false,
+      "furniture": true
     },
-    "photos": [
-      "https://example.com/photo3.jpg"
-    ],
-    "description": "Красивая квартира с ремонтом",
-    "url": "https://cian.ru/rent/..."
+    "contact_name": "Иван Петров",
+    "contact_phone": "+7 (999) 123-45-67",
+    "is_active": true,
+    "is_verified": false,
+    "first_seen": "2023-06-15T10:30:00",
+    "last_seen": "2023-06-15T10:30:00",
+    "created_at": "2023-06-15T10:30:00",
+    "last_updated": "2023-06-15T10:30:00"
   }
 ]
 ```
 
-#### Response Schema
+#### GET /properties/search
 
-```typescript
-interface Property {
-  id: string;                          // Уникальный ID
-  source: string;                      // Источник (avito, cian, ostrovok, etc)
-  external_id: string;                 // ID в источнике
-  title: string;                       // Название объявления
-  price: number;                       // Цена в рублях
-  rooms?: number;                      // Количество комнат
-  area?: number;                       // Площадь в м²
-  location?: {
-    city?: string;
-    district?: string;
-    address?: string;
-    latitude?: number;
-    longitude?: number;
-    [key: string]: any;
-  };
-  photos?: string[];                   // URLs фотографий
-  description?: string;                // Описание
-  url?: string;                        // URL на исходный сайт
-  [key: string]: any;
-}
-```
+Alias for `/properties` endpoint.
 
----
+### Properties (Database Storage)
 
-## Коды ответов
+#### POST /properties
 
-| Код | Статус | Описание |
-|-----|--------|---------|
-| `200` | OK | Успешный запрос |
-| `400` | Bad Request | Неправильные параметры запроса |
-| `404` | Not Found | Ресурс не найден |
-| `429` | Too Many Requests | Превышен лимит запросов |
-| `500` | Internal Server Error | Ошибка сервера |
-| `503` | Service Unavailable | Сервис временно недоступен |
+Create a new property in the database.
 
-### Примеры ошибок
+**Request Body:**
 
-#### 400 Bad Request
 ```json
 {
-  "detail": [
-    {
-      "loc": ["query", "city"],
-      "msg": "ensure this value has at least 2 characters",
-      "type": "value_error.any_str.min_length"
-    }
-  ]
+  "source": "avito",
+  "external_id": "987654321",
+  "title": "2-комн. квартира, 45 м², ЦАО",
+  "description": "Сдается 2-комнатная квартира в центре Москвы",
+  "link": "https://www.avito.ru/moskva/sdam/na_sutki/...",
+  "price": 5000,
+  "currency": "RUB",
+  "rooms": 2,
+  "area": 45,
+  "photos": ["https://img.avito.ru/..."]
 }
 ```
 
-#### 429 Too Many Requests
+#### GET /properties/{property_id}
+
+Get a property by its internal ID.
+
+#### GET /properties/
+
+Search properties stored in the database.
+
+**Query Parameters:**
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| city | string | Filter by city | Москва |
+| source | string | Filter by source | avito |
+| district | string | Filter by district | Центральный |
+| min_price | number | Minimum price | 3000 |
+| max_price | number | Maximum price | 10000 |
+| min_rooms | integer | Minimum rooms | 1 |
+| max_rooms | integer | Maximum rooms | 3 |
+| min_area | number | Minimum area | 30 |
+| max_area | number | Maximum area | 100 |
+| is_active | boolean | Filter by active status | true |
+| sort_by | string | Sort field (created_at, price, area, rooms) | created_at |
+| sort_order | string | Sort order (asc, desc) | desc |
+| limit | integer | Max results (1-1000) | 100 |
+| offset | integer | Results to skip | 0 |
+
+#### GET /properties/stats/overview
+
+Get property statistics.
+
+**Query Parameters:**
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| city | string | Filter by city | Москва |
+| source | string | Filter by source | avito |
+| district | string | Filter by district | Центральный |
+
+#### GET /properties/{property_id}/price-history
+
+Get price history for a property.
+
+**Query Parameters:**
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| limit | integer | Max entries (1-100) | 10 |
+
+#### POST /properties/{property_id}/view
+
+Track a property view.
+
+#### GET /properties/stats/popular
+
+Get popular properties.
+
+**Query Parameters:**
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| limit | integer | Max results (1-100) | 10 |
+| days | integer | Period in days (1-365) | 7 |
+
+#### GET /properties/stats/searches
+
+Get popular search queries.
+
+**Query Parameters:**
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| limit | integer | Max results (1-100) | 10 |
+| days | integer | Period in days (1-365) | 7 |
+
+#### POST /properties/bulk
+
+Bulk create/update properties.
+
+#### POST /properties/deactivate-old
+
+Deactivate old properties.
+
+**Query Parameters:**
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| source* | string | Source to deactivate from | avito |
+| hours | integer | Hours since last seen (1-720) | 24 |
+
+#### GET /properties/by-price-per-sqm
+
+Search properties sorted by price per square meter.
+
+### Tasks (Background Jobs)
+
+#### POST /tasks/parse
+
+Create a background parsing task for a city.
+
+**Request Body:**
+
 ```json
 {
-  "detail": "Rate limit exceeded. Maximum 100 requests per minute."
+  "city": "Москва",
+  "property_type": "Квартира"
 }
 ```
 
-#### 500 Internal Server Error
+#### POST /tasks/parse/batch
+
+Create batch parsing tasks for multiple cities.
+
+**Request Body:**
+
 ```json
 {
-  "detail": "Internal Server Error. Search service temporarily unavailable."
+  "cities": ["Москва", "Санкт-Петербург"],
+  "property_type": "Квартира"
 }
 ```
 
----
+#### POST /tasks/parse/schedule
 
-## Примеры запросов
+Schedule a parsing task.
 
-### cURL
+**Request Body:**
 
-#### Базовый поиск
-```bash
-curl -X GET "http://localhost:8000/api/properties?city=Москва" \
-  -H "Content-Type: application/json"
+```json
+{
+  "city": "Москва",
+  "property_type": "Квартира",
+  "eta_seconds": 3600
+}
 ```
 
-#### Поиск с фильтрацией
-```bash
-curl -X GET "http://localhost:8000/api/properties" \
-  -H "Content-Type: application/json" \
-  -G \
-  -d "city=Москва" \
-  -d "min_price=3000" \
-  -d "max_price=50000" \
-  -d "min_rooms=1" \
-  -d "max_rooms=3" \
-  -d "min_area=30" \
-  -d "max_area=80"
-```
+#### GET /tasks/{task_id}
 
-#### Поиск с районом и фотографиями
-```bash
-curl -X GET "http://localhost:8000/api/properties" \
-  -H "Content-Type: application/json" \
-  -G \
-  -d "city=Москва" \
-  -d "district=Центральный" \
-  -d "has_photos=true" \
-  -d "source=avito"
-```
+Get task information by ID.
 
-### Python
+#### DELETE /tasks/{task_id}
 
-```python
-import requests
-from typing import List, Dict
+Cancel a task.
 
-BASE_URL = "http://localhost:8000/api"
+#### GET /tasks
 
-def search_properties(
-    city: str,
-    min_price: int = None,
-    max_price: int = None,
-    min_rooms: int = None,
-    max_rooms: int = None,
-    **filters
-) -> List[Dict]:
-    """Поиск недвижимости через API."""
-    
-    params = {
-        "city": city,
-        "min_price": min_price,
-        "max_price": max_price,
-        "min_rooms": min_rooms,
-        "max_rooms": max_rooms,
-        **filters
-    }
-    
-    # Удаляем None значения
-    params = {k: v for k, v in params.items() if v is not None}
-    
-    response = requests.get(
-        f"{BASE_URL}/properties",
-        params=params,
-        timeout=30
-    )
-    
-    response.raise_for_status()
-    return response.json()
+List active and recent tasks.
 
-# Использование
-properties = search_properties(
-    city="Москва",
-    min_price=3000,
-    max_price=50000,
-    min_rooms=1,
-    max_rooms=3,
-    district="Центральный"
-)
+**Query Parameters:**
 
-for prop in properties:
-    print(f"{prop['title']} - {prop['price']} руб.")
-```
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| limit | integer | Number of tasks (1-100) | 10 |
+| status | string | Filter by status | PENDING |
 
-### JavaScript
+#### GET /tasks/workers/stats
 
-```javascript
-// Fetch
-const searchProperties = async (filters) => {
-  const params = new URLSearchParams(filters);
-  
-  try {
-    const response = await fetch(
-      `http://localhost:8000/api/properties?${params}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Search error:', error);
-    throw error;
-  }
-};
+Get Celery worker statistics.
 
-// Использование
-searchProperties({
-  city: 'Москва',
-  min_price: 3000,
-  max_price: 50000,
-  min_rooms: 1,
-  max_rooms: 3
-}).then(properties => {
-  console.log('Found properties:', properties);
-}).catch(error => {
-  console.error('Error:', error);
-});
-```
+### Health Checks
 
-### Axios (JavaScript)
+#### GET /health
 
-```javascript
-import axios from 'axios';
+Basic health check.
 
-const api = axios.create({
-  baseURL: 'http://localhost:8000/api',
-  timeout: 30000
-});
+#### GET /health/detailed
 
-const searchProperties = async (filters) => {
-  try {
-    const response = await api.get('/properties', { params: filters });
-    return response.data;
-  } catch (error) {
-    console.error('Search error:', error.response?.data || error.message);
-    throw error;
-  }
-};
+Detailed health check.
 
-// Использование
-const properties = await searchProperties({
-  city: 'Москва',
-  min_price: 3000,
-  max_price: 50000
-});
-```
+#### GET /stats
 
----
+Application statistics.
 
-## Лимиты и квоты
+#### GET /cache/stats
 
-### Rate Limiting
+Cache statistics.
 
-API использует алгоритм `Token Bucket` для ограничения частоты запросов.
+#### GET /ratelimit/stats
 
-| Тип клиента | Лимит | Окно | Reset |
-|-------------|-------|------|-------|
-| Anonymous | 100 | 60 сек | Каждую минуту |
-| API Key | 1000 | 60 сек | Каждую минуту |
-| Premium | Unlimited | - | - |
+Rate limit statistics.
 
-### Размеры данных
+#### GET /errors/diagnostic
 
-| Параметр | Лимит |
-|----------|-------|
-| Макс результатов на запрос | 1000 |
-| Макс размер ответа | 10 MB |
-| Макс длина query параметра | 1024 символа |
+Error diagnostics.
 
-### Headers ответа
+**Query Parameters:**
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| error_type | string | Specific error type | TimeoutError |
+
+## Supported Sources
+
+The API currently supports parsing from the following sources:
+
+1. **Avito** - https://www.avito.ru
+2. **CIAN** - https://www.cian.ru
+3. **Domofond** - https://domofond.ru
+4. **Yandex Realty** - https://realty.yandex.ru
+
+## Response Formats
+
+All endpoints return JSON responses with UTF-8 encoding.
+
+## Caching
+
+Results are cached for 5 minutes to improve performance and reduce load on external sources.
+
+## Examples
+
+### Example 1: Find affordable apartments in Moscow
 
 ```http
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 95
-X-RateLimit-Reset: 1638777660
-X-Response-Time: 245ms
+GET /api/properties?city=Москва&property_type=Квартира&max_price=6000&min_rooms=1&max_rooms=2
 ```
 
----
-
-## Кеширование
-
-API использует кеширование с TTL (Time To Live).
-
-| Endpoint | TTL | Условия инвалидации |
-|----------|-----|-------------------|
-| `/api/properties` | 5 минут | Новые объявления |
-| `/api/health` | 30 сек | Статус сервиса |
-
-### Cache Headers
+### Example 2: Find properties with specific features
 
 ```http
-Cache-Control: public, max-age=300
-ETag: "abc123def456"
-Last-Modified: Sat, 04 Dec 2021 07:00:00 GMT
+GET /api/properties?city=Санкт-Петербург&features=wifi,parking&has_photos=true
 ```
 
----
+### Example 3: Find properties sorted by price per square meter
 
-## Обработка ошибок
-
-### Стратегия retry
-
-Клиенты должны реализовать экспоненциальный backoff при получении ошибок 5xx:
-
-```python
-import time
-import requests
-
-def request_with_retry(url, max_retries=3):
-    for attempt in range(max_retries):
-        try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            if attempt < max_retries - 1:
-                wait_time = 2 ** attempt  # 1, 2, 4 секунды
-                print(f"Request failed, retrying in {wait_time}s...")
-                time.sleep(wait_time)
-            else:
-                raise
+```http
+GET /api/properties?city=Москва&sort_by=price_per_sqm&sort_order=asc
 ```
 
----
+### Example 4: Create a background parsing task
 
-## Асинхронное использование
+```http
+POST /api/tasks/parse
+Content-Type: application/json
 
-### WebSocket (планируется)
-
-Для получения обновлений в реальном времени:
-
-```javascript
-const ws = new WebSocket('wss://api.rentscout.com/ws/properties');
-
-ws.onmessage = (event) => {
-  const property = JSON.parse(event.data);
-  console.log('New property:', property);
-};
-
-ws.onerror = (error) => {
-  console.error('WebSocket error:', error);
-};
+{
+  "city": "Новосибирск",
+  "property_type": "Квартира"
+}
 ```
 
----
+## Monitoring and Metrics
 
-## Версионирование
+The API exposes Prometheus metrics at `/metrics` endpoint, including:
 
-Текущая версия: `1.0.0`
+- HTTP request counts and durations
+- Parser performance metrics
+- Active request counts
+- Cache hit/miss ratios
+- Error rates
 
-Поддерживаемые версии:
-- `v1` - текущая (все запросы идут в `/api/properties`)
+## Changelog
 
-Планируется:
-- `v2` - с улучшенной фильтрацией и sorting
-
----
-
-## Тестирование API
-
-### Swagger UI
-```
-http://localhost:8000/docs
-```
-
-### ReDoc
-```
-http://localhost:8000/redoc
-```
-
-### Postman
-
-Импортируйте OpenAPI спеку:
-```
-http://localhost:8000/openapi.json
-```
-
----
-
-## Поддержка
-
-- **Issues**: https://github.com/QuadDarv1ne/rentscout/issues
-- **Email**: support@rentscout.com
-- **Documentation**: https://docs.rentscout.com
-
----
-
-**Последнее обновление:** Декабрь 2025
-**Версия API:** 1.0.0
+### v1.0.0 (2023-06-15)
+- Initial release
+- Support for Avito and CIAN parsing
+- Basic filtering and sorting
+- PostgreSQL storage
+- Background task processing with Celery

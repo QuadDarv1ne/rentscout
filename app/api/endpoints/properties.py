@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional
 
 from app.dependencies.parsers import get_parsers
-from app.models.schemas import Property, PropertyCreate
+from app.models.schemas import Property, PropertyCreate, PaginatedProperties
 from app.services.cache import cache
 from app.services.filter import PropertyFilter
 from app.services.search import SearchService
@@ -27,15 +27,15 @@ async def _search_properties(city: str, property_type: str) -> List[PropertyCrea
 
 @router.get(
     "/properties",
-    response_model=list[Property],
+    response_model=PaginatedProperties,
     summary="Онлайн-поиск объявлений через парсеры",
-    response_description="Список объявлений после фильтрации",
+    response_description="Пагинированный список объявлений после фильтрации",
 )
 @router.get(
     "/properties/search",
-    response_model=list[Property],
+    response_model=PaginatedProperties,
     summary="Онлайн-поиск объявлений (алиас /properties)",
-    response_description="Список объявлений после фильтрации",
+    response_description="Пагинированный список объявлений после фильтрации",
 )
 @cache(expire=300)
 async def get_properties(
@@ -63,10 +63,12 @@ async def get_properties(
     max_last_seen: Optional[str] = Query(None, description="Максимальная дата последнего появления (ISO format)"),
     sort_by: str = Query("price", regex="^(price|area|rooms|floor|first_seen|last_seen)$", description="Поле для сортировки (price, area, rooms, floor, first_seen, last_seen)"),
     sort_order: str = Query("asc", regex="^(asc|desc)$", description="Порядок сортировки (asc или desc)"),
+    skip: int = Query(0, ge=0, description="Количество записей для пропуска"),
+    limit: int = Query(50, ge=1, le=100, description="Максимальное количество записей в ответе (1-100)"),
     parsers: list = Depends(get_parsers),
-) -> List[Property]:
+) -> PaginatedProperties:
     """
-    Получить список свойств с поддержкой фильтрации.
+    Получить список свойств с поддержкой фильтрации и пагинации.
 
     Args:
         city: Название города для поиска
@@ -93,10 +95,12 @@ async def get_properties(
         max_last_seen: Максимальная дата последнего появления (ISO format)
         sort_by: Поле для сортировки (price, area, rooms, floor, first_seen, last_seen)
         sort_order: Порядок сортировки (asc или desc)
+        skip: Количество записей для пропуска (пагинация)
+        limit: Максимальное количество записей (1-100)
         parsers: Зависимость парсеров
 
     Returns:
-        Список свойств, отфильтрованных по заданным критериям
+        Пагинированный список свойств, отфильтрованных по заданным критериям
 
     Raises:
         HTTPException: Если поиск не удался после всех повторных попыток
@@ -132,15 +136,31 @@ async def get_properties(
             sort_order=sort_order,
         )
 
-        filtered_properties = property_filter.filter(all_properties)
+        filtered_properties, total_count = property_filter.filter(all_properties, skip=skip, limit=limit)
 
         logger.info(
             f"Search completed for {city}: "
             f"found {len(all_properties)} properties, "
-            f"after filtering: {len(filtered_properties)}"
+            f"after filtering: {total_count} total, "
+            f"returned {len(filtered_properties)} (skip={skip}, limit={limit})"
         )
 
-        return filtered_properties
+        # Вычисляем значения для пагинации
+        page = (skip // limit) + 1
+        pages = (total_count + limit - 1) // limit if total_count > 0 else 1
+        has_next = (skip + limit) < total_count
+        has_prev = skip > 0
+
+        return PaginatedProperties(
+            items=filtered_properties,
+            total=total_count,
+            skip=skip,
+            limit=limit,
+            page=page,
+            pages=pages,
+            has_next=has_next,
+            has_prev=has_prev,
+        )
 
     except Exception as e:
         # Классифицируем ошибку для умной обработки

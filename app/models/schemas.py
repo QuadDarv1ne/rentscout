@@ -104,3 +104,17 @@ class OperationStatus(BaseModel):
 class DeactivateResult(BaseModel):
     status: str = Field(..., examples=["ok"])
     deactivated_count: int
+
+
+class PaginatedProperties(BaseModel):
+    """Пагинированный ответ со списком свойств."""
+    items: List[Property] = Field(..., description="Список объектов недвижимости")
+    total: int = Field(..., description="Общее количество результатов")
+    skip: int = Field(..., description="Количество пропущенных записей")
+    limit: int = Field(..., description="Максимальное количество записей в ответе")
+    page: int = Field(..., description="Текущий номер страницы (1-indexed)")
+    pages: int = Field(..., description="Общее количество страниц")
+    has_next: bool = Field(..., description="Есть ли следующая страница")
+    has_prev: bool = Field(..., description="Есть ли предыдущая страница")
+
+    model_config = ConfigDict(from_attributes=True)

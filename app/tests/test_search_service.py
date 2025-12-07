@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import patch, AsyncMock
 
 from app.services.search import SearchService
-from app.models.schemas import PropertyCreate
+from app.models.schemas import Property, PropertyCreate
 
 
 @pytest.fixture
@@ -70,8 +70,9 @@ async def test_search_service_search_success(sample_properties):
         assert len(results) == 2
         assert results[0].source == "avito"
         assert results[1].source == "cian"
-        assert results[0].id == "avito_1"
-        assert results[1].id == "cian_2"
+        # Check that IDs are integers
+        assert isinstance(results[0].id, int)
+        assert isinstance(results[1].id, int)
 
 
 @pytest.mark.asyncio
