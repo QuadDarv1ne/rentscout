@@ -1,0 +1,43 @@
+groups:
+  - name: rentscout.alerts
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status_code=~"5.."}[5m]))
+            /
+          sum(rate(http_requests_total[5m]))
+          > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Высокая доля 5xx ответов"
+          description: "Доля 5xx ответов превысила 5% за последние 5 минут"
+
+      - alert: HighLatencyP95
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m]))) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Высокая задержка P95"
+          description: "P95 времени ответа превышает 2 секунды за последние 5 минут"
+
+      - alert: TooManyActiveRequests
+        expr: http_active_requests > 50
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Слишком много активных запросов"
+          description: "Количество активных HTTP запросов превышает 50"
+
+      - alert: ParserFailures
+        expr: sum(rate(parser_calls_total{status="failure"}[10m])) > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Ошибки парсеров"
+          description: "Более 5 ошибок парсеров за последние 10 минут"

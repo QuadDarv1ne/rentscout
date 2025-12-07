@@ -6,10 +6,23 @@ from typing import Any, Dict
 from app.utils.logger import logger
 
 # Определение метрик Prometheus
-REQUEST_COUNT = Counter('http_requests_total', 'Total HTTP requests', ['method', 'endpoint', 'status_code'])
+REQUEST_COUNT = Counter(
+    'http_requests_total',
+    'Total HTTP requests',
+    ['method', 'endpoint', 'status_code']
+)
 
 REQUEST_DURATION = Histogram(
-    'http_request_duration_seconds', 'HTTP request duration in seconds', ['method', 'endpoint']
+    'http_request_duration_seconds',
+    'HTTP request duration in seconds',
+    ['method', 'endpoint', 'status_code'],
+    buckets=(0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10)
+)
+
+REQUEST_ERRORS = Counter(
+    'http_requests_errors_total',
+    'Total HTTP requests ending with 5xx',
+    ['method', 'endpoint']
 )
 
 ACTIVE_REQUESTS = Gauge('http_active_requests', 'Number of active HTTP requests')
@@ -81,6 +94,9 @@ class MetricsMiddleware:
 
                 # Запись метрик
                 metrics_collector.record_request(method, endpoint, status_code, duration)
+
+                if 500 <= status_code <= 599:
+                    REQUEST_ERRORS.labels(method=method, endpoint=endpoint).inc()
 
             await send(message)
 

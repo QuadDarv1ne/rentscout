@@ -6,6 +6,7 @@ from app.core.config import settings
 from app.services.advanced_cache import advanced_cache_manager
 from app.utils.ip_ratelimiter import ip_rate_limiter
 from app.utils.logger import logger
+from app.utils.metrics import metrics_collector, ACTIVE_REQUESTS
 
 router = APIRouter()
 
@@ -31,12 +32,14 @@ async def get_stats() -> Dict[str, object]:
     """Получение статистики приложения."""
     # Собираем статистику кеша
     cache_stats = await advanced_cache_manager.get_stats()
+    active_requests = ACTIVE_REQUESTS._value.get()  # Gauge current value
     
     stats = {
-        "uptime": time.time(),
+        "uptime_seconds": metrics_collector.get_uptime(),
         "app_name": settings.APP_NAME,
         "version": "1.0.0",
         "cache": cache_stats,
+        "active_requests": active_requests,
     }
 
     logger.info("Stats requested")

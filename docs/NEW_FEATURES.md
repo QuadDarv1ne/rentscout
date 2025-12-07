@@ -349,6 +349,29 @@ pytest --cov=app --cov-report=html
 
 ---
 
+## 📡 Monitoring & Alerts (Prometheus)
+
+- **Метрики**: `/metrics` (Prometheus client + MetricsMiddleware)
+- **Scrape targets**: `web:8000` и `localhost:8000` (для локальной разработки)
+- **Alert rules**: `docker/prometheus/alerts.yml`
+
+### Запуск Prometheus
+
+```bash
+docker-compose up -d prometheus
+```
+
+Prometheus будет доступен на `http://localhost:9090`.
+
+### Настроенные алерты
+
+- `HighErrorRate`: >5% 5xx за 5 минут
+- `HighLatencyP95`: p95 > 2s за 5 минут
+- `TooManyActiveRequests`: >50 активных запросов 2 минуты
+- `ParserFailures`: >5 ошибок парсеров за 10 минут
+
+---
+
 **Версия**: 2.0.0  
 **Дата обновления**: 6 декабря 2025  
 **Статус**: ✅ Production Ready
