@@ -22,9 +22,10 @@ logger = logging.getLogger(__name__)
 
 
 class InMemoryAsyncRedis:
-    """Простейшая in-memory реализация Redis API для тестов и fallback."""
+    """Простейшая in-memory реализация Redis API для тестов и fallback с поддержкой TTL."""
 
     def __init__(self):
+        # store: key -> (value, expires_at)
         self.store: Dict[str, Any] = {}
         self.sets: Dict[str, Set[str]] = {}
 
@@ -32,10 +33,19 @@ class InMemoryAsyncRedis:
         return True
 
     async def get(self, key: str):
-        return self.store.get(key)
+        item = self.store.get(key)
+        if item is None:
+            return None
+
+        value, expires_at = item
+        if expires_at and time.time() > expires_at:
+            await self.delete(key)
+            return None
+        return value
 
     async def setex(self, key: str, expire: int, value: Any):
-        self.store[key] = value
+        expires_at = time.time() + expire if expire else None
+        self.store[key] = (value, expires_at)
         return True
 
     async def delete(self, *keys: str):
@@ -57,20 +67,29 @@ class InMemoryAsyncRedis:
         return self.sets.get(key, set())
 
     async def expire(self, key: str, expire: int):
-        # В in-memory режиме TTL не учитываем
+        if key in self.store:
+            value, _ = self.store[key]
+            self.store[key] = (value, time.time() + expire)
         return True
 
     async def scan(self, cursor: int = 0, match: Optional[str] = None, count: int = 100):
+        # Очистка истекших ключей
+        now = time.time()
+        expired_keys = [k for k, (_, exp) in self.store.items() if exp and now > exp]
+        for key in expired_keys:
+            await self.delete(key)
+
         keys = list(self.store.keys())
         if match:
             keys = fnmatch.filter(keys, match)
-        # Эмулируем однопроходный SCAN
         return 0, keys[:count]
 
     async def info(self, section: Optional[str] = None):
         return {}
 
     async def dbsize(self):
+        # Учитываем только не истекшие ключи
+        await self.scan()
         return len(self.store)
 
     async def close(self):
