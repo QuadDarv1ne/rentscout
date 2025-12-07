@@ -25,17 +25,34 @@
 
 ## 🚀 Быстрый старт
 
-### Установка через `Docker`
+> **⚡ Самый быстрый способ**: См. [QUICKSTART.md](QUICKSTART.md)
 
-  ```bash
-  git clone https://github.com/yourname/rentscout.git
-  cd rentscout
-  docker-compose up --build
-  ```
+### Способ 1: Автоматический (рекомендуется)
+
+```bash
+python scripts/start.py
+```
+
+### Способ 2: Docker Compose
+
+```bash
+git clone https://github.com/QuadDarv1ne/rentscout.git
+cd rentscout
+docker-compose -f docker-compose.dev.yml up --build
+```
+
+### Способ 3: Локальный запуск
+
+```bash
+pip install -r requirements.txt
+python -m uvicorn app.main:app --reload
+```
 
 `API` будет доступно на `http://localhost:8000`
 
 **Документация:** `http://localhost:8000/docs`
+
+> 📘 **Проблемы?** См. [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 
 ### 🛠 Пример использования
 

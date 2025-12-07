@@ -37,28 +37,27 @@ class AdvancedCacheManager:
 
     async def connect(self):
         """Подключение к Redis с повторными попытками."""
-        max_retries = 3
-        retry_delay = 1.0
+        max_retries = 1  # Быстрая проверка в dev
+        retry_delay = 0.5
         
         for attempt in range(max_retries):
             try:
                 self.redis_client = redis.from_url(
                     self.redis_url,
                     decode_responses=False,
-                    socket_timeout=5,
-                    socket_connect_timeout=5,
+                    socket_timeout=2,
+                    socket_connect_timeout=2,
                 )
                 await self.redis_client.ping()
                 logger.info(f"✅ Successfully connected to Redis at {self.redis_url}")
                 return True
             except Exception as e:
-                logger.warning(
-                    f"Failed to connect to Redis (attempt {attempt + 1}/{max_retries}): {e}"
-                )
+                # В dev режиме просто молча отключаем Redis
+                logger.debug(f"Redis unavailable (attempt {attempt + 1}/{max_retries}): {type(e).__name__}")
                 if attempt < max_retries - 1:
-                    await asyncio.sleep(retry_delay * (attempt + 1))
+                    await asyncio.sleep(retry_delay)
                 else:
-                    logger.error("❌ Failed to connect to Redis after all retries")
+                    logger.info("ℹ️  Redis unavailable - running without cache (use Docker: 'docker run -d -p 6379:6379 redis:7-alpine')")
                     self.redis_client = None
                     return False
 

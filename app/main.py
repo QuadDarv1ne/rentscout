@@ -53,9 +53,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     if settings.DEBUG:
         try:
             await init_db()
-            logger.info("PostgreSQL database initialized")
+            logger.info("✅ PostgreSQL database initialized")
         except Exception as e:
-            logger.warning(f"PostgreSQL initialization skipped: {e}")
+            # В dev режиме это нормально
+            logger.debug(f"PostgreSQL unavailable: {type(e).__name__}")
+            logger.info("ℹ️  PostgreSQL unavailable - running in-memory mode (use Docker: 'docker-compose -f docker-compose.dev.yml up postgres')")
     
     # Подключаемся к Redis
     await advanced_cache_manager.connect()
@@ -69,7 +71,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
                 cities=["Москва", "Санкт-Петербург"]  # Топ-2 города
             )
         )
-        logger.info("Cache warming task started in background")
+        logger.info("🔥 Cache warming started for popular cities")
     
     yield
     
@@ -238,3 +240,11 @@ async def root():
             "Real-time metrics with Prometheus",
         ],
     }
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    """Favicon endpoint для предотвращения 404 в логах."""
+    from fastapi.responses import Response
+    # Возвращаем пустой favicon (можно заменить на настоящий)
+    return Response(status_code=204)
