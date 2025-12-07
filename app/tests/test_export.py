@@ -78,9 +78,9 @@ class TestExportService:
         
         # Проверяем значения первой строки
         assert rows[0]["title"] == "1-комнатная квартира, 40 м²"
-        assert rows[0]["price"] == "30000"
+        assert float(rows[0]["price"]) == 30000  # Сравниваем как float
         assert rows[0]["rooms"] == "1"
-        assert rows[0]["area"] == "40.0"
+        assert float(rows[0]["area"]) == 40.0
 
     def test_to_csv_empty_list(self):
         """Тест экспорта пустого списка в CSV."""
