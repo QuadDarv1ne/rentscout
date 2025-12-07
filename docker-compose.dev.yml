@@ -9,17 +9,22 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-rentscout}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rentscout_dev}
       POSTGRES_DB: ${POSTGRES_DB:-rentscout_dev}
+      POSTGRES_INITDB_ARGS: "-c log_statement=all -c log_duration=on"
     ports:
       - "5432:5432"
     volumes:
       - postgres_data_dev:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U rentscout"]
+      test: ["CMD-SHELL", "pg_isready -U rentscout -d rentscout_dev"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
     networks:
       - rentscout-dev
+    labels:
+      service: postgres
 
   # Redis для кеширования
   redis:
@@ -27,27 +32,122 @@ services:
     container_name: rentscout-redis-dev
     ports:
       - "6379:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-rentscout_dev}
     volumes:
       - redis_data_dev:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
     networks:
       - rentscout-dev
+    labels:
+      service: redis
 
   # FastAPI приложение (разработка с hot-reload)
   web:
     build:
       context: .
       dockerfile: Dockerfile
+      target: development
     container_name: rentscout-web-dev
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dirs app
     ports:
       - "8000:8000"
     environment:
       - DEBUG=true
+      - LOG_LEVEL=DEBUG
+      - DATABASE_URL=postgresql://rentscout:rentscout_dev@postgres:5432/rentscout_dev
+      - REDIS_URL=redis://:rentscout_dev@redis:6379/0
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - .:/app
+      - /app/__pycache__
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - rentscout-dev
+    labels:
+      service: web
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Celery worker для фоновых задач
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: rentscout-celery-dev
+    command: celery -A app.tasks.celery worker --loglevel=debug -c 1
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+      - DATABASE_URL=postgresql://rentscout:rentscout_dev@postgres:5432/rentscout_dev
+      - REDIS_URL=redis://:rentscout_dev@redis:6379/0
+      - CELERY_BROKER_URL=redis://:rentscout_dev@redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://:rentscout_dev@redis:6379/2
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - .:/app
+      - /app/__pycache__
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - rentscout-dev
+    labels:
+      service: celery
+
+  # Flower для мониторинга Celery
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: rentscout-flower-dev
+    command: celery -A app.tasks.celery flower --port=5555 --broker=redis://:rentscout_dev@redis:6379/1
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://:rentscout_dev@redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://:rentscout_dev@redis:6379/2
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - rentscout-dev
+    labels:
+      service: flower
+
+  # Prometheus для сбора метрик
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: rentscout-prometheus-dev
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - rentscout-dev
+    labels:
+      service: prometheus
       - DATABASE_URL=postgresql://rentscout:rentscout_dev@postgres:5432/rentscout_dev
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/1
