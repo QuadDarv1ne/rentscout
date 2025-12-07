@@ -173,6 +173,100 @@ body {
     font-weight: 700;
 }
 
+/* Footer Styling */
+.footer {
+    background: linear-gradient(135deg, var(--dark) 0%, #0f172a 100%);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin-top: auto;
+}
+
+.footer-section {
+    transition: transform 0.3s ease;
+}
+
+.footer-title {
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--white);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.footer-subtitle {
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.footer-description {
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.footer-links {
+    list-style: none;
+    padding: 0;
+}
+
+.footer-link {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    transition: all 0.3s ease;
+    gap: 0.25rem;
+}
+
+.footer-link:hover {
+    color: var(--primary);
+    transform: translateX(4px);
+}
+
+.footer-contact {
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.footer-contact a {
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.footer-contact a:hover {
+    color: var(--primary);
+}
+
+.social-links {
+    display: flex;
+    gap: 1rem;
+}
+
+.footer-social-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    color: var(--muted);
+    transition: all 0.3s ease;
+    font-size: 1.2rem;
+}
+
+.footer-social-link:hover {
+    background: var(--primary);
+    color: var(--white);
+    border-color: var(--primary);
+    transform: translateY(-3px);
+}
+
+.footer-bottom {
+    font-size: 0.85rem;
+}
+
 /* Адаптивность */
 @media (max-width: 768px) {
     .property-header {
@@ -182,5 +276,22 @@ body {
 
     .property-price {
         font-size: 1.3rem;
+    }
+
+    .footer-title {
+        font-size: 0.95rem;
+    }
+
+    .footer-section {
+        margin-bottom: 1rem;
+    }
+
+    .footer-bottom {
+        text-align: center;
+    }
+
+    .footer-bottom .col-md-6:last-child {
+        text-align: center;
+        margin-top: 1rem;
     }
 }

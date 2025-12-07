@@ -91,6 +91,8 @@ async def get_properties(
         max_first_seen: Максимальная дата первого появления (ISO format)
         min_last_seen: Минимальная дата последнего появления (ISO format)
         max_last_seen: Максимальная дата последнего появления (ISO format)
+        sort_by: Поле для сортировки (price, area, rooms, floor, first_seen, last_seen)
+        sort_order: Порядок сортировки (asc или desc)
         parsers: Зависимость парсеров
 
     Returns:
@@ -126,23 +128,11 @@ async def get_properties(
             max_first_seen=max_first_seen,
             min_last_seen=min_last_seen,
             max_last_seen=max_last_seen,
+            sort_by=sort_by,
+            sort_order=sort_order,
         )
 
         filtered_properties = property_filter.filter(all_properties)
-
-        # Apply sorting on the filtered list with a guarded key
-        allowed_sort_fields = {
-            "price": lambda p: getattr(p, "price", 0) or 0,
-            "area": lambda p: getattr(p, "area", 0) or 0,
-            "rooms": lambda p: getattr(p, "rooms", 0) or 0,
-            "floor": lambda p: getattr(p, "floor", 0) or 0,
-            "first_seen": lambda p: getattr(p, "first_seen", None) or 0,
-            "last_seen": lambda p: getattr(p, "last_seen", None) or 0,
-        }
-
-        sort_key = allowed_sort_fields.get(sort_by, allowed_sort_fields["price"])
-        reverse = sort_order.lower() == "desc"
-        filtered_properties = sorted(filtered_properties, key=sort_key, reverse=reverse)
 
         logger.info(
             f"Search completed for {city}: "

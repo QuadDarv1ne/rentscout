@@ -5,6 +5,7 @@ import hashlib
 import json
 import pickle
 import logging
+import zlib
 from datetime import datetime, timedelta
 from typing import Any, Callable, Optional, Dict, List, Set
 from functools import wraps
@@ -33,6 +34,16 @@ class AdvancedCacheManager:
         self.popular_cities: Set[str] = {
             "Москва", "Санкт-Петербург", "Новосибирск", 
             "Екатеринбург", "Казань", "Нижний Новгород"
+        }
+        
+        # Cache warming priorities
+        self.warming_priorities: Dict[str, int] = {
+            "Москва": 10,
+            "Санкт-Петербург": 9,
+            "Новосибирск": 5,
+            "Екатеринбург": 5,
+            "Казань": 4,
+            "Нижний Новгород": 4,
         }
 
     async def connect(self):
@@ -77,7 +88,13 @@ class AdvancedCacheManager:
             if value:
                 self.hits += 1
                 logger.debug(f"Cache HIT: {key[:50]}... (hit rate: {self.get_hit_rate():.2%})")
-                return pickle.loads(value)
+                # Decompress if compressed
+                if value.startswith(b'COMPRESSED:'):
+                    compressed_data = value[11:]  # Remove prefix
+                    decompressed_data = zlib.decompress(compressed_data)
+                    return pickle.loads(decompressed_data)
+                else:
+                    return pickle.loads(value)
             else:
                 self.misses += 1
                 logger.debug(f"Cache MISS: {key[:50]}... (hit rate: {self.get_hit_rate():.2%})")
@@ -92,7 +109,8 @@ class AdvancedCacheManager:
         key: str, 
         value: Any, 
         expire: int = settings.CACHE_TTL,
-        tags: Optional[List[str]] = None
+        tags: Optional[List[str]] = None,
+        compress: bool = True
     ) -> bool:
         """Сохранение значения в кеше с тегами."""
         if not self.redis_client:
@@ -101,8 +119,16 @@ class AdvancedCacheManager:
         try:
             serialized_value = pickle.dumps(value)
             
+            # Compress large values to save memory
+            if compress and len(serialized_value) > 1024:  # Compress if > 1KB
+                compressed_value = zlib.compress(serialized_value)
+                final_value = b'COMPRESSED:' + compressed_value
+                logger.debug(f"Compressed cache value from {len(serialized_value)} to {len(final_value)} bytes")
+            else:
+                final_value = serialized_value
+            
             # Устанавливаем основное значение
-            result = await self.redis_client.setex(key, expire, serialized_value)
+            result = await self.redis_client.setex(key, expire, final_value)
             
             # Добавляем теги для группировки
             if tags:
@@ -223,18 +249,39 @@ class AdvancedCacheManager:
             return
 
         cities_to_warm = cities or list(self.popular_cities)
-        logger.info(f"Starting cache warming for {len(cities_to_warm)} cities...")
         
-        tasks = []
-        for city in cities_to_warm:
-            tasks.append(self._warm_city(warm_func, city))
+        # Sort cities by priority for more efficient warming
+        cities_to_warm.sort(key=lambda city: self.warming_priorities.get(city, 1), reverse=True)
         
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        logger.info(f"Starting cache warming for {len(cities_to_warm)} cities (priority order)...")
         
-        success_count = sum(1 for r in results if not isinstance(r, Exception))
-        logger.info(
-            f"Cache warming completed: {success_count}/{len(cities_to_warm)} cities cached"
-        )
+        # Warm high-priority cities first, then others concurrently
+        high_priority_cities = [city for city in cities_to_warm if self.warming_priorities.get(city, 0) >= 5]
+        low_priority_cities = [city for city in cities_to_warm if self.warming_priorities.get(city, 0) < 5]
+        
+        # Warm high-priority cities sequentially to avoid overwhelming the system
+        for city in high_priority_cities:
+            try:
+                await self._warm_city(warm_func, city)
+                logger.info(f"Cache warmed for high-priority city: {city}")
+                # Small delay between high-priority cities
+                await asyncio.sleep(0.5)
+            except Exception as e:
+                logger.warning(f"Failed to warm cache for high-priority city {city}: {e}")
+        
+        # Warm low-priority cities concurrently
+        if low_priority_cities:
+            tasks = []
+            for city in low_priority_cities:
+                tasks.append(self._warm_city(warm_func, city))
+            
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            success_count = sum(1 for r in results if not isinstance(r, Exception))
+            logger.info(
+                f"Low-priority cache warming completed: {success_count}/{len(low_priority_cities)} cities cached"
+            )
+        
+        logger.info(f"Cache warming completed for all {len(cities_to_warm)} cities")
 
     async def _warm_city(self, warm_func: Callable, city: str):
         """Warming кеша для одного города."""
@@ -248,6 +295,42 @@ class AdvancedCacheManager:
 
 # Глобальный экземпляр расширенного менеджера кеша
 advanced_cache_manager = AdvancedCacheManager()
+
+
+# Adaptive caching based on usage patterns
+class AdaptiveCache:
+    """Адаптивное кеширование на основе частоты использования."""
+    
+    def __init__(self):
+        self.access_counts: Dict[str, int] = {}
+        self.access_timestamps: Dict[str, datetime] = {}
+    
+    def record_access(self, key: str):
+        """Записывает доступ к ключу кеша."""
+        self.access_counts[key] = self.access_counts.get(key, 0) + 1
+        self.access_timestamps[key] = datetime.now()
+    
+    def get_adaptive_ttl(self, key: str, base_ttl: int) -> int:
+        """Вычисляет адаптивное время жизни на основе частоты использования."""
+        access_count = self.access_counts.get(key, 0)
+        
+        # Increase TTL for frequently accessed items
+        if access_count > 100:
+            return base_ttl * 4  # 4x TTL for very popular items
+        elif access_count > 50:
+            return base_ttl * 2  # 2x TTL for popular items
+        elif access_count > 10:
+            return int(base_ttl * 1.5)  # 1.5x TTL for moderately popular items
+        else:
+            return base_ttl  # Default TTL
+    
+    def should_cache(self, key: str) -> bool:
+        """Определяет, стоит ли кешировать этот ключ."""
+        # For now, cache everything, but this could be extended to skip rarely used items
+        return True
+
+# Глобальный экземпляр адаптивного кеша
+adaptive_cache = AdaptiveCache()
 
 
 def get_cache_key(prefix: str, *args, **kwargs) -> str:
@@ -269,13 +352,15 @@ def get_cache_key(prefix: str, *args, **kwargs) -> str:
     return f"{prefix}:{hash_key}"
 
 
-def cached_parser(expire: int = settings.CACHE_TTL, source: str = "unknown"):
+def cached_parser(expire: int = settings.CACHE_TTL, source: str = "unknown", compress: bool = True, adaptive: bool = False):
     """
     Декоратор для кеширования результатов парсера.
 
     Args:
         expire: Время жизни кеша в секундах
         source: Название источника парсера (для тегирования)
+        compress: Сжимать данные в кеше
+        adaptive: Использовать адаптивное кеширование
     """
 
     def decorator(func: Callable) -> Callable:
@@ -284,6 +369,10 @@ def cached_parser(expire: int = settings.CACHE_TTL, source: str = "unknown"):
             # Генерируем ключ кеша с префиксом парсера
             cache_key = get_cache_key(f"parser:{source}", *args, **kwargs)
 
+            # Record access for adaptive caching
+            if adaptive:
+                adaptive_cache.record_access(cache_key)
+
             # Пытаемся получить значение из кеша
             cached_result = await advanced_cache_manager.get(cache_key)
             if cached_result is not None:
@@ -292,13 +381,18 @@ def cached_parser(expire: int = settings.CACHE_TTL, source: str = "unknown"):
             # Если значения нет в кеше, вызываем функцию
             result = await func(*args, **kwargs)
 
+            # Determine TTL for caching
+            actual_expire = expire
+            if adaptive:
+                actual_expire = adaptive_cache.get_adaptive_ttl(cache_key, expire)
+
             # Сохраняем результат в кеш с тегами
             tags = [f"source:{source}", f"parser"]
             if args:
                 # Предполагаем что первый аргумент - город
                 tags.append(f"city:{args[0]}")
             
-            await advanced_cache_manager.set(cache_key, result, expire, tags=tags)
+            await advanced_cache_manager.set(cache_key, result, actual_expire, tags=tags, compress=compress)
 
             return result
 
@@ -307,13 +401,14 @@ def cached_parser(expire: int = settings.CACHE_TTL, source: str = "unknown"):
     return decorator
 
 
-def cached(expire: int = settings.CACHE_TTL, prefix: str = "default"):
+def cached(expire: int = settings.CACHE_TTL, prefix: str = "default", adaptive: bool = False):
     """
     Универсальный декоратор для кеширования результатов функций.
 
     Args:
         expire: Время жизни кеша в секундах
         prefix: Префикс для ключа кеша
+        adaptive: Использовать адаптивное кеширование
     """
 
     def decorator(func: Callable) -> Callable:
@@ -321,6 +416,10 @@ def cached(expire: int = settings.CACHE_TTL, prefix: str = "default"):
         async def wrapper(*args, **kwargs):
             # Генерируем ключ кеша
             cache_key = get_cache_key(prefix, func.__name__, *args, **kwargs)
+
+            # Record access for adaptive caching
+            if adaptive:
+                adaptive_cache.record_access(cache_key)
 
             # Пытаемся получить значение из кеша
             cached_result = await advanced_cache_manager.get(cache_key)
@@ -330,8 +429,13 @@ def cached(expire: int = settings.CACHE_TTL, prefix: str = "default"):
             # Если значения нет в кеше, вызываем функцию
             result = await func(*args, **kwargs)
 
-            # Сохраняем результат в кеш
-            await advanced_cache_manager.set(cache_key, result, expire)
+            # Determine TTL for caching
+            actual_expire = expire
+            if adaptive:
+                actual_expire = adaptive_cache.get_adaptive_ttl(cache_key, expire)
+
+            # Save result to cache with appropriate TTL
+            await advanced_cache_manager.set(cache_key, result, actual_expire)
 
             return result
 

@@ -196,29 +196,90 @@
     </section>
 
     <!-- Footer -->
-    <footer class="bg-dark text-white py-5 mt-5">
+    <footer class="footer bg-gradient text-white py-5 mt-auto">
         <div class="container">
-            <div class="row">
-                <div class="col-md-4 mb-3">
-                    <h5><i class="bi bi-house-door-fill"></i> RentScout</h5>
-                    <p class="text-muted">Умный поиск жилья</p>
+            <div class="row g-5 mb-5">
+                <!-- Брэнд -->
+                <div class="col-lg-3 col-md-6">
+                    <div class="footer-section">
+                        <h5 class="footer-title mb-3">
+                            <i class="bi bi-house-door-fill text-primary"></i> RentScout
+                        </h5>
+                        <p class="footer-subtitle text-muted">Умный поиск жилья онлайн</p>
+                        <p class="footer-description text-muted small">Агрегируем объявления с популярных платформ и помогаем найти идеальное жилье для аренды.</p>
+                        <div class="social-links mt-3">
+                            <a href="https://github.com/QuadDarv1ne/rentscout" class="footer-social-link" target="_blank" rel="noopener noreferrer" title="GitHub">
+                                <i class="bi bi-github"></i>
+                            </a>
+                        </div>
+                    </div>
                 </div>
-                <div class="col-md-4 mb-3">
-                    <h5>Ссылки</h5>
-                    <ul class="list-unstyled">
-                        <li class="mb-2"><a href="/docs" class="text-muted text-decoration-none hover-link"><i class="bi bi-code-slash me-2"></i>API Документация</a></li>
-                        <li class="mb-2"><a href="/health-page" class="text-muted text-decoration-none hover-link"><i class="bi bi-heart-pulse me-2"></i>Статус системы</a></li>
-                        <li class="mb-2"><a href="https://github.com/QuadDarv1ne/rentscout" class="text-muted text-decoration-none hover-link" target="_blank" rel="noopener noreferrer"><i class="bi bi-github me-2"></i>GitHub</a></li>
-                    </ul>
+
+                <!-- Продукт -->
+                <div class="col-lg-2 col-md-6">
+                    <div class="footer-section">
+                        <h6 class="footer-title mb-3">Продукт</h6>
+                        <ul class="list-unstyled footer-links">
+                            <li class="mb-2">
+                                <a href="/" class="footer-link"><i class="bi bi-house me-2 text-primary"></i>Главная</a>
+                            </li>
+                            <li class="mb-2">
+                                <a href="/search" class="footer-link"><i class="bi bi-search me-2 text-primary"></i>Поиск</a>
+                            </li>
+                            <li class="mb-2">
+                                <a href="/docs" class="footer-link"><i class="bi bi-code-slash me-2 text-primary"></i>API Docs</a>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
-                <div class="col-md-4 mb-3">
-                    <h5>Контакты</h5>
-                    <p class="text-muted"><i class="bi bi-envelope me-2"></i>support@rentscout.dev</p>
+
+                <!-- Система -->
+                <div class="col-lg-2 col-md-6">
+                    <div class="footer-section">
+                        <h6 class="footer-title mb-3">Система</h6>
+                        <ul class="list-unstyled footer-links">
+                            <li class="mb-2">
+                                <a href="/health-page" class="footer-link"><i class="bi bi-heart-pulse me-2 text-primary"></i>Статус</a>
+                            </li>
+                            <li class="mb-2">
+                                <a href="/metrics" class="footer-link"><i class="bi bi-graph-up me-2 text-primary"></i>Метрики</a>
+                            </li>
+                            <li class="mb-2">
+                                <a href="/docs#/" class="footer-link"><i class="bi bi-shield-check me-2 text-primary"></i>Статус API</a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Контакты -->
+                <div class="col-lg-3 col-md-6">
+                    <div class="footer-section">
+                        <h6 class="footer-title mb-3">Контакты & Поддержка</h6>
+                        <p class="footer-contact mb-2">
+                            <i class="bi bi-envelope text-primary me-2"></i>
+                            <a href="mailto:support@rentscout.dev" class="footer-link">support@rentscout.dev</a>
+                        </p>
+                        <p class="footer-contact text-muted small">
+                            <i class="bi bi-info-circle text-primary me-2"></i>
+                            Помощь и поддержка доступны через GitHub Issues
+                        </p>
+                    </div>
                 </div>
             </div>
-            <hr class="bg-secondary my-4">
-            <div class="text-center text-muted">
-                <p class="mb-0">&copy; 2024-2025 RentScout. Все права защищены.</p>
+
+            <!-- Divider -->
+            <hr class="my-4 opacity-25">
+
+            <!-- Bottom Info -->
+            <div class="footer-bottom">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <p class="text-muted small mb-0">&copy; 2024-2025 RentScout. Все права защищены.</p>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <p class="text-muted small mb-0">Made with <i class="bi bi-heart-fill text-danger"></i> by the RentScout Team</p>
+                    </div>
+                </div>
             </div>
         </div>
     </footer>
