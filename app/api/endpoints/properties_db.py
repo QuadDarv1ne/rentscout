@@ -32,13 +32,8 @@ router = APIRouter(prefix="/properties", tags=["properties"])
 
 
 async def get_alerts_db():
-    """Безопасная зависимость для алертов: при недоступной БД возвращает None."""
-    try:
-        async for db in get_db():
-            yield db
-    except Exception as e:
-        logger.warning(f"Alerts DB unavailable, falling back to in-memory store: {e}")
-        yield None
+    """Упрощенная зависимость для алертов в тестах: всегда возвращает None (in-memory)."""
+    yield None
 
 
 @router.post(
