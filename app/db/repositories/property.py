@@ -6,8 +6,9 @@ import time
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 
-from sqlalchemy import select, update, delete, and_, or_, func, desc
+from sqlalchemy import select, update, delete, and_, or_, func, desc, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.dialects.postgresql import insert
 
 from app.db.models.property import Property, PropertyPriceHistory, PropertyView, SearchQuery
 from app.models.schemas import PropertyCreate
@@ -58,19 +59,99 @@ async def create_property(db: AsyncSession, property_data: PropertyCreate) -> Pr
     return db_property
 
 
-async def get_property(db: AsyncSession, property_id: int) -> Optional[Property]:
-    """Get property by ID."""
+async def bulk_create_properties(db: AsyncSession, properties_data: List[PropertyCreate]) -> List[Property]:
+    """
+    Create multiple properties in a single bulk operation for better performance.
+    
+    Args:
+        db: Database session
+        properties_data: List of property data to create
+        
+    Returns:
+        List of created property objects
+    """
     start_time = time.time()
     
-    result = await db.execute(
-        select(Property).where(Property.id == property_id)
-    )
+    if not properties_data:
+        return []
+    
+    # Convert PropertyCreate objects to dictionaries for bulk insert
+    properties_dicts = []
+    for prop_data in properties_data:
+        location = prop_data.location or {}
+        prop_dict = prop_data.model_dump()
+        
+        # Prepare the dictionary for bulk insert
+        properties_dicts.append({
+            "source": prop_dict["source"],
+            "external_id": prop_dict["external_id"],
+            "title": prop_dict["title"],
+            "description": prop_dict.get("description"),
+            "link": prop_dict.get("link"),
+            "price": prop_dict["price"],
+            "rooms": prop_dict.get("rooms"),
+            "area": prop_dict.get("area"),
+            "city": location.get("city"),
+            "district": location.get("district"),
+            "address": location.get("address"),
+            "latitude": location.get("latitude"),
+            "longitude": location.get("longitude"),
+            "location": location,
+            "photos": prop_dict.get("photos", []),
+        })
+    
+    try:
+        # Use PostgreSQL's INSERT ... ON CONFLICT DO NOTHING for deduplication
+        stmt = insert(Property).values(properties_dicts)
+        stmt = stmt.on_conflict_do_nothing(
+            index_elements=['source', 'external_id']
+        )
+        
+        result = await db.execute(stmt)
+        await db.flush()
+        
+        # Get the inserted/updated properties
+        # For simplicity, we'll fetch them separately since bulk insert doesn't return objects
+        external_ids = [prop.external_id for prop in properties_data]
+        sources = [prop.source for prop in properties_data]
+        
+        query = select(Property).where(
+            and_(
+                Property.external_id.in_(external_ids),
+                Property.source.in_(sources)
+            )
+        )
+        result = await db.execute(query)
+        created_properties = list(result.scalars().all())
+        
+        # Record metrics
+        duration = time.time() - start_time
+        metrics_collector.record_db_query("BULK_INSERT", "properties", duration)
+        metrics_collector.record_properties_saved(len(created_properties))
+        
+        logger.info(f"Bulk created {len(created_properties)} properties")
+        return created_properties
+        
+    except Exception as e:
+        duration = time.time() - start_time
+        metrics_collector.record_db_query("BULK_INSERT", "properties", duration, error=True)
+        logger.error(f"Error bulk creating properties: {e}")
+        raise
+
+
+async def get_property(db: AsyncSession, property_id: int) -> Optional[Property]:
+    """Get a property by ID."""
+    start_time = time.time()
+    
+    query = select(Property).where(Property.id == property_id)
+    result = await db.execute(query)
+    property_obj = result.scalar_one_or_none()
     
     # Record metrics
     duration = time.time() - start_time
     metrics_collector.record_db_query("SELECT", "properties", duration)
     
-    return result.scalar_one_or_none()
+    return property_obj
 
 
 async def get_property_by_external_id(
@@ -445,6 +526,72 @@ async def get_price_history(
     metrics_collector.record_db_query("SELECT", "price_history", duration)
     
     return list(result.scalars().all())
+
+
+async def get_price_trends(db: AsyncSession, city: str, days: int = 30) -> List[Dict[str, Any]]:
+    """
+    Get price trends for properties in a city over a period of days.
+    
+    Args:
+        db: Database session
+        city: City to get trends for
+        days: Number of days to analyze
+        
+    Returns:
+        List of daily price statistics
+    """
+    start_time = time.time()
+    
+    try:
+        # Calculate the date threshold
+        threshold_date = datetime.utcnow() - timedelta(days=days)
+        
+        # Query to get daily price averages
+        query = (
+            select(
+                func.date(Property.created_at).label('date'),
+                func.avg(Property.price).label('average_price'),
+                func.count(Property.id).label('property_count'),
+                func.min(Property.price).label('min_price'),
+                func.max(Property.price).label('max_price')
+            )
+            .where(
+                and_(
+                    Property.city == city,
+                    Property.created_at >= threshold_date,
+                    Property.is_active == True
+                )
+            )
+            .group_by(func.date(Property.created_at))
+            .order_by(func.date(Property.created_at))
+        )
+        
+        result = await db.execute(query)
+        rows = result.all()
+        
+        # Convert to dictionary format
+        trends = []
+        for row in rows:
+            trends.append({
+                "date": row.date.isoformat() if row.date else None,
+                "average_price": float(row.average_price) if row.average_price else 0,
+                "property_count": row.property_count,
+                "min_price": float(row.min_price) if row.min_price else 0,
+                "max_price": float(row.max_price) if row.max_price else 0
+            })
+        
+        # Record metrics
+        duration = time.time() - start_time
+        metrics_collector.record_db_query("SELECT", "price_trends", duration)
+        
+        logger.info(f"Retrieved price trends for {city} over {days} days")
+        return trends
+        
+    except Exception as e:
+        duration = time.time() - start_time
+        metrics_collector.record_db_query("SELECT", "price_trends", duration, error=True)
+        logger.error(f"Error getting price trends: {e}")
+        raise
 
 
 # ==================== View Tracking CRUD ====================

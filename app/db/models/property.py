@@ -148,24 +148,21 @@ class SearchQuery(Base):
     __tablename__ = "search_queries"
     
     id = Column(Integer, primary_key=True, index=True)
-    
-    # Query parameters
     city = Column(String(100), index=True)
     property_type = Column(String(50))
-    min_price = Column(Float)
+    
+    # Search criteria
     max_price = Column(Float)
-    min_rooms = Column(Integer)
-    max_rooms = Column(Integer)
+    min_price = Column(Float)
+    rooms = Column(Integer)
     min_area = Column(Float)
     max_area = Column(Float)
-    query_params = Column(JSON)  # Full query parameters
     
-    # Results metadata
-    results_count = Column(Integer)
+    # Results
+    results_count = Column(Integer, default=0)
     
-    # User metadata
-    ip_address = Column(String(45))
-    user_agent = Column(String(500))
+    # User info
+    ip_address = Column(String(45))  # IPv4 or IPv6
     
     # Timestamp
     searched_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -177,3 +174,36 @@ class SearchQuery(Base):
     
     def __repr__(self):
         return f"<SearchQuery(city={self.city}, type={self.property_type}, results={self.results_count})>"
+
+
+class PropertyAlert(Base):
+    """Property alert for notifying users about new listings."""
+    
+    __tablename__ = "property_alerts"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    city = Column(String(100), nullable=False, index=True)
+    
+    # Alert criteria
+    max_price = Column(Float)
+    min_price = Column(Float)
+    rooms = Column(Integer)
+    min_area = Column(Float)
+    max_area = Column(Float)
+    
+    # Notification settings
+    email = Column(String(255), nullable=False, index=True)
+    is_active = Column(Boolean, default=True, index=True)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    last_notified = Column(DateTime(timezone=True))
+    
+    __table_args__ = (
+        Index('ix_city_active', 'city', 'is_active'),
+        Index('ix_email_active', 'email', 'is_active'),
+        Index('ix_created_at', 'created_at'),
+    )
+    
+    def __repr__(self):
+        return f"<PropertyAlert(city={self.city}, email={self.email}, active={self.is_active})>"

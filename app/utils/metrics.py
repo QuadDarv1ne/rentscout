@@ -70,17 +70,24 @@ PROPERTIES_SAVED = Counter('properties_saved_total', 'Total properties saved to 
 
 PROPERTIES_DUPLICATES = Counter('properties_duplicates_total', 'Total duplicate properties detected')
 
-# Export metrics
+# Business metrics
+PROPERTY_COMPARISONS = Counter('property_comparisons_total', 'Total property comparisons performed')
+
+PROPERTY_RECOMMENDATIONS = Counter('property_recommendations_total', 'Total property recommendations served')
+
+PRICE_TRENDS_QUERIED = Counter('price_trends_queried_total', 'Total price trends queries')
+
+PROPERTY_ALERTS_CREATED = Counter('property_alerts_created_total', 'Total property alerts created')
+
 EXPORT_REQUESTS = Counter('export_requests_total', 'Total export requests', ['format', 'status'])
 
-EXPORT_DURATION = Histogram('export_duration_seconds', 'Export operation duration in seconds', ['format'])
+EXPORT_DURATION = Histogram('export_duration_seconds', 'Export duration in seconds', ['format'])
 
-EXPORT_ITEMS = Histogram('export_items_count', 'Number of items exported', ['format'], buckets=(10, 50, 100, 500, 1000, 5000, 10000))
+EXPORT_ITEMS = Histogram('export_items_count', 'Number of items exported', ['format'])
 
-# Pagination metrics
-PAGINATION_REQUESTS = Counter('pagination_requests_total', 'Total paginated requests', ['page_size'])
+PAGINATION_REQUESTS = Counter('pagination_requests_total', 'Total pagination requests', ['page_size'])
 
-PAGINATION_PAGES_ACCESSED = Histogram('pagination_pages_accessed', 'Pages accessed in pagination', buckets=(1, 2, 5, 10, 20, 50, 100))
+PAGINATION_PAGES_ACCESSED = Histogram('pagination_pages_accessed', 'Pages accessed via pagination')
 
 
 class MetricsCollector:
@@ -105,10 +112,15 @@ class MetricsCollector:
         
         logger.debug(f"Recorded parser call: {parser_name} {status} in {duration:.4f}s")
 
-    def record_db_query(self, query_type: str, table: str, duration: float):
+    def record_db_query(self, query_type: str, table: str, duration: float, error: bool = False):
         """Запись метрик базы данных."""
         DB_QUERIES.labels(query_type=query_type, table=table).inc()
         DB_QUERY_DURATION.labels(query_type=query_type, table=table).observe(duration)
+        
+        if error:
+            # Record database errors
+            DB_QUERIES.labels(query_type=f"{query_type}_error", table=table).inc()
+            
         logger.debug(f"Recorded DB query: {query_type} on {table} in {duration:.4f}s")
 
     def record_cache_hit(self):
@@ -157,9 +169,46 @@ class MetricsCollector:
         """Запись метрики сохраненного объявления."""
         PROPERTIES_SAVED.inc()
 
+    def record_properties_saved(self, count: int):
+        """Запись метрики сохраненных объявлений."""
+        PROPERTIES_SAVED.inc(count)
+
     def record_duplicate_property(self):
         """Запись метрики дубликата объявления."""
         PROPERTIES_DUPLICATES.inc()
+
+    def record_duplicates_removed(self, count: int):
+        """Запись метрики удаленных дубликатов."""
+        PROPERTIES_DUPLICATES.inc(count)
+
+    def record_search_operation(self, city: str, result_count: int, duration: float):
+        """Запись метрики операции поиска."""
+        # Using the existing parser metrics for search operations
+        PARSER_CALLS.labels(parser_name="search_service", status="success").inc()
+        PARSER_DURATION.labels(parser_name="search_service").observe(duration)
+        logger.info(f"Search operation for {city}: {result_count} results in {duration:.4f}s")
+
+    def record_parser_success(self, parser_name: str, property_count: int):
+        """Запись метрики успешного парсинга."""
+        PARSER_CALLS.labels(parser_name=parser_name, status="success").inc()
+        PROPERTIES_PROCESSED.labels(source=parser_name.lower(), operation="parsed").inc(property_count)
+        logger.debug(f"Parser {parser_name} successfully parsed {property_count} properties")
+
+    def record_parser_failure(self, parser_name: str):
+        """Запись метрики неудачного парсинга."""
+        PARSER_CALLS.labels(parser_name=parser_name, status="failure").inc()
+        logger.debug(f"Parser {parser_name} failed")
+
+    def record_parser_error(self, parser_name: str, error_type: str):
+        """Запись метрики ошибки парсера."""
+        PARSER_ERRORS.labels(parser_name=parser_name, error_type=error_type).inc()
+        logger.debug(f"Parser {parser_name} encountered error: {error_type}")
+
+    def record_error(self, error_type: str):
+        """Запись общей метрики ошибки."""
+        # We can use parser errors for general errors too
+        PARSER_ERRORS.labels(parser_name="general", error_type=error_type).inc()
+        logger.debug(f"General error recorded: {error_type}")
 
     def start_request(self):
         """Увеличение счетчика активных запросов."""
@@ -192,6 +241,25 @@ class MetricsCollector:
         PAGINATION_PAGES_ACCESSED.observe(page_number)
         logger.debug(f"Pagination: page {page_number}, size {page_size}")
 
+    def record_property_comparison(self):
+        """Запись метрики сравнения объявлений."""
+        PROPERTY_COMPARISONS.inc()
+        logger.debug("Property comparison performed")
+
+    def record_property_recommendation(self, count: int):
+        """Запись метрики рекомендаций объявлений."""
+        PROPERTY_RECOMMENDATIONS.inc(count)
+        logger.debug(f"Provided {count} property recommendations")
+
+    def record_price_trends_query(self):
+        """Запись метрики запроса трендов цен."""
+        PRICE_TRENDS_QUERIED.inc()
+        logger.debug("Price trends query performed")
+
+    def record_property_alert_created(self):
+        """Запись метрики создания оповещения."""
+        PROPERTY_ALERTS_CREATED.inc()
+        logger.debug("Property alert created")
 
 # Глобальный экземпляр коллектора метрик
 metrics_collector = MetricsCollector()
