@@ -112,18 +112,49 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
 # Создание экземпляра FastAPI приложения с lifespan
 app = FastAPI(
     title=settings.APP_NAME,
-    description="API для агрегации данных об аренде жилья с ведущих площадок",
+    description="""
+    ## 🏠 RentScout API
+    
+    **Высокопроизводительный сервис агрегации объявлений об аренде недвижимости**
+    
+    ### Основные возможности:
+    - 🔍 Поиск объявлений с множественных площадок (Avito, Cian, и др.)
+    - 🎯 Расширенная фильтрация (15+ параметров)
+    - ⚡ Умное кеширование результатов
+    - 📊 Встроенная аналитика и метрики
+    - 🚀 Асинхронные фоновые задачи
+    - 💾 Сохранение в PostgreSQL с полнотекстовым поиском
+    
+    ### Технологии:
+    - FastAPI + Uvicorn
+    - PostgreSQL + Redis
+    - Celery + Flower
+    - Prometheus + Grafana
+    - Docker + Docker Compose
+    
+    ### Быстрый старт:
+    1. Ознакомьтесь с эндпоинтами ниже
+    2. Проверьте `/api/health` для статуса сервисов
+    3. Используйте `/api/properties` для поиска
+    4. Мониторьте `/metrics` для Prometheus
+    
+    > 💡 **Совет:** Используйте параметры `min_price`, `max_price`, `min_rooms`, `max_rooms` для точной фильтрации
+    """,
     version="1.0.0",
     openapi_tags=tags_metadata,
     contact={
         "name": "RentScout Team",
         "url": "https://github.com/QuadDarv1ne/rentscout",
+        "email": "support@rentscout.dev",
     },
     license_info={
-        "name": "MIT",
+        "name": "MIT License",
         "url": "https://opensource.org/licenses/MIT",
     },
     lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
 )
 
 
@@ -158,10 +189,52 @@ Instrumentator().instrument(app).expose(app)
 
 @app.get("/", tags=["root"])
 async def root():
-    """Корневой endpoint."""
+    """
+    # Корневой endpoint
+    
+    Предоставляет базовую информацию о API и навигацию по ключевым эндпоинтам.
+    
+    ## Возвращает:
+    - **message**: Приветственное сообщение
+    - **version**: Версия API
+    - **status**: Статус сервиса
+    - **endpoints**: Полезные ссылки для навигации
+    
+    ## Пример ответа:
+    ```json
+    {
+        "message": "Welcome to RentScout API",
+        "version": "1.0.0",
+        "status": "operational",
+        "endpoints": {
+            "docs": "/docs",
+            "health": "/api/health",
+            "search": "/api/properties",
+            "metrics": "/metrics"
+        }
+    }
+    ```
+    """
     return {
         "message": f"Welcome to {settings.APP_NAME} API",
         "version": "1.0.0",
-        "docs": "/docs",
-        "health": "/api/health",
+        "status": "operational",
+        "endpoints": {
+            "documentation": "/docs",
+            "alternative_docs": "/redoc",
+            "health_check": "/api/health",
+            "detailed_health": "/api/health/detailed",
+            "search_properties": "/api/properties",
+            "database_properties": "/api/db/properties",
+            "tasks": "/api/tasks",
+            "metrics": "/metrics",
+        },
+        "features": [
+            "Multi-source property aggregation",
+            "Advanced filtering (15+ parameters)",
+            "Smart caching with Redis",
+            "PostgreSQL full-text search",
+            "Async background tasks with Celery",
+            "Real-time metrics with Prometheus",
+        ],
     }

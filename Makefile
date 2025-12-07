@@ -18,20 +18,29 @@ define colorecho
 	@echo "$(1)$(2)$(NC)"
 endef
 
-.PHONY: help install install-dev test test-cov run run-dev lint format clean docs
+.PHONY: help install install-dev test test-cov run run-dev lint format clean docs docker-build docker-up docker-down docker-dev migration db-upgrade db-downgrade pre-commit security
 
 help:
 	@echo "Доступные команды:"
-	@echo "  install     - Установка зависимостей"
-	@echo "  install-dev - Установка зависимостей для разработки"
-	@echo "  test        - Запуск тестов"
-	@echo "  test-cov    - Запуск тестов с покрытием"
-	@echo "  run         - Запуск сервера"
-	@echo "  run-dev     - Запуск сервера разработки с перезагрузкой"
-	@echo "  lint        - Проверка кода"
-	@echo "  format      - Форматирование кода"
-	@echo "  clean       - Очистка временных файлов"
-	@echo "  docs        - Генерация документации"
+	@echo "  install       - Установка зависимостей"
+	@echo "  install-dev   - Установка зависимостей для разработки"
+	@echo "  test          - Запуск тестов"
+	@echo "  test-cov      - Запуск тестов с покрытием"
+	@echo "  run           - Запуск сервера"
+	@echo "  run-dev       - Запуск сервера разработки с перезагрузкой"
+	@echo "  lint          - Проверка кода"
+	@echo "  format        - Форматирование кода"
+	@echo "  clean         - Очистка временных файлов"
+	@echo "  docs          - Генерация документации"
+	@echo "  docker-build  - Собрать Docker образы"
+	@echo "  docker-up     - Запустить Docker контейнеры"
+	@echo "  docker-down   - Остановить Docker контейнеры"
+	@echo "  docker-dev    - Запустить dev окружение в Docker"
+	@echo "  migration     - Создать новую миграцию Alembic"
+	@echo "  db-upgrade    - Применить миграции БД"
+	@echo "  db-downgrade  - Откатить миграции БД"
+	@echo "  pre-commit    - Установить pre-commit hooks"
+	@echo "  security      - Проверить безопасность зависимостей"
 
 install:
 	$(call colorecho,$(GREEN),"Установка зависимостей...")
