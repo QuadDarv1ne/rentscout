@@ -21,6 +21,25 @@ app_state: Dict[str, Any] = {
     "active_requests": 0,
 }
 
+tags_metadata = [
+    {
+        "name": "properties",
+        "description": "Онлайн-поиск объявлений через парсеры с фильтрацией и кэшированием.",
+    },
+    {
+        "name": "properties-db",
+        "description": "CRUD и аналитика по объявлениям, сохранённым в PostgreSQL.",
+    },
+    {
+        "name": "tasks",
+        "description": "Фоновые задачи Celery для парсинга, расписаний и управления заданиями.",
+    },
+    {
+        "name": "health",
+        "description": "Проверки состояния сервиса, кеша и rate limit статистики.",
+    },
+]
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator:
@@ -95,6 +114,15 @@ app = FastAPI(
     title=settings.APP_NAME,
     description="API для агрегации данных об аренде жилья с ведущих площадок",
     version="1.0.0",
+    openapi_tags=tags_metadata,
+    contact={
+        "name": "RentScout Team",
+        "url": "https://github.com/QuadDarv1ne/rentscout",
+    },
+    license_info={
+        "name": "MIT",
+        "url": "https://opensource.org/licenses/MIT",
+    },
     lifespan=lifespan,
 )
 

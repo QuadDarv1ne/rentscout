@@ -138,13 +138,18 @@ async def search_properties(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/stats/overview")
+@router.get(
+    "/stats/overview",
+    response_model=PropertyStatistics,
+    summary="Получить статистику объявлений",
+    response_description="Сводная статистика по объявлениям",
+)
 async def get_statistics(
     city: Optional[str] = Query(None, description="Filter by city"),
     source: Optional[str] = Query(None, description="Filter by source"),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get property statistics."""
+    """Возвращает количество, средние и экстремальные значения цены и площади."""
     try:
         stats = await property_repo.get_property_statistics(
             db=db,
@@ -157,13 +162,18 @@ async def get_statistics(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{property_id}/price-history")
+@router.get(
+    "/{property_id}/price-history",
+    response_model=List[PropertyPriceHistoryEntry],
+    summary="История изменения цены",
+    response_description="Последние изменения цен для объявления",
+)
 async def get_price_history(
     property_id: int,
     limit: int = Query(10, ge=1, le=100),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get price history for a property."""
+    """Возвращает последние изменения цены по объявлению."""
     try:
         history = await property_repo.get_price_history(db, property_id, limit)
         return history
@@ -172,13 +182,18 @@ async def get_price_history(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/{property_id}/view")
+@router.post(
+    "/{property_id}/view",
+    response_model=OperationStatus,
+    summary="Отслеживание просмотра объявления",
+    response_description="Результат регистрации просмотра",
+)
 async def track_view(
     property_id: int,
     request: Request,
     db: AsyncSession = Depends(get_db)
 ):
-    """Track a property view."""
+    """Регистрирует просмотр объявления и возвращает статус операции."""
     try:
         # Verify property exists
         db_property = await property_repo.get_property(db, property_id)
@@ -198,7 +213,7 @@ async def track_view(
             referer=referer
         )
         
-        return {"status": "ok", "message": "View tracked"}
+        return OperationStatus(status="ok", message="View tracked")
     except HTTPException:
         raise
     except Exception as e:
@@ -206,25 +221,27 @@ async def track_view(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/stats/popular")
+@router.get(
+    "/stats/popular",
+    response_model=List[PopularProperty],
+    summary="Популярные объявления",
+    response_description="Топ объявлений по просмотрам",
+)
 async def get_popular_properties(
     limit: int = Query(10, ge=1, le=100),
     days: int = Query(7, ge=1, le=365),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get most popular properties by view count."""
+    """Возвращает список самых популярных объявлений за выбранный период."""
     try:
         popular = await property_repo.get_popular_properties(db, limit, days)
         
         # Get full property data
-        result = []
+        result: List[PopularProperty] = []
         for property_id, view_count in popular:
             db_property = await property_repo.get_property(db, property_id)
             if db_property:
-                result.append({
-                    "property": db_property,
-                    "view_count": view_count
-                })
+                result.append(PopularProperty(property=db_property, view_count=view_count))
         
         return result
     except Exception as e:
@@ -232,13 +249,18 @@ async def get_popular_properties(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/stats/searches")
+@router.get(
+    "/stats/searches",
+    response_model=List[PopularSearch],
+    summary="Популярные поисковые запросы",
+    response_description="Топ поисковых запросов пользователей",
+)
 async def get_popular_searches(
     limit: int = Query(10, ge=1, le=100),
     days: int = Query(7, ge=1, le=365),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get most popular search queries."""
+    """Возвращает статистику популярных поисковых запросов за выбранный период."""
     try:
         searches = await property_repo.get_popular_searches(db, limit, days)
         return searches
@@ -247,33 +269,41 @@ async def get_popular_searches(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/bulk", status_code=201)
+@router.post(
+    "/bulk",
+    status_code=201,
+    response_model=BulkUpsertResult,
+    summary="Массовая загрузка/обновление объявлений",
+    response_description="Количество созданных/обновленных записей",
+)
 async def bulk_upsert_properties(
     properties: List[PropertyCreate],
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Bulk insert or update properties.
-    Updates existing properties (matched by source + external_id) or creates new ones.
-    """
+    """Массово создаёт или обновляет объявления по source + external_id."""
     try:
         result = await property_repo.bulk_upsert_properties(db, properties)
-        return result
+        return BulkUpsertResult(**result)
     except Exception as e:
         logger.error(f"Error bulk upserting properties: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/deactivate-old")
+@router.post(
+    "/deactivate-old",
+    response_model=DeactivateResult,
+    summary="Деактивировать устаревшие объявления",
+    response_description="Количество деактивированных объявлений",
+)
 async def deactivate_old_properties(
     source: str = Query(..., description="Source to deactivate from"),
     hours: int = Query(24, ge=1, le=720, description="Hours since last seen"),
     db: AsyncSession = Depends(get_db)
 ):
-    """Deactivate properties not seen in the last N hours."""
+    """Помечает неактивными объявления, которые не встречались больше указанного времени."""
     try:
         count = await property_repo.deactivate_old_properties(db, source, hours)
-        return {"status": "ok", "deactivated_count": count}
+        return DeactivateResult(status="ok", deactivated_count=count)
     except Exception as e:
         logger.error(f"Error deactivating old properties: {e}")
         raise HTTPException(status_code=500, detail=str(e))
