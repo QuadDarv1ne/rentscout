@@ -14,6 +14,7 @@ import redis.asyncio as redis
 
 from app.core.config import settings
 from app.models.schemas import PropertyCreate
+from app.utils.metrics import metrics_collector
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,7 @@ class AdvancedCacheManager:
             value = await self.redis_client.get(key)
             if value:
                 self.hits += 1
+                metrics_collector.record_cache_hit()
                 logger.debug(f"Cache HIT: {key[:50]}... (hit rate: {self.get_hit_rate():.2%})")
                 # Decompress if compressed
                 if value.startswith(b'COMPRESSED:'):
@@ -97,10 +99,12 @@ class AdvancedCacheManager:
                     return pickle.loads(value)
             else:
                 self.misses += 1
+                metrics_collector.record_cache_miss()
                 logger.debug(f"Cache MISS: {key[:50]}... (hit rate: {self.get_hit_rate():.2%})")
                 return None
         except Exception as e:
             self.errors += 1
+            metrics_collector.record_cache_error()
             logger.error(f"Error getting value from cache: {e}")
             return None
 
@@ -141,6 +145,7 @@ class AdvancedCacheManager:
             return bool(result)
         except Exception as e:
             self.errors += 1
+            metrics_collector.record_cache_error()
             logger.error(f"Error setting value in cache: {e}")
             return False
 
@@ -155,6 +160,7 @@ class AdvancedCacheManager:
             return result > 0
         except Exception as e:
             self.errors += 1
+            metrics_collector.record_cache_error()
             logger.error(f"Error deleting value from cache: {e}")
             return False
 
@@ -177,6 +183,7 @@ class AdvancedCacheManager:
             return 0
         except Exception as e:
             self.errors += 1
+            metrics_collector.record_cache_error()
             logger.error(f"Error clearing cache by tag: {e}")
             return 0
 
@@ -207,6 +214,7 @@ class AdvancedCacheManager:
             return deleted
         except Exception as e:
             self.errors += 1
+            metrics_collector.record_cache_error()
             logger.error(f"Error clearing cache pattern: {e}")
             return 0
 

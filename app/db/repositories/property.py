@@ -2,6 +2,7 @@
 CRUD operations for Property model.
 """
 import logging
+import time
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 
@@ -10,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.property import Property, PropertyPriceHistory, PropertyView, SearchQuery
 from app.models.schemas import PropertyCreate
+from app.utils.metrics import metrics_collector
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 async def create_property(db: AsyncSession, property_data: PropertyCreate) -> Property:
     """Create a new property."""
+    start_time = time.time()
+    
     # Extract location fields if available
     location = property_data.location or {}
     
@@ -45,15 +49,27 @@ async def create_property(db: AsyncSession, property_data: PropertyCreate) -> Pr
     await db.flush()
     await db.refresh(db_property)
     
+    # Record metrics
+    duration = time.time() - start_time
+    metrics_collector.record_db_query("INSERT", "properties", duration)
+    metrics_collector.record_property_saved()
+    
     logger.info(f"Created property: {db_property.id} from {db_property.source}")
     return db_property
 
 
 async def get_property(db: AsyncSession, property_id: int) -> Optional[Property]:
     """Get property by ID."""
+    start_time = time.time()
+    
     result = await db.execute(
         select(Property).where(Property.id == property_id)
     )
+    
+    # Record metrics
+    duration = time.time() - start_time
+    metrics_collector.record_db_query("SELECT", "properties", duration)
+    
     return result.scalar_one_or_none()
 
 
@@ -63,6 +79,8 @@ async def get_property_by_external_id(
     external_id: str
 ) -> Optional[Property]:
     """Get property by source and external ID."""
+    start_time = time.time()
+    
     result = await db.execute(
         select(Property).where(
             and_(
@@ -71,6 +89,11 @@ async def get_property_by_external_id(
             )
         )
     )
+    
+    # Record metrics
+    duration = time.time() - start_time
+    metrics_collector.record_db_query("SELECT", "properties", duration)
+    
     return result.scalar_one_or_none()
 
 
@@ -80,11 +103,18 @@ async def update_property(
     property_data: Dict[str, Any]
 ) -> Optional[Property]:
     """Update property fields."""
+    start_time = time.time()
+    
     await db.execute(
         update(Property)
         .where(Property.id == property_id)
         .values(**property_data, last_updated=datetime.utcnow())
     )
+    
+    # Record metrics
+    duration = time.time() - start_time
+    metrics_collector.record_db_query("UPDATE", "properties", duration)
+    
     return await get_property(db, property_id)
 
 
@@ -96,6 +126,8 @@ async def update_or_create_property(
     Update existing property or create new one.
     Returns (property, created) where created is True if new property was created.
     """
+    start_time = time.time()
+    
     existing = await get_property_by_external_id(
         db,
         property_data.source,
@@ -133,10 +165,22 @@ async def update_or_create_property(
         )
         
         await db.refresh(existing)
+        
+        # Record metrics
+        duration = time.time() - start_time
+        metrics_collector.record_db_query("UPDATE", "properties", duration)
+        metrics_collector.record_property_processed(property_data.source, "updated")
+        
         logger.info(f"Updated property: {existing.id}")
         return existing, False
     else:
         new_property = await create_property(db, property_data)
+        
+        # Record metrics
+        duration = time.time() - start_time
+        metrics_collector.record_db_query("INSERT", "properties", duration)
+        metrics_collector.record_property_processed(property_data.source, "created")
+        
         return new_property, True
 
 
@@ -149,6 +193,8 @@ async def deactivate_old_properties(
     Deactivate properties not seen in the last N hours.
     Returns count of deactivated properties.
     """
+    start_time = time.time()
+    
     threshold = datetime.utcnow() - timedelta(hours=hours)
     
     result = await db.execute(
@@ -164,6 +210,11 @@ async def deactivate_old_properties(
     )
     
     count = result.rowcount
+    
+    # Record metrics
+    duration = time.time() - start_time
+    metrics_collector.record_db_query("UPDATE", "properties", duration)
+    
     logger.info(f"Deactivated {count} properties from {source} not seen in {hours} hours")
     return count
 
@@ -186,6 +237,8 @@ async def search_properties(
     offset: int = 0
 ) -> List[Property]:
     """Search properties with filters."""
+    start_time = time.time()
+    
     query = select(Property)
     
     # Build filters
@@ -236,6 +289,11 @@ async def search_properties(
     query = query.limit(limit).offset(offset)
     
     result = await db.execute(query)
+    
+    # Record metrics
+    duration = time.time() - start_time
+    metrics_collector.record_db_query("SELECT", "properties", duration)
+    
     return list(result.scalars().all())
 
 
@@ -246,6 +304,8 @@ async def get_property_statistics(
     district: Optional[str] = None
 ) -> Dict[str, Any]:
     """Get statistics for properties."""
+    start_time = time.time()
+    
     filters = [Property.is_active == True]
     
     if city:
@@ -271,6 +331,10 @@ async def get_property_statistics(
     
     row = result.one()
     
+    # Record metrics
+    duration = time.time() - start_time
+    metrics_collector.record_db_query("SELECT", "properties", duration)
+    
     return {
         "total": row.total,
         "avg_price": float(row.avg_price) if row.avg_price else None,
@@ -294,6 +358,8 @@ async def search_properties_by_price_per_sqm(
     offset: int = 0
 ) -> List[Property]:
     """Search properties with price per square meter filter."""
+    start_time = time.time()
+    
     query = select(Property)
     
     # Build filters
@@ -318,6 +384,11 @@ async def search_properties_by_price_per_sqm(
     query = query.limit(limit).offset(offset)
     
     result = await db.execute(query)
+    
+    # Record metrics
+    duration = time.time() - start_time
+    metrics_collector.record_db_query("SELECT", "properties", duration)
+    
     return list(result.scalars().all())
 
 
@@ -330,6 +401,8 @@ async def track_price_change(
     new_price: float
 ) -> PropertyPriceHistory:
     """Track a price change."""
+    start_time = time.time()
+    
     price_change = new_price - old_price
     price_change_percent = (price_change / old_price * 100) if old_price > 0 else 0
     
@@ -344,6 +417,10 @@ async def track_price_change(
     db.add(price_history)
     await db.flush()
     
+    # Record metrics
+    duration = time.time() - start_time
+    metrics_collector.record_db_query("INSERT", "price_history", duration)
+    
     logger.info(f"Tracked price change for property {property_id}: {old_price} -> {new_price}")
     return price_history
 
@@ -354,12 +431,19 @@ async def get_price_history(
     limit: int = 10
 ) -> List[PropertyPriceHistory]:
     """Get price history for a property."""
+    start_time = time.time()
+    
     result = await db.execute(
         select(PropertyPriceHistory)
         .where(PropertyPriceHistory.property_id == property_id)
         .order_by(desc(PropertyPriceHistory.changed_at))
         .limit(limit)
     )
+    
+    # Record metrics
+    duration = time.time() - start_time
+    metrics_collector.record_db_query("SELECT", "price_history", duration)
+    
     return list(result.scalars().all())
 
 
@@ -373,6 +457,8 @@ async def track_property_view(
     referer: Optional[str] = None
 ) -> PropertyView:
     """Track a property view."""
+    start_time = time.time()
+    
     view = PropertyView(
         property_id=property_id,
         ip_address=ip_address,
@@ -383,6 +469,10 @@ async def track_property_view(
     db.add(view)
     await db.flush()
     
+    # Record metrics
+    duration = time.time() - start_time
+    metrics_collector.record_db_query("INSERT", "property_views", duration)
+    
     return view
 
 
@@ -392,6 +482,8 @@ async def get_property_view_count(
     days: int = 30
 ) -> int:
     """Get view count for a property in the last N days."""
+    start_time = time.time()
+    
     threshold = datetime.utcnow() - timedelta(days=days)
     
     result = await db.execute(
@@ -403,6 +495,10 @@ async def get_property_view_count(
             )
         )
     )
+    
+    # Record metrics
+    duration = time.time() - start_time
+    metrics_collector.record_db_query("SELECT", "property_views", duration)
     
     return result.scalar_one()
 
@@ -416,6 +512,8 @@ async def get_popular_properties(
     Get most popular properties by view count.
     Returns list of (property_id, view_count) tuples.
     """
+    start_time = time.time()
+    
     threshold = datetime.utcnow() - timedelta(days=days)
     
     result = await db.execute(
@@ -428,6 +526,10 @@ async def get_popular_properties(
         .order_by(desc("view_count"))
         .limit(limit)
     )
+    
+    # Record metrics
+    duration = time.time() - start_time
+    metrics_collector.record_db_query("SELECT", "property_views", duration)
     
     return [(row.property_id, row.view_count) for row in result.all()]
 
@@ -450,6 +552,8 @@ async def track_search_query(
     **kwargs
 ) -> SearchQuery:
     """Track a search query."""
+    start_time = time.time()
+    
     query_params = {
         "city": city,
         "property_type": property_type,
@@ -480,6 +584,10 @@ async def track_search_query(
     db.add(search_query)
     await db.flush()
     
+    # Record metrics
+    duration = time.time() - start_time
+    metrics_collector.record_db_query("INSERT", "search_queries", duration)
+    
     return search_query
 
 
@@ -489,6 +597,8 @@ async def get_popular_searches(
     days: int = 7
 ) -> List[Dict[str, Any]]:
     """Get most popular search queries."""
+    start_time = time.time()
+    
     threshold = datetime.utcnow() - timedelta(days=days)
     
     result = await db.execute(
@@ -502,6 +612,10 @@ async def get_popular_searches(
         .order_by(desc("search_count"))
         .limit(limit)
     )
+    
+    # Record metrics
+    duration = time.time() - start_time
+    metrics_collector.record_db_query("SELECT", "search_queries", duration)
     
     return [
         {
@@ -523,6 +637,8 @@ async def bulk_upsert_properties(
     Bulk insert or update properties.
     Returns dict with counts of created and updated properties.
     """
+    start_time = time.time()
+    
     created = 0
     updated = 0
     errors = 0
@@ -539,6 +655,11 @@ async def bulk_upsert_properties(
             logger.error(f"Error upserting property {property_data.external_id}: {e}")
     
     await db.commit()
+    
+    # Record metrics
+    duration = time.time() - start_time
+    metrics_collector.record_db_query("BULK_UPSERT", "properties", duration)
+    metrics_collector.record_task_processed("bulk_upsert", "success" if errors == 0 else "partial")
     
     logger.info(f"Bulk upsert completed: {created} created, {updated} updated, {errors} errors")
     

@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 
 from app.models.schemas import PropertyCreate
 from app.utils.metrics import metrics_collector
+from app.utils.parser_errors import ErrorClassifier
 
 
 class BaseParser(ABC):
@@ -65,6 +66,10 @@ class BaseParser(ABC):
         Returns:
             Обработанный список объектов
         """
+        # Record metrics for processed properties
+        for result in results:
+            metrics_collector.record_property_processed(result.source, "parsed")
+        
         return results
 
 
@@ -72,7 +77,6 @@ def metrics_collector_decorator(func):
     """
     Декоратор для автоматического сбора метрик выполнения парсеров.
     """
-
     @functools.wraps(func)
     async def wrapper(self, *args, **kwargs):
         start_time = time.time()
@@ -85,7 +89,10 @@ def metrics_collector_decorator(func):
             return result
         except Exception as e:
             duration = time.time() - start_time
-            metrics_collector.record_parser_call(parser_name, "error", duration)
+            # Classify the error to get error type for metrics
+            classification = ErrorClassifier.classify(e)
+            error_type = classification.get("type", "UnknownError")
+            metrics_collector.record_parser_call(parser_name, "error", duration, error_type)
             raise
 
     return wrapper

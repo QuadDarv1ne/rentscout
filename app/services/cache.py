@@ -8,6 +8,7 @@ from functools import wraps
 from typing import Any, Callable, Optional, Union
 
 from app.core.config import settings
+from app.utils.metrics import metrics_collector
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +44,12 @@ class CacheManager:
         try:
             value = await self.redis_client.get(key)
             if value:
+                metrics_collector.record_cache_hit()
                 return pickle.loads(value)
+            else:
+                metrics_collector.record_cache_miss()
         except Exception as e:
+            metrics_collector.record_cache_error()
             logger.error(f"Error getting value from cache: {e}")
         return None
 
@@ -58,6 +63,7 @@ class CacheManager:
             result = await self.redis_client.setex(key, expire, serialized_value)
             return result
         except Exception as e:
+            metrics_collector.record_cache_error()
             logger.error(f"Error setting value in cache: {e}")
             return False
 
@@ -70,6 +76,7 @@ class CacheManager:
             result = await self.redis_client.delete(key)
             return result > 0
         except Exception as e:
+            metrics_collector.record_cache_error()
             logger.error(f"Error deleting value from cache: {e}")
             return False
 
@@ -85,6 +92,7 @@ class CacheManager:
                 return result
             return 0
         except Exception as e:
+            metrics_collector.record_cache_error()
             logger.error(f"Error clearing cache pattern: {e}")
             return 0
 

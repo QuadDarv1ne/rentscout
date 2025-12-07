@@ -52,10 +52,11 @@ def sample_properties():
 
 
 def test_filter_by_district(sample_properties):
-    """Тест фильтрации по району."""
+    """Тест фильтрации по района."""
     property_filter = PropertyFilter(district="центр")
-    filtered = property_filter.filter(sample_properties)
+    filtered, total = property_filter.filter(sample_properties)
     assert len(filtered) == 1
+    assert total == 1
     assert "центре" in filtered[0].title.lower()
 
 
@@ -63,23 +64,26 @@ def test_filter_by_has_photos(sample_properties):
     """Тест фильтрации по наличию фотографий."""
     # Фильтр: только объявления с фото
     property_filter = PropertyFilter(has_photos=True)
-    filtered = property_filter.filter(sample_properties)
+    filtered, total = property_filter.filter(sample_properties)
     assert len(filtered) == 3
+    assert total == 3
     for prop in filtered:
         assert len(prop.photos) > 0
 
     # Фильтр: только объявления без фото
     property_filter = PropertyFilter(has_photos=False)
-    filtered = property_filter.filter(sample_properties)
+    filtered, total = property_filter.filter(sample_properties)
     assert len(filtered) == 1
+    assert total == 1
     assert len(filtered[0].photos) == 0
 
 
 def test_filter_by_source(sample_properties):
     """Тест фильтрации по источнику."""
     property_filter = PropertyFilter(source="avito")
-    filtered = property_filter.filter(sample_properties)
+    filtered, total = property_filter.filter(sample_properties)
     assert len(filtered) == 2
+    assert total == 2
     for prop in filtered:
         assert prop.source == "avito"
 
@@ -89,7 +93,7 @@ def test_filter_by_price_per_sqm(sample_properties):
     # Максимальная цена за квадратный метр: 60 руб./м²
     # Проверяем, что отсеиваются объявления с большей ценой за м²
     property_filter = PropertyFilter(max_price_per_sqm=60.0)
-    filtered = property_filter.filter(sample_properties)
+    filtered, total = property_filter.filter(sample_properties)
 
     # Рассчитаем цену за м² для каждого объявления:
     # 1. 3000/50 = 60 (проходит)
@@ -98,6 +102,7 @@ def test_filter_by_price_per_sqm(sample_properties):
     # 4. 2000/25 = 80 (не проходит)
 
     assert len(filtered) == 2
+    assert total == 2
     # Проверяем, что остались только объявления с подходящей ценой за м²
     for prop in filtered:
         price_per_sqm = prop.price / prop.area
@@ -113,8 +118,9 @@ def test_combined_filters(sample_properties):
 
     property_filter = PropertyFilter(source="avito", has_photos=True, district="перово")
 
-    filtered = property_filter.filter(sample_properties)
+    filtered, total = property_filter.filter(sample_properties)
     assert len(filtered) == 1
+    assert total == 1
     assert filtered[0].source == "avito"
     assert len(filtered[0].photos) > 0
     assert "перово" in filtered[0].title.lower()
@@ -123,8 +129,9 @@ def test_combined_filters(sample_properties):
 def test_no_filters(sample_properties):
     """Тест без фильтров."""
     property_filter = PropertyFilter()
-    filtered = property_filter.filter(sample_properties)
+    filtered, total = property_filter.filter(sample_properties)
     assert len(filtered) == 4  # Все объявления должны пройти
+    assert total == 4
 
 
 def test_all_filters(sample_properties):
@@ -143,7 +150,7 @@ def test_all_filters(sample_properties):
         max_price_per_sqm=70.0,
     )
 
-    filtered = property_filter.filter(sample_properties)
+    filtered, total = property_filter.filter(sample_properties)
     # Только первое объявление должно пройти все фильтры:
     # - Цена: 3000 (в диапазоне 2000-4000)
     # - Комнаты: 2 (в диапазоне 1-3)

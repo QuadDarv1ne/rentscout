@@ -33,9 +33,10 @@ def test_property_filter_rooms():
 
     # Test room filtering
     filter_obj = PropertyFilter(min_rooms=1, max_rooms=2)
-    filtered = filter_obj.filter(properties)
+    filtered, total = filter_obj.filter(properties)
 
     assert len(filtered) == 2
+    assert total == 2
     assert filtered[0].external_id == "2"
     assert filtered[1].external_id == "3"
 
@@ -52,9 +53,10 @@ def test_property_filter_area():
 
     # Test area filtering
     filter_obj = PropertyFilter(min_area=25, max_area=50)
-    filtered = filter_obj.filter(properties)
+    filtered, total = filter_obj.filter(properties)
 
     assert len(filtered) == 1
+    assert total == 1
     assert filtered[0].external_id == "2"
     assert filtered[0].area == 40
 
@@ -69,9 +71,10 @@ def test_property_filter_type():
 
     # Test property type filtering
     filter_obj = PropertyFilter(property_type="квартира")
-    filtered = filter_obj.filter(properties)
+    filtered, total = filter_obj.filter(properties)
 
     assert len(filtered) == 2
+    assert total == 2
     assert filtered[0].external_id == "1"
     assert filtered[1].external_id == "2"
 
@@ -87,8 +90,9 @@ def test_property_filter_combined():
 
     # Test combined filtering
     filter_obj = PropertyFilter(min_price=4000, max_price=5500, min_rooms=2, max_rooms=2, min_area=40, max_area=55)
-    filtered = filter_obj.filter(properties)
+    filtered, total = filter_obj.filter(properties)
 
     assert len(filtered) == 2
+    assert total == 2
     assert filtered[0].external_id == "2"
     assert filtered[1].external_id == "3"

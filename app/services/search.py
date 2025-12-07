@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import hashlib
+import time
 from typing import List, Dict, Any
 
 from app.db.crud import save_properties
@@ -11,6 +12,7 @@ from app.parsers.domofond.parser import DomofondParser
 from app.parsers.yandex_realty.parser import YandexRealtyParser
 from app.parsers.base_parser import BaseParser
 from app.utils.parser_errors import ErrorClassifier, ErrorSeverity
+from app.utils.metrics import metrics_collector
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,8 @@ class SearchService:
         Returns:
             Список найденных объектов недвижимости
         """
+        start_time = time.time()
+        
         # Выполняем парсеры параллельно
         parser_tasks = [self._parse_with_parser(parser, city, property_type) for parser in self.parsers]
 
@@ -58,8 +62,20 @@ class SearchService:
             else:
                 all_properties.extend(result)
 
+        # Record metrics for parsing duration
+        parse_duration = time.time() - start_time
+        metrics_collector.record_db_query("SEARCH", "properties", parse_duration)
+
         try:
+            # Record start time for database operation
+            db_start_time = time.time()
             await save_properties(all_properties)
+            db_duration = time.time() - db_start_time
+            metrics_collector.record_db_query("INSERT", "properties", db_duration)
+            
+            # Record metrics for saved properties
+            for prop in all_properties:
+                metrics_collector.record_property_saved()
         except Exception as e:
             logger.error(f"Error saving properties: {e}")
             # Don't raise the exception, as we still want to return the properties

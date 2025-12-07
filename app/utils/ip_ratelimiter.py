@@ -10,6 +10,7 @@ import asyncio
 
 from app.core.config import settings
 from app.utils.structured_logger import logger
+from app.utils.metrics import metrics_collector
 
 
 class IPRateLimiter:
@@ -81,6 +82,9 @@ class IPRateLimiter:
             oldest_in_burst = min(recent_requests)
             retry_after = int(self.burst_window - (now - oldest_in_burst) + 1)
 
+            # Record metrics for rate limit exceeded
+            metrics_collector.record_rate_limit_exceeded(ip)
+            
             return False, {
                 "error": "Burst rate limit exceeded",
                 "retry_after": retry_after,
@@ -93,6 +97,9 @@ class IPRateLimiter:
             oldest_request = min(req_time for req_time, _ in self.requests[ip])
             retry_after = int(self.time_window - (now - oldest_request) + 1)
 
+            # Record metrics for rate limit exceeded
+            metrics_collector.record_rate_limit_exceeded(ip)
+            
             return False, {
                 "error": "Rate limit exceeded",
                 "retry_after": retry_after,
@@ -102,6 +109,9 @@ class IPRateLimiter:
 
         # Записываем запрос
         self.requests[ip].append((now, path))
+        
+        # Record current rate limit count
+        metrics_collector.record_rate_limit_current(ip, len(self.requests[ip]))
 
         # Возвращаем инфо о лимите
         remaining = self.max_requests - len(self.requests[ip])
