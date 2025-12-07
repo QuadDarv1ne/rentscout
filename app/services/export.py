@@ -2,17 +2,17 @@
 
 import csv
 import json
-from io import StringIO, BytesIO
+from io import StringIO
 from typing import List
 
-from app.models.schemas import Property
+from app.models.schemas import PropertyCreate
 
 
 class ExportService:
     """Сервис для экспорта свойств в различные форматы."""
 
     @staticmethod
-    def to_csv(properties: List[Property]) -> str:
+    def to_csv(properties: List[PropertyCreate]) -> str:
         """
         Экспортирует свойства в CSV формат.
         
@@ -22,31 +22,28 @@ class ExportService:
         Returns:
             CSV строка
         """
-        if not properties:
-            return ""
-        
         output = StringIO()
         
         # Определяем поля для экспорта
         fieldnames = [
-            "id",
-            "source",
-            "external_id",
             "title",
             "price",
+            "url",
+            "source",
+            "external_id",
+            "city",
+            "property_type",
             "rooms",
             "area",
             "floor",
             "total_floors",
-            "district",
-            "city",
             "address",
+            "description",
+            "photos",
+            "location",
+            "features",
             "contact_name",
             "contact_phone",
-            "has_photos",
-            "is_active",
-            "description_preview",
-            "link",
         ]
         
         writer = csv.DictWriter(output, fieldnames=fieldnames)
@@ -54,31 +51,31 @@ class ExportService:
         
         for prop in properties:
             row = {
-                "id": prop.id,
-                "source": prop.source,
-                "external_id": prop.external_id,
                 "title": prop.title,
                 "price": prop.price,
-                "rooms": prop.rooms,
-                "area": prop.area,
-                "floor": prop.floor,
-                "total_floors": prop.total_floors,
-                "district": prop.location.get("district", "") if prop.location else "",
-                "city": prop.location.get("city", "") if prop.location else "",
-                "address": prop.address or (prop.location.get("address", "") if prop.location else ""),
-                "contact_name": prop.contact_name,
-                "contact_phone": prop.contact_phone,
-                "has_photos": len(prop.photos) > 0 if prop.photos else False,
-                "is_active": prop.is_active,
-                "description_preview": (prop.description[:100] + "...") if prop.description else "",
-                "link": prop.link,
+                "url": prop.link or "",
+                "source": prop.source,
+                "external_id": prop.external_id,
+                "city": prop.city or "",
+                "property_type": getattr(prop, "property_type", ""),
+                "rooms": prop.rooms or "",
+                "area": prop.area or "",
+                "floor": prop.floor or "",
+                "total_floors": prop.total_floors or "",
+                "address": prop.address or "",
+                "description": (prop.description[:200] + "...") if prop.description and len(prop.description) > 200 else (prop.description or ""),
+                "photos": "; ".join(prop.photos) if prop.photos else "",
+                "location": json.dumps(prop.location, ensure_ascii=False) if prop.location else "",
+                "features": json.dumps(prop.features, ensure_ascii=False) if prop.features else "",
+                "contact_name": prop.contact_name or "",
+                "contact_phone": prop.contact_phone or "",
             }
             writer.writerow(row)
         
         return output.getvalue()
 
     @staticmethod
-    def to_json(properties: List[Property], pretty: bool = True) -> str:
+    def to_json(properties: List[PropertyCreate], pretty: bool = True) -> str:
         """
         Экспортирует свойства в JSON формат.
         
@@ -93,26 +90,24 @@ class ExportService:
         
         for prop in properties:
             item = {
-                "id": prop.id,
-                "source": prop.source,
-                "external_id": prop.external_id,
                 "title": prop.title,
                 "price": prop.price,
-                "currency": prop.currency,
+                "currency": prop.currency or "RUB",
+                "url": prop.link or "",
+                "source": prop.source,
+                "external_id": prop.external_id,
+                "city": prop.city,
                 "rooms": prop.rooms,
                 "area": prop.area,
                 "floor": prop.floor,
                 "total_floors": prop.total_floors,
+                "address": prop.address,
+                "description": prop.description,
+                "photos": prop.photos,
+                "location": prop.location,
+                "features": prop.features,
                 "contact_name": prop.contact_name,
                 "contact_phone": prop.contact_phone,
-                "location": prop.location,
-                "photos": prop.photos,
-                "is_active": prop.is_active,
-                "is_verified": prop.is_verified,
-                "description": prop.description,
-                "link": prop.link,
-                "created_at": prop.created_at.isoformat() if prop.created_at else None,
-                "last_updated": prop.last_updated.isoformat() if prop.last_updated else None,
             }
             data.append(item)
         
@@ -122,7 +117,7 @@ class ExportService:
             return json.dumps(data, ensure_ascii=False)
 
     @staticmethod
-    def to_jsonl(properties: List[Property]) -> str:
+    def to_jsonl(properties: List[PropertyCreate]) -> str:
         """
         Экспортирует свойства в JSONL формат (JSON Lines).
         Каждая строка содержит один объект JSON.
@@ -137,15 +132,16 @@ class ExportService:
         
         for prop in properties:
             item = {
-                "id": prop.id,
-                "source": prop.source,
-                "external_id": prop.external_id,
                 "title": prop.title,
                 "price": prop.price,
+                "url": prop.link or "",
+                "source": prop.source,
+                "external_id": prop.external_id,
+                "city": prop.city,
                 "rooms": prop.rooms,
                 "area": prop.area,
                 "location": prop.location,
-                "link": prop.link,
+                "contact_phone": prop.contact_phone,
             }
             lines.append(json.dumps(item, ensure_ascii=False))
         
