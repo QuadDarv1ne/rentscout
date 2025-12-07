@@ -41,10 +41,12 @@ async def test_search_service_initialization():
     """Тест инициализации поискового сервиса."""
     service = SearchService()
     assert service is not None
-    assert len(service.parsers) == 2  # Теперь у нас два парсера: Avito и Cian
+    assert len(service.parsers) == 4  # Теперь у нас четыре парсера: Avito, Cian, Domofond и YandexRealty
     parser_names = [parser.__class__.__name__ for parser in service.parsers]
     assert "AvitoParser" in parser_names
     assert "CianParser" in parser_names
+    assert "DomofondParser" in parser_names
+    assert "YandexRealtyParser" in parser_names
 
 
 @pytest.mark.asyncio
@@ -185,7 +187,39 @@ async def test_search_service_parallel_parsing():
         )
     ]
 
-    service.parsers = [mock_parser1, mock_parser2]
+    mock_parser3 = AsyncMock()
+    mock_parser3.parse.return_value = [
+        PropertyCreate(
+            source="domofond",
+            external_id="3",
+            title="Квартира 3",
+            price=2800.0,
+            rooms=2,
+            area=45.0,
+            location=None,
+            photos=[],
+            description="Описание 3",
+            link=None
+        )
+    ]
+
+    mock_parser4 = AsyncMock()
+    mock_parser4.parse.return_value = [
+        PropertyCreate(
+            source="yandex_realty",
+            external_id="4",
+            title="Квартира 4",
+            price=3200.0,
+            rooms=3,
+            area=60.0,
+            location=None,
+            photos=[],
+            description="Описание 4",
+            link=None
+        )
+    ]
+
+    service.parsers = [mock_parser1, mock_parser2, mock_parser3, mock_parser4]
 
     # Мокаем save_properties
     with patch('app.services.search.save_properties') as mock_save:
@@ -194,8 +228,10 @@ async def test_search_service_parallel_parsing():
         # Выполняем поиск
         results = await service.search("Москва", "Квартира")
 
-        # Проверяем, что результаты от обоих парсеров возвращены
-        assert len(results) == 2
+        # Проверяем, что результаты от всех парсеров возвращены
+        assert len(results) == 4
         sources = [prop.source for prop in results]
         assert "avito" in sources
         assert "cian" in sources
+        assert "domofond" in sources
+        assert "yandex_realty" in sources
