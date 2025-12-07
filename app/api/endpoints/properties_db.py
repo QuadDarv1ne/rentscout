@@ -9,19 +9,35 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.session import get_db
 from app.db.repositories import property as property_repo
-from app.models.schemas import PropertyCreate, Property
+from app.models.schemas import (
+    PropertyCreate,
+    Property,
+    PropertyPriceHistoryEntry,
+    PropertyStatistics,
+    PopularProperty,
+    PopularSearch,
+    BulkUpsertResult,
+    OperationStatus,
+    DeactivateResult,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/properties", tags=["properties"])
 
 
-@router.post("/", response_model=Property, status_code=201)
+@router.post(
+    "/",
+    response_model=Property,
+    status_code=201,
+    summary="Создать новое объявление",
+    response_description="Созданное объявление",
+)
 async def create_property(
     property_data: PropertyCreate,
     db: AsyncSession = Depends(get_db)
 ):
-    """Create a new property."""
+    """Создает новое объявление в PostgreSQL."""
     try:
         db_property = await property_repo.create_property(db, property_data)
         return db_property
@@ -30,12 +46,17 @@ async def create_property(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{property_id}", response_model=Property)
+@router.get(
+    "/{property_id}",
+    response_model=Property,
+    summary="Получить объявление по ID",
+    response_description="Объявление с указанным ID",
+)
 async def get_property(
     property_id: int,
     db: AsyncSession = Depends(get_db)
 ):
-    """Get property by ID."""
+    """Возвращает объявление по внутреннему идентификатору."""
     db_property = await property_repo.get_property(db, property_id)
     
     if not db_property:
@@ -44,7 +65,12 @@ async def get_property(
     return db_property
 
 
-@router.get("/", response_model=List[Property])
+@router.get(
+    "/",
+    response_model=List[Property],
+    summary="Поиск объявлений (PostgreSQL)",
+    response_description="Список объявлений, удовлетворяющих фильтрам",
+)
 async def search_properties(
     city: Optional[str] = Query(None, description="Filter by city"),
     source: Optional[str] = Query(None, description="Filter by source (avito, cian, etc.)"),
