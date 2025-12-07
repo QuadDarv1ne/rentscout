@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Поиск - RentScout</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏠</text></svg>">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <h1>🏠 RentScout</h1>
+            </div>
+            <nav>
+                <a href="/">Главная</a>
+                <a href="/search">Поиск</a>
+                <a href="/docs" target="_blank">API Docs</a>
+                <a href="/health-page">Статус</a>
+            </nav>
+        </header>
+
+        <section class="search-page">
+            <h2>Поиск недвижимости</h2>
+            
+            <!-- Search Form -->
+            <div class="search-form-container">
+                <form id="advancedSearchForm">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="city">Город *</label>
+                            <input type="text" id="city" name="city" required placeholder="Москва">
+                        </div>
+                        <div class="form-group">
+                            <label for="property_type">Тип жилья</label>
+                            <select id="property_type" name="property_type">
+                                <option value="">Любой</option>
+                                <option value="Квартира" selected>Квартира</option>
+                                <option value="Комната">Комната</option>
+                                <option value="Дом">Дом</option>
+                                <option value="Студия">Студия</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="min_price">Цена от (₽/мес)</label>
+                            <input type="number" id="min_price" name="min_price" placeholder="10000">
+                        </div>
+                        <div class="form-group">
+                            <label for="max_price">Цена до (₽/мес)</label>
+                            <input type="number" id="max_price" name="max_price" placeholder="50000">
+                        </div>
+                        <div class="form-group">
+                            <label for="min_rooms">Комнат от</label>
+                            <input type="number" id="min_rooms" name="min_rooms" min="1" placeholder="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="max_rooms">Комнат до</label>
+                            <input type="number" id="max_rooms" name="max_rooms" min="1" placeholder="3">
+                        </div>
+                        <div class="form-group">
+                            <label for="min_area">Площадь от (м²)</label>
+                            <input type="number" id="min_area" name="min_area" placeholder="30">
+                        </div>
+                        <div class="form-group">
+                            <label for="max_area">Площадь до (м²)</label>
+                            <input type="number" id="max_area" name="max_area" placeholder="80">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-primary">🔍 Найти объявления</button>
+                </form>
+            </div>
+
+            <!-- Loading Indicator -->
+            <div id="loadingIndicator" class="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Поиск объявлений...</p>
+            </div>
+
+            <!-- Results -->
+            <div id="searchResults" class="results-container"></div>
+        </section>
+
+        <footer>
+            <div class="footer-bottom">
+                <p>&copy; 2025 RentScout</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="/static/js/search.js"></script>
+</body>
+</html>
