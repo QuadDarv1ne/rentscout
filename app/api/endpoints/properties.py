@@ -25,7 +25,12 @@ async def _search_properties(city: str, property_type: str) -> List[PropertyCrea
     return await search_service.search(city, property_type)
 
 
-@router.get("/properties", response_model=list[Property])
+@router.get(
+    "/properties",
+    response_model=list[Property],
+    summary="Онлайн-поиск объявлений через парсеры",
+    response_description="Список объявлений после фильтрации",
+)
 @cache(expire=300)
 async def get_properties(
     city: str = Query(..., min_length=2),
