@@ -1,4 +1,7 @@
 import time
+import asyncio
+import psutil
+from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 from typing import Dict, Optional, Any
 
@@ -20,11 +23,75 @@ async def health_check() -> Dict[str, str]:
 
 @router.get("/health/detailed", tags=["health"])
 async def detailed_health_check() -> Dict[str, object]:
-    """Подробная проверка состояния приложения."""
-    # Здесь можно добавить проверки подключений к базам данных, кэша и т.д.
-    health_status = {"status": "healthy", "timestamp": time.time(), "app_name": settings.APP_NAME, "version": "1.0.0"}
+    """
+    Подробная проверка состояния приложения с диагностикой всех компонентов.
+    
+    Returns:
+        Детальная информация о состоянии всех компонентов системы
+    """
+    # Системная информация
+    cpu_percent = psutil.cpu_percent(interval=0.1)
+    memory = psutil.virtual_memory()
+    disk = psutil.disk_usage('/')
+    
+    # Проверка Redis/кеша
+    cache_healthy = True
+    cache_error = None
+    try:
+        cache_stats = await advanced_cache_manager.get_stats()
+    except Exception as e:
+        cache_healthy = False
+        cache_error = str(e)
+        cache_stats = {}
+    
+    # Проверка базы данных (если используется)
+    db_healthy = True
+    db_error = None
+    db_latency = 0
+    try:
+        from app.db.models.session import get_session
+        start_time = time.time()
+        async with get_session() as session:
+            await session.execute("SELECT 1")
+        db_latency = round((time.time() - start_time) * 1000, 2)  # ms
+    except Exception as e:
+        db_healthy = False
+        db_error = str(e)
+    
+    # Общий статус
+    overall_status = "healthy" if (cache_healthy and db_healthy) else "degraded"
+    
+    health_status = {
+        "status": overall_status,
+        "timestamp": datetime.utcnow().isoformat(),
+        "uptime_seconds": metrics_collector.get_uptime(),
+        "app_name": settings.APP_NAME,
+        "version": "1.0.1",
+        "components": {
+            "cache": {
+                "status": "healthy" if cache_healthy else "unhealthy",
+                "error": cache_error,
+                "stats": cache_stats,
+            },
+            "database": {
+                "status": "healthy" if db_healthy else "unhealthy",
+                "error": db_error,
+                "latency_ms": db_latency,
+            },
+        },
+        "system": {
+            "cpu_percent": cpu_percent,
+            "memory_percent": memory.percent,
+            "memory_available_mb": round(memory.available / (1024 * 1024), 2),
+            "disk_percent": disk.percent,
+            "disk_free_gb": round(disk.free / (1024 * 1024 * 1024), 2),
+        },
+        "metrics": {
+            "active_requests": ACTIVE_REQUESTS._value.get(),
+        }
+    }
 
-    logger.info("Detailed health check performed")
+    logger.info(f"Detailed health check performed: {overall_status}")
     return health_status
 
 

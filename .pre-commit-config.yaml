@@ -46,6 +46,21 @@ repos:
       - id: isort
         args: ['--profile', 'black', '--line-length', '120']
 
+  # Markdown линтер
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.39.0
+    hooks:
+      - id: markdownlint
+        name: Проверка Markdown файлов
+        args: ['--fix', '--disable', 'MD013', 'MD033']
+
+  # Проверка Docker файлов
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint-docker
+        name: Проверка Dockerfile
+
   - repo: local
     hooks:
       - id: pytest-check

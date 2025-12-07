@@ -49,6 +49,20 @@ body {
     transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
+/* Loading spinner */
+#loading {
+    display: none;
+}
+
+#loading.show {
+    display: block !important;
+}
+
+.spinner-border-large {
+    width: 3rem;
+    height: 3rem;
+}
+
 .hover-card:hover {
     transform: translateY(-5px);
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15) !important;
