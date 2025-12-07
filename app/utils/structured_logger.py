@@ -16,11 +16,11 @@ correlation_id: ContextVar[Optional[str]] = ContextVar("correlation_id", default
 
 
 class JSONFormatter(logging.Formatter):
-    """JSON форматтер для структурированных логов."""
+    """JSON форматтер для структурированных логов с метриками."""
 
     def format(self, record: logging.LogRecord) -> str:
         """
-        Форматирование лог записи в JSON.
+        Форматирование лог записи в JSON с поддержкой метрик.
         
         Args:
             record: Запись лога
@@ -30,13 +30,15 @@ class JSONFormatter(logging.Formatter):
         """
         # Базовые поля
         log_data: Dict[str, Any] = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.utcnow().isoformat() + "Z",
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
             "module": record.module,
             "function": record.funcName,
             "line": record.lineno,
+            "application": "rentscout",
+            "version": "1.2.0",
         }
 
         # Добавляем correlation ID если есть
