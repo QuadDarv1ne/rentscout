@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Dict, Any
 from pathlib import Path
 
-from app.api.endpoints import health, properties, tasks, properties_db, advanced_search, notifications, bookmarks
+from app.api.endpoints import health, properties, tasks, properties_db, advanced_search, notifications, bookmarks, ml_predictions
 from app.core.config import settings
 from app.services.advanced_cache import advanced_cache_manager
 from app.services.search import SearchService
@@ -45,6 +45,10 @@ tags_metadata = [
     {
         "name": "health",
         "description": "Проверки состояния сервиса, кеша и rate limit статистики.",
+    },
+    {
+        "name": "ml-predictions",
+        "description": "ML предсказания цен, аналитика трендов и оптимизация ценообразования.",
     },
 ]
 
@@ -200,6 +204,7 @@ app.include_router(health.router, prefix="/api", tags=["health"])
 app.include_router(tasks.router, prefix="/api", tags=["tasks"])
 app.include_router(notifications.router, prefix="/api", tags=["notifications"])
 app.include_router(bookmarks.router, prefix="/api", tags=["bookmarks"])
+app.include_router(ml_predictions.router, prefix="/api", tags=["ml-predictions"])
 
 # Инициализация Prometheus инструментатора
 Instrumentator().instrument(app).expose(app)
