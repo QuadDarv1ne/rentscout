@@ -1,6 +1,6 @@
 """Advanced search endpoints."""
 from fastapi import APIRouter, Query
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 from app.models.schemas import Property
@@ -11,6 +11,7 @@ from app.utils.advanced_search import (
 )
 from app.services.search import SearchService
 from app.utils.metrics import metrics_collector
+from app.utils.property_scoring import PropertyScoringSystem
 
 
 router = APIRouter()
@@ -197,4 +198,103 @@ async def get_city_statistics(
     
     except Exception as e:
         metrics_collector.record_error("city_statistics")
+        raise
+
+
+@router.get(
+    "/properties/compare-cities",
+    summary="Compare properties across multiple cities",
+    description="Get comparative statistics for multiple cities"
+)
+async def compare_cities(
+    cities: List[str] = Query(..., description="List of cities to compare"),
+    property_type: str = Query(default="Квартира")
+) -> Dict[str, Any]:
+    """Compare property markets across multiple cities."""
+    start_time = __import__('time').time()
+    
+    try:
+        search_service = SearchService()
+        comparison = {}
+        
+        for city in cities:
+            properties = await search_service.search(city, property_type)
+            
+            if properties:
+                prices = [p.price for p in properties if p.price]
+                areas = [p.area for p in properties if p.area]
+                
+                comparison[city] = {
+                    "total_count": len(properties),
+                    "avg_price": sum(prices) / len(prices) if prices else None,
+                    "min_price": min(prices) if prices else None,
+                    "max_price": max(prices) if prices else None,
+                    "avg_area": sum(areas) / len(areas) if areas else None,
+                    "price_per_sqm": (
+                        sum(p.price / p.area for p in properties if p.price and p.area and p.area > 0) /
+                        len([p for p in properties if p.price and p.area and p.area > 0])
+                    ) if any(p.price and p.area and p.area > 0 for p in properties) else None
+                }
+            else:
+                comparison[city] = None
+        
+        # Find best value city
+        valid_cities = {k: v for k, v in comparison.items() if v and v["price_per_sqm"]}
+        if valid_cities:
+            best_value_city = min(valid_cities.items(), key=lambda x: x[1]["price_per_sqm"])
+            comparison["best_value"] = best_value_city[0]
+        
+        duration = __import__('time').time() - start_time
+        metrics_collector.record_search_operation(",".join(cities), sum(1 for v in comparison.values() if v), duration)
+        
+        return comparison
+    
+    except Exception as e:
+        metrics_collector.record_error("compare_cities")
+        raise
+
+
+@router.get(
+    "/properties/{city}/top-rated",
+    summary="Get top-rated properties by scoring system",
+    description="Get best value properties based on comprehensive scoring"
+)
+async def get_top_rated_properties(
+    city: str,
+    property_type: str = Query(default="Квартира"),
+    limit: int = Query(default=10, ge=1, le=100)
+) -> List[Dict[str, Any]]:
+    """Get top-rated properties using scoring system."""
+    start_time = __import__('time').time()
+    
+    try:
+        # Fetch properties
+        search_service = SearchService()
+        properties = await search_service.search(city, property_type)
+        
+        if not properties:
+            return []
+        
+        # Rank properties
+        ranked = PropertyScoringSystem.rank_properties(properties)
+        
+        # Get top N
+        top_properties = ranked[:limit]
+        
+        # Format results
+        results = []
+        for prop, score in top_properties:
+            results.append({
+                "property": prop.dict(),
+                "score": score.to_dict(),
+                "rating": PropertyScoringSystem.get_value_rating(score)
+            })
+        
+        duration = __import__('time').time() - start_time
+        metrics_collector.record_search_operation(city, len(results), duration)
+        
+        return results
+    
+    except Exception as e:
+        metrics_collector.record_error("top_rated_properties")
         raise
