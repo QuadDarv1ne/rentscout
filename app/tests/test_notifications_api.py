@@ -11,19 +11,6 @@ from app.services.notifications import EmailNotification
 from app.models.schemas import PropertyCreate
 
 
-# Отключаем rate limiting для тестов
-@pytest.fixture(autouse=True)
-def disable_rate_limit():
-    """Отключить rate limiting в тестах."""
-    with patch('app.utils.ip_ratelimiter.RateLimitMiddleware.dispatch') as mock_dispatch:
-        # Пропускаем все запросы без ограничений
-        async def passthrough(request, call_next):
-            return await call_next(request)
-        
-        mock_dispatch.side_effect = passthrough
-        yield
-
-
 client = TestClient(app)
 
 
