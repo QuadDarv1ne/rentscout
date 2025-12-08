@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Dict, Any
 from pathlib import Path
 
-from app.api.endpoints import health, properties, tasks, properties_db, advanced_search
+from app.api.endpoints import health, properties, tasks, properties_db, advanced_search, notifications
 from app.core.config import settings
 from app.services.advanced_cache import advanced_cache_manager
 from app.services.search import SearchService
@@ -198,6 +198,7 @@ app.include_router(properties_db.router, prefix="/api/db", tags=["properties-db"
 app.include_router(properties_db.router, prefix="", tags=["properties-db-legacy"])
 app.include_router(health.router, prefix="/api", tags=["health"])
 app.include_router(tasks.router, prefix="/api", tags=["tasks"])
+app.include_router(notifications.router, prefix="/api", tags=["notifications"])
 
 # Инициализация Prometheus инструментатора
 Instrumentator().instrument(app).expose(app)

@@ -53,3 +53,16 @@ async def db_session(db_engine):
         yield session
         await session.rollback()
 
+
+@pytest.fixture(scope="session", autouse=True)
+def disable_rate_limiting():
+    """Отключить rate limiting для всех тестов."""
+    from unittest.mock import patch
+    
+    # Патчим RateLimitMiddleware чтобы не применять ограничения
+    async def passthrough_dispatch(self, request, call_next):
+        return await call_next(request)
+    
+    with patch('app.utils.ip_ratelimiter.RateLimitMiddleware.dispatch', new=passthrough_dispatch):
+        yield
+
