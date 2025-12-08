@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Dict, Any
 from pathlib import Path
 
-from app.api.endpoints import health, properties, tasks, properties_db
+from app.api.endpoints import health, properties, tasks, properties_db, advanced_search
 from app.core.config import settings
 from app.services.advanced_cache import advanced_cache_manager
 from app.services.search import SearchService
@@ -192,6 +192,7 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 
 # Подключение маршрутов
 app.include_router(properties.router, prefix="/api", tags=["properties"])
+app.include_router(advanced_search.router, prefix="/api", tags=["advanced-search"])
 app.include_router(properties_db.router, prefix="/api/db", tags=["properties-db"])
 # Алиас без дополнительного префикса (нужен для путей вида /properties/alerts в тестах)
 app.include_router(properties_db.router, prefix="", tags=["properties-db-legacy"])

@@ -200,9 +200,9 @@ class PropertyAlert(Base):
     last_notified = Column(DateTime(timezone=True))
     
     __table_args__ = (
-        Index('ix_city_active', 'city', 'is_active'),
-        Index('ix_email_active', 'email', 'is_active'),
-        Index('ix_created_at', 'created_at'),
+        Index('ix_alert_city_active', 'city', 'is_active'),
+        Index('ix_alert_email_active', 'email', 'is_active'),
+        Index('ix_alert_created_at', 'created_at'),
     )
     
     def __repr__(self):

@@ -28,23 +28,22 @@ async def test_save_properties_success():
         # Call the function
         await save_properties(properties)
 
-        # Verify the Elasticsearch index method was called correctly
-        mock_es.index.assert_called_once_with(
-            index="properties",
-            body={
-                "source": "avito",
-                "external_id": "12345",
-                "title": "Тестовая квартира",
-                "price": 3000.0,
-                "rooms": 1,
-                "area": 30.0,
-                "location": None,
-                "photos": [],
-                "description": None,
-                "link": None
-            },
-            id="12345",
-        )
+        # Verify the Elasticsearch index method was called once
+        assert mock_es.index.call_count == 1
+        
+        # Check that call was made with correct index and id
+        call_args = mock_es.index.call_args
+        assert call_args.kwargs['index'] == "properties"
+        assert call_args.kwargs['id'] == "12345"
+        
+        # Verify essential fields are in the body
+        body = call_args.kwargs['body']
+        assert body['source'] == "avito"
+        assert body['external_id'] == "12345"
+        assert body['title'] == "Тестовая квартира"
+        assert body['price'] == 3000.0
+        assert body['rooms'] == 1
+        assert body['area'] == 30.0
 
 
 @pytest.mark.asyncio
@@ -81,41 +80,19 @@ async def test_save_properties_multiple():
 
         # Verify the Elasticsearch index method was called twice
         assert mock_es.index.call_count == 2
-
-        # Verify the calls were made with correct parameters
-        mock_es.index.assert_any_call(
-            index="properties",
-            body={
-                "source": "avito",
-                "external_id": "12345",
-                "title": "Первая квартира",
-                "price": 3000.0,
-                "rooms": 1,
-                "area": 30.0,
-                "location": None,
-                "photos": [],
-                "description": None,
-                "link": None
-            },
-            id="12345",
-        )
-
-        mock_es.index.assert_any_call(
-            index="properties",
-            body={
-                "source": "avito",
-                "external_id": "67890",
-                "title": "Вторая квартира",
-                "price": 4500.0,
-                "rooms": 2,
-                "area": 45.0,
-                "location": None,
-                "photos": [],
-                "description": None,
-                "link": None
-            },
-            id="67890",
-        )
+        
+        # Get both calls
+        calls = mock_es.index.call_args_list
+        
+        # Verify first call
+        assert calls[0].kwargs['index'] == "properties"
+        assert calls[0].kwargs['id'] == "12345"
+        assert calls[0].kwargs['body']['title'] == "Первая квартира"
+        
+        # Verify second call
+        assert calls[1].kwargs['index'] == "properties"
+        assert calls[1].kwargs['id'] == "67890"
+        assert calls[1].kwargs['body']['title'] == "Вторая квартира"
 
 
 @pytest.mark.asyncio

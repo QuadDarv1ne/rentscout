@@ -701,31 +701,16 @@ async def track_search_query(
     """Track a search query."""
     start_time = time.time()
     
-    query_params = {
-        "city": city,
-        "property_type": property_type,
-        "min_price": min_price,
-        "max_price": max_price,
-        "min_rooms": min_rooms,
-        "max_rooms": max_rooms,
-        "min_area": min_area,
-        "max_area": max_area,
-        **kwargs
-    }
-    
     search_query = SearchQuery(
         city=city,
         property_type=property_type,
         min_price=min_price,
         max_price=max_price,
-        min_rooms=min_rooms,
-        max_rooms=max_rooms,
+        rooms=min_rooms,  # Store min_rooms in rooms field for simplicity
         min_area=min_area,
         max_area=max_area,
-        query_params=query_params,
         results_count=results_count,
-        ip_address=ip_address,
-        user_agent=user_agent
+        ip_address=ip_address
     )
     
     db.add(search_query)

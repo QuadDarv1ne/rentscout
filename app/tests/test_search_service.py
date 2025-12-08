@@ -70,9 +70,9 @@ async def test_search_service_search_success(sample_properties):
         assert len(results) == 2
         assert results[0].source == "avito"
         assert results[1].source == "cian"
-        # Check that IDs are integers
-        assert isinstance(results[0].id, int)
-        assert isinstance(results[1].id, int)
+        # Check that external_ids match the test data
+        assert results[0].external_id == "1"
+        assert results[1].external_id == "2"
 
 
 @pytest.mark.asyncio

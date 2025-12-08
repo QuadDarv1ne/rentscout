@@ -109,7 +109,9 @@ class SearchService:
                 await save_properties(unique_properties)
                 
                 logger.info(f"Saved {len(unique_properties)} unique properties to database")
-                metrics_collector.record_properties_processed(len(unique_properties), "saved")
+                for prop in unique_properties:
+                    # PropertyCreate is a Pydantic model, use attribute access
+                    metrics_collector.record_property_processed(prop.source, "saved")
             except Exception as e:
                 logger.error(f"Error saving properties to database: {e}", exc_info=True)
                 metrics_collector.record_error("database_save")
