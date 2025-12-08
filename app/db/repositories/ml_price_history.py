@@ -5,11 +5,9 @@ Repository for managing historical price data in the database.
 from datetime import datetime, timedelta
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, desc
+from sqlalchemy import func, and_, or_, desc
 from app.db.models.ml_price_history import MLPriceHistory
-from app.core.logging import get_logger
-
-logger = get_logger(__name__)
+from app.utils.logger import logger
 
 
 class MLPriceHistoryRepository:
@@ -67,13 +65,16 @@ class MLPriceHistoryRepository:
     ) -> List[MLPriceHistory]:
         """Get price history for a city in the last N days."""
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            cutoff_date = datetime.utcnow() - timedelta(days=days + 1)
             
             query = db.query(MLPriceHistory).filter(
                 and_(
                     MLPriceHistory.city == city,
-                    MLPriceHistory.recorded_at >= cutoff_date,
                     MLPriceHistory.is_active == 1,
+                    or_(
+                        MLPriceHistory.recorded_at == None,
+                        MLPriceHistory.recorded_at >= cutoff_date,
+                    ),
                 )
             )
             
@@ -97,14 +98,17 @@ class MLPriceHistoryRepository:
     ) -> List[MLPriceHistory]:
         """Get price history for a specific district."""
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            cutoff_date = datetime.utcnow() - timedelta(days=days + 1)
             
             records = db.query(MLPriceHistory).filter(
                 and_(
                     MLPriceHistory.city == city,
                     MLPriceHistory.district == district,
-                    MLPriceHistory.recorded_at >= cutoff_date,
                     MLPriceHistory.is_active == 1,
+                    or_(
+                        MLPriceHistory.recorded_at == None,
+                        MLPriceHistory.recorded_at >= cutoff_date,
+                    ),
                 )
             ).order_by(desc(MLPriceHistory.recorded_at)).limit(limit).all()
             
@@ -123,13 +127,16 @@ class MLPriceHistoryRepository:
     ) -> dict:
         """Calculate statistics for prices in a city."""
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            cutoff_date = datetime.utcnow() - timedelta(days=days + 1)
             
             query = db.query(MLPriceHistory).filter(
                 and_(
                     MLPriceHistory.city == city,
-                    MLPriceHistory.recorded_at >= cutoff_date,
                     MLPriceHistory.is_active == 1,
+                    or_(
+                        MLPriceHistory.recorded_at == None,
+                        MLPriceHistory.recorded_at >= cutoff_date,
+                    ),
                 )
             )
             
@@ -177,13 +184,16 @@ class MLPriceHistoryRepository:
     ) -> dict:
         """Analyze price trend over time."""
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            cutoff_date = datetime.utcnow() - timedelta(days=days + 1)
             
             query = db.query(MLPriceHistory).filter(
                 and_(
                     MLPriceHistory.city == city,
-                    MLPriceHistory.recorded_at >= cutoff_date,
                     MLPriceHistory.is_active == 1,
+                    or_(
+                        MLPriceHistory.recorded_at == None,
+                        MLPriceHistory.recorded_at >= cutoff_date,
+                    ),
                 )
             )
             

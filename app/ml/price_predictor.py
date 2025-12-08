@@ -12,81 +12,6 @@ import statistics
 import math
 
 from app.utils.logger import logger
-    
-    def load_from_database(
-        self,
-        db,
-        city: str,
-        days: int = 30,
-        rooms: Optional[int] = None,
-    ) -> int:
-        """Load historical data from database."""
-        try:
-            from app.db.repositories.ml_price_history import MLPriceHistoryRepository
-            
-            db_records = MLPriceHistoryRepository.get_by_city(
-                db,
-                city=city,
-                days=days,
-                rooms=rooms,
-            )
-            
-            # Clear existing history
-            self.history = []
-            
-            # Load from database
-            for record in db_records:
-                self.history.append(PriceHistory(
-                    date=record.recorded_at.isoformat(),
-                    price=record.price,
-                    source=record.source or "database",
-                    rooms=record.rooms,
-                    area=record.area,
-                ))
-            
-            logger.info(f"Loaded {len(self.history)} records from database for {city}")
-            return len(self.history)
-        except Exception as e:
-            logger.error(f"Failed to load from database: {e}")
-            return 0
-    
-    def save_to_database(
-        self,
-        db,
-        city: str,
-        price: float,
-        rooms: Optional[int] = None,
-        area: Optional[float] = None,
-        district: Optional[str] = None,
-        source: Optional[str] = None,
-    ) -> bool:
-        """Save price record to database."""
-        try:
-            from app.db.repositories.ml_price_history import MLPriceHistoryRepository
-            
-            record = MLPriceHistoryRepository.add_price(
-                db,
-                city=city,
-                price=price,
-                rooms=rooms,
-                area=area,
-                district=district,
-                source=source,
-            )
-            
-            # Also add to in-memory history
-            self.add_history(
-                price=price,
-                source=source or "database",
-                rooms=rooms,
-                area=area,
-            )
-            
-            logger.info(f"Saved price to database: {city} - {price} RUB")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to save to database: {e}")
-            return False
 
 
 # Глобальный экземпляр
@@ -310,6 +235,77 @@ class PricePredictorML:
             rooms=rooms,
             area=area,
         ))
+
+    def load_from_database(
+        self,
+        db,
+        city: str,
+        days: int = 30,
+        rooms: Optional[int] = None,
+    ) -> int:
+        """Загрузить исторические данные из базы."""
+        try:
+            from app.db.repositories.ml_price_history import MLPriceHistoryRepository
+            
+            db_records = MLPriceHistoryRepository.get_by_city(
+                db,
+                city=city,
+                days=days,
+                rooms=rooms,
+            )
+            
+            self.history = []
+            for record in db_records:
+                self.history.append(PriceHistory(
+                    date=record.recorded_at.isoformat(),
+                    price=record.price,
+                    source=record.source or "database",
+                    rooms=record.rooms,
+                    area=record.area,
+                ))
+            
+            logger.info(f"Loaded {len(self.history)} records from database for {city}")
+            return len(self.history)
+        except Exception as e:
+            logger.error(f"Failed to load from database: {e}")
+            return 0
+
+    def save_to_database(
+        self,
+        db,
+        city: str,
+        price: float,
+        rooms: Optional[int] = None,
+        area: Optional[float] = None,
+        district: Optional[str] = None,
+        source: Optional[str] = None,
+    ) -> bool:
+        """Сохранить историческую цену в базу."""
+        try:
+            from app.db.repositories.ml_price_history import MLPriceHistoryRepository
+            
+            MLPriceHistoryRepository.add_price(
+                db,
+                city=city,
+                price=price,
+                rooms=rooms,
+                area=area,
+                district=district,
+                source=source,
+            )
+            
+            self.add_history(
+                price=price,
+                source=source or "database",
+                rooms=rooms,
+                area=area,
+            )
+            
+            logger.info(f"Saved price to database: {city} - {price} RUB")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save to database: {e}")
+            return False
     
     def _analyze_trend(self, city: str, rooms: Optional[int] = None) -> str:
         """Анализ тренда цен на основе истории."""
