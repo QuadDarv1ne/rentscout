@@ -39,10 +39,9 @@ class TestPredictPriceEndpoint:
         assert 0 <= data["confidence"] <= 1
         assert len(data["price_range"]) == 2
     
-    @pytest.mark.asyncio
-    async def test_predict_price_with_district(self, client):
+    def test_predict_price_with_district(self):
         """Предсказание с указанием района."""
-        response = await client.post(
+        response = client.post(
             "/api/ml/predict-price",
             json={
                 "city": "Москва",
@@ -56,10 +55,9 @@ class TestPredictPriceEndpoint:
         data = response.json()
         assert data["factors"]["district"] > 1.0  # Элитный район
     
-    @pytest.mark.asyncio
-    async def test_predict_price_with_floor(self, client):
+    def test_predict_price_with_floor(self):
         """Предсказание с этажом."""
-        response = await client.post(
+        response = client.post(
             "/api/ml/predict-price",
             json={
                 "city": "Москва",
@@ -74,10 +72,9 @@ class TestPredictPriceEndpoint:
         data = response.json()
         assert "floor" in data["factors"]
     
-    @pytest.mark.asyncio
-    async def test_predict_price_verified(self, client):
+    def test_predict_price_verified(self):
         """Предсказание для верифицированного объявления."""
-        response = await client.post(
+        response = client.post(
             "/api/ml/predict-price",
             json={
                 "city": "Москва",
@@ -91,10 +88,9 @@ class TestPredictPriceEndpoint:
         data = response.json()
         assert data["factors"]["verified"] > 1.0
     
-    @pytest.mark.asyncio
-    async def test_predict_price_validation_negative_rooms(self, client):
+    def test_predict_price_validation_negative_rooms(self):
         """Валидация: отрицательное количество комнат."""
-        response = await client.post(
+        response = client.post(
             "/api/ml/predict-price",
             json={
                 "city": "Москва",
@@ -105,10 +101,9 @@ class TestPredictPriceEndpoint:
         
         assert response.status_code == 422
     
-    @pytest.mark.asyncio
-    async def test_predict_price_validation_small_area(self, client):
+    def test_predict_price_validation_small_area(self):
         """Валидация: слишком маленькая площадь."""
-        response = await client.post(
+        response = client.post(
             "/api/ml/predict-price",
             json={
                 "city": "Москва",
@@ -119,10 +114,9 @@ class TestPredictPriceEndpoint:
         
         assert response.status_code == 422
     
-    @pytest.mark.asyncio
-    async def test_predict_price_validation_large_area(self, client):
+    def test_predict_price_validation_large_area(self):
         """Валидация: слишком большая площадь."""
-        response = await client.post(
+        response = client.post(
             "/api/ml/predict-price",
             json={
                 "city": "Москва",
@@ -137,10 +131,9 @@ class TestPredictPriceEndpoint:
 class TestPriceStatisticsEndpoint:
     """Тесты endpoint статистики цен."""
     
-    @pytest.mark.asyncio
-    async def test_get_statistics_basic(self, client):
+    def test_get_statistics_basic(self):
         """Базовая статистика."""
-        response = await client.get("/api/ml/price-statistics/Москва")
+        response = client.get("/api/ml/price-statistics/Москва")
         
         assert response.status_code == 200
         data = response.json()
@@ -152,24 +145,21 @@ class TestPriceStatisticsEndpoint:
         assert "median_price" in data
         assert "std_dev" in data
     
-    @pytest.mark.asyncio
-    async def test_get_statistics_with_rooms(self, client):
+    def test_get_statistics_with_rooms(self):
         """Статистика с фильтром по комнатам."""
-        response = await client.get("/api/ml/price-statistics/Москва?rooms=2")
+        response = client.get("/api/ml/price-statistics/Москва?rooms=2")
         
         assert response.status_code == 200
     
-    @pytest.mark.asyncio
-    async def test_get_statistics_with_custom_period(self, client):
+    def test_get_statistics_with_custom_period(self):
         """Статистика за кастомный период."""
-        response = await client.get("/api/ml/price-statistics/Москва?days=7")
+        response = client.get("/api/ml/price-statistics/Москва?days=7")
         
         assert response.status_code == 200
     
-    @pytest.mark.asyncio
-    async def test_get_statistics_validation_days(self, client):
+    def test_get_statistics_validation_days(self):
         """Валидация: слишком большой период."""
-        response = await client.get("/api/ml/price-statistics/Москва?days=500")
+        response = client.get("/api/ml/price-statistics/Москва?days=500")
         
         assert response.status_code == 422
 
@@ -177,10 +167,9 @@ class TestPriceStatisticsEndpoint:
 class TestComparePriceEndpoint:
     """Тесты endpoint сравнения цен."""
     
-    @pytest.mark.asyncio
-    async def test_compare_price_basic(self, client):
+    def test_compare_price_basic(self):
         """Базовое сравнение."""
-        response = await client.post(
+        response = client.post(
             "/api/ml/compare-price",
             json={
                 "actual_price": 50000.0,
@@ -200,10 +189,9 @@ class TestComparePriceEndpoint:
         assert "rating" in data
         assert "comment" in data
     
-    @pytest.mark.asyncio
-    async def test_compare_price_overpriced(self, client):
+    def test_compare_price_overpriced(self):
         """Сравнение завышенной цены."""
-        response = await client.post(
+        response = client.post(
             "/api/ml/compare-price",
             json={
                 "actual_price": 100000.0,  # Очень дорого
@@ -218,10 +206,9 @@ class TestComparePriceEndpoint:
         assert data["rating"] == "overpriced"
         assert data["difference_percent"] > 0
     
-    @pytest.mark.asyncio
-    async def test_compare_price_with_district(self, client):
+    def test_compare_price_with_district(self):
         """Сравнение с учётом района."""
-        response = await client.post(
+        response = client.post(
             "/api/ml/compare-price",
             json={
                 "actual_price": 50000.0,
@@ -238,10 +225,9 @@ class TestComparePriceEndpoint:
 class TestOptimalPriceEndpoint:
     """Тесты endpoint оптимальной цены."""
     
-    @pytest.mark.asyncio
-    async def test_get_optimal_price(self, client):
+    def test_get_optimal_price(self):
         """Получение оптимальной цены."""
-        response = await client.get(
+        response = client.get(
             "/api/ml/optimal-price/Москва?rooms=2&area=60.0"
         )
         
@@ -254,10 +240,9 @@ class TestOptimalPriceEndpoint:
         assert "market_average" in data
         assert "recommendation" in data
     
-    @pytest.mark.asyncio
-    async def test_optimal_price_validation(self, client):
+    def test_optimal_price_validation(self):
         """Валидация параметров."""
-        response = await client.get(
+        response = client.get(
             "/api/ml/optimal-price/Москва?rooms=-1&area=60.0"
         )
         
@@ -267,10 +252,9 @@ class TestOptimalPriceEndpoint:
 class TestMarketTrendsEndpoint:
     """Тесты endpoint трендов рынка."""
     
-    @pytest.mark.asyncio
-    async def test_get_market_trends(self, client):
+    def test_get_market_trends(self):
         """Получение трендов рынка."""
-        response = await client.get("/api/ml/market-trends/Москва")
+        response = client.get("/api/ml/market-trends/Москва")
         
         assert response.status_code == 200
         data = response.json()
@@ -282,19 +266,17 @@ class TestMarketTrendsEndpoint:
         assert "stats_30_days" in data
         assert "change_percentage" in data
     
-    @pytest.mark.asyncio
-    async def test_get_market_trends_with_rooms(self, client):
+    def test_get_market_trends_with_rooms(self):
         """Тренды с фильтром по комнатам."""
-        response = await client.get("/api/ml/market-trends/Москва?rooms=2")
+        response = client.get("/api/ml/market-trends/Москва?rooms=2")
         
         assert response.status_code == 200
         data = response.json()
         assert data["rooms"] == 2
     
-    @pytest.mark.asyncio
-    async def test_market_trends_structure(self, client):
+    def test_market_trends_structure(self):
         """Структура данных о трендах."""
-        response = await client.get("/api/ml/market-trends/Москва")
+        response = client.get("/api/ml/market-trends/Москва")
         
         assert response.status_code == 200
         data = response.json()
@@ -310,10 +292,9 @@ class TestMarketTrendsEndpoint:
 class TestMLHealthEndpoint:
     """Тесты health check endpoint."""
     
-    @pytest.mark.asyncio
-    async def test_ml_health(self, client):
+    def test_ml_health(self):
         """Проверка здоровья ML сервиса."""
-        response = await client.get("/api/ml/health")
+        response = client.get("/api/ml/health")
         
         assert response.status_code == 200
         data = response.json()
@@ -334,11 +315,10 @@ class TestMLHealthEndpoint:
 class TestMLIntegration:
     """Интеграционные тесты ML API."""
     
-    @pytest.mark.asyncio
-    async def test_full_workflow(self, client):
+    def test_full_workflow(self):
         """Полный рабочий процесс: предсказание -> сравнение -> оптимизация."""
         # 1. Предсказываем цену
-        predict_response = await client.post(
+        predict_response = client.post(
             "/api/ml/predict-price",
             json={
                 "city": "Москва",
@@ -350,7 +330,7 @@ class TestMLIntegration:
         predicted = predict_response.json()
         
         # 2. Сравниваем с рыночной ценой
-        compare_response = await client.post(
+        compare_response = client.post(
             "/api/ml/compare-price",
             json={
                 "actual_price": predicted["predicted_price"] * 1.1,
@@ -362,7 +342,7 @@ class TestMLIntegration:
         assert compare_response.status_code == 200
         
         # 3. Получаем оптимальную цену
-        optimal_response = await client.get(
+        optimal_response = client.get(
             "/api/ml/optimal-price/Москва?rooms=2&area=60.0"
         )
         assert optimal_response.status_code == 200
@@ -372,14 +352,13 @@ class TestMLIntegration:
         assert optimal["min_competitive"] < optimal["optimal_price"]
         assert optimal["optimal_price"] < optimal["max_competitive"]
     
-    @pytest.mark.asyncio
-    async def test_different_cities_comparison(self, client):
+    def test_different_cities_comparison(self):
         """Сравнение цен в разных городах."""
         cities = ["Москва", "Санкт-Петербург", "Казань"]
         results = []
         
         for city in cities:
-            response = await client.post(
+            response = client.post(
                 "/api/ml/predict-price",
                 json={
                     "city": city,
@@ -394,15 +373,14 @@ class TestMLIntegration:
         assert results[0]["predicted_price"] > results[1]["predicted_price"]
         assert results[0]["predicted_price"] > results[2]["predicted_price"]
     
-    @pytest.mark.asyncio
-    async def test_market_analysis_workflow(self, client):
+    def test_market_analysis_workflow(self):
         """Анализ рынка: статистика + тренды."""
         # Получаем статистику
-        stats_response = await client.get("/api/ml/price-statistics/Москва?rooms=2")
+        stats_response = client.get("/api/ml/price-statistics/Москва?rooms=2")
         assert stats_response.status_code == 200
         
         # Получаем тренды
-        trends_response = await client.get("/api/ml/market-trends/Москва?rooms=2")
+        trends_response = client.get("/api/ml/market-trends/Москва?rooms=2")
         assert trends_response.status_code == 200
         
         trends = trends_response.json()
