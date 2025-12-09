@@ -29,7 +29,7 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 WORKDIR /app
 
 # Копирование файлов зависимостей
-COPY requirements.txt requirements-dev.txt ./
+COPY requirements.txt ./
 
 # Установка Python зависимостей
 RUN pip install --no-cache-dir --upgrade pip && \
