@@ -1,0 +1,63 @@
+services:
+  # PostgreSQL база данных
+  postgres:
+    image: postgres:15-alpine
+    container_name: rentscout-postgres-simple
+    environment:
+      - POSTGRES_USER=rentscout
+      - POSTGRES_PASSWORD=rentscout_password
+      - POSTGRES_DB=rentscout
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-simple-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rentscout"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis для кеширования
+  redis:
+    image: redis:7-alpine
+    container_name: rentscout-redis-simple
+    command: redis-server --requirepass redis_password
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-simple-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI приложение
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rentscout-api-simple
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8001:8000"
+    environment:
+      - REDIS_URL=redis://:redis_password@redis:6379/0
+      - DATABASE_URL=postgresql+asyncpg://rentscout:rentscout_password@postgres:5432/rentscout
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+
+volumes:
+  postgres-simple-data:
+  redis-simple-data:
