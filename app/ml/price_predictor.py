@@ -14,8 +14,6 @@ import math
 from app.utils.logger import logger
 
 
-# Глобальный экземпляр
-price_predictor = PricePredictorML()
 @dataclass
 class PricePrediction:
     """Результат предсказания цены."""

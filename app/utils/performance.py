@@ -1,6 +1,6 @@
 """
-Performance monitoring utilities for tracking application metrics.
-Provides decorators and context managers for easy performance tracking.
+Утилиты мониторинга производительности для отслеживания метрик приложения.
+Предоставляет декораторы и контекстные менеджеры для простого отслеживания производительности.
 """
 import asyncio
 import functools
@@ -47,7 +47,7 @@ ACTIVE_TASKS = Gauge(
 
 @dataclass
 class PerformanceStats:
-    """Performance statistics container."""
+    """Контейнер для статистики производительности."""
     
     operation_name: str
     start_time: float = field(default_factory=time.perf_counter)
@@ -58,14 +58,14 @@ class PerformanceStats:
     metadata: Dict[str, Any] = field(default_factory=dict)
     
     def finish(self, success: bool = True, error: Optional[Exception] = None):
-        """Mark operation as finished."""
+        """Отметить операцию как завершенную."""
         self.end_time = time.perf_counter()
         self.duration = self.end_time - self.start_time
         self.success = success
         self.error = error
     
     def to_dict(self) -> dict:
-        """Convert to dictionary."""
+        """Преобразовать в словарь."""
         return {
             "operation": self.operation_name,
             "duration_ms": round(self.duration * 1000, 2) if self.duration else None,
@@ -76,7 +76,7 @@ class PerformanceStats:
 
 
 class PerformanceMonitor:
-    """Central performance monitoring manager."""
+    """Центральный менеджер мониторинга производительности."""
     
     def __init__(self):
         self.stats_history: list[PerformanceStats] = []
@@ -84,7 +84,7 @@ class PerformanceMonitor:
         self._lock = asyncio.Lock()
     
     async def record(self, stats: PerformanceStats):
-        """Record performance statistics."""
+        """Записать статистику производительности."""
         async with self._lock:
             self.stats_history.append(stats)
             
@@ -108,7 +108,7 @@ class PerformanceMonitor:
         operation_name: Optional[str] = None,
         limit: int = 100
     ) -> list[dict]:
-        """Get performance statistics."""
+        """Получить статистику производительности."""
         filtered = self.stats_history
         
         if operation_name:
@@ -117,7 +117,7 @@ class PerformanceMonitor:
         return [s.to_dict() for s in filtered[-limit:]]
     
     def get_summary(self) -> dict:
-        """Get summary statistics."""
+        """Получить сводную статистику."""
         if not self.stats_history:
             return {"message": "No statistics available"}
         
@@ -145,12 +145,12 @@ perf_monitor = PerformanceMonitor()
 
 def track_performance(operation_name: Optional[str] = None):
     """
-    Decorator to track function performance.
+    Декоратор для отслеживания производительности функции.
     
-    Example:
+    Пример:
         @track_performance("user_login")
         async def login_user(username: str):
-            # Login logic
+            # Логика входа
     """
     def decorator(func: Callable):
         op_name = operation_name or func.__name__
@@ -242,9 +242,9 @@ def track_performance(operation_name: Optional[str] = None):
 @asynccontextmanager
 async def track_operation(operation_name: str, metadata: Optional[Dict] = None):
     """
-    Context manager for tracking operation performance.
+    Контекстный менеджер для отслеживания производительности операции.
     
-    Example:
+    Пример:
         async with track_operation("database_query", {"table": "users"}):
             results = await db.query("SELECT * FROM users")
     """
@@ -271,9 +271,9 @@ async def track_operation(operation_name: str, metadata: Optional[Dict] = None):
 @contextmanager
 def track_sync_operation(operation_name: str, metadata: Optional[Dict] = None):
     """
-    Synchronous context manager for tracking operation performance.
+    Синхронный контекстный менеджер для отслеживания производительности операции.
     
-    Example:
+    Пример:
         with track_sync_operation("file_processing"):
             process_file("data.csv")
     """
@@ -302,9 +302,9 @@ def track_sync_operation(operation_name: str, metadata: Optional[Dict] = None):
 
 def measure_time(func: Callable) -> Callable:
     """
-    Simple decorator to measure and log function execution time.
+    Простой декоратор для измерения и логирования времени выполнения функции.
     
-    Example:
+    Пример:
         @measure_time
         def slow_function():
             time.sleep(2)

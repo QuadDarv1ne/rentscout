@@ -7,46 +7,61 @@ import os
 from pathlib import Path
 
 def check_python_version():
-    """Проверка версии Python."""
+    """Проверка версии Python.
+    
+    Убедитесь, что версия Python не ниже 3.9.
+    """
     version = sys.version_info
     if version.major < 3 or (version.major == 3 and version.minor < 9):
-        print(f"❌ Python 3.9+ требуется. Текущая версия: {version.major}.{version.minor}")
+        print(f"❌ Требуется Python 3.9+. У вас: {version.major}.{version.minor}")
         return False
     print(f"✅ Python {version.major}.{version.minor}.{version.micro}")
     return True
 
 def check_dependencies():
-    """Проверка установленных зависимостей."""
-    try:
-        import fastapi
-        import uvicorn
-        import redis
-        print("✅ Основные зависимости установлены")
-        return True
-    except ImportError as e:
-        print(f"❌ Отсутствуют зависимости: {e}")
-        print("\n💡 Установите зависимости:")
+    """Проверка установленных зависимостей.
+    
+    Проверяет, установлены ли основные библиотеки:
+    fastapi, uvicorn и redis.
+    Если какая-либо библиотека отсутствует, выводит инструкцию по установке.
+    """
+    required_libs = ["fastapi", "uvicorn", "redis"]
+    missing_libs = []
+    for lib in required_libs:
+        try:
+            __import__(lib)
+        except ImportError:
+            missing_libs.append(lib)
+    
+    if missing_libs:
+        print(f"❌ Отсутствуют зависимости: {', '.join(missing_libs)}")
+        print("💡 Установите их с помощью:")
         print("   pip install -r requirements.txt")
         return False
+    
+    print("✅ Все основные зависимости установлены")
+    return True
 
 def check_env_file():
-    """Проверка наличия .env файла."""
+    """Проверка наличия файла .env.
+    
+    Если файл .env отсутствует, создаёт его с минимальной конфигурацией.
+    """
     env_path = Path(".env")
     if not env_path.exists():
-        print("⚠️  Файл .env не найден")
-        print("💡 Создаю минимальный .env файл...")
+        print("⚠️  Файл .env не найден, создаю новый...")
         with open(".env", "w", encoding="utf-8") as f:
-            f.write("APP_NAME=RentScout\n")
-            f.write("DEBUG=true\n")
-            f.write("LOG_LEVEL=INFO\n")
-            f.write("REDIS_URL=redis://localhost:6379/0\n")
-        print("✅ Создан файл .env с базовой конфигурацией")
+            f.write("APP_NAME=RentScout\nDEBUG=true\nLOG_LEVEL=INFO\nREDIS_URL=redis://localhost:6379/0\n")
+        print("✅ Создан .env с базовой конфигурацией")
     else:
         print("✅ Файл .env существует")
     return True
 
 def check_redis():
-    """Проверка доступности Redis."""
+    """Проверка доступности Redis.
+    
+    Проверяет, запущен ли сервер Redis и доступен ли он для соединения.
+    """
     try:
         import redis as redis_module
         r = redis_module.Redis(host='localhost', port=6379, socket_connect_timeout=1)
@@ -55,40 +70,39 @@ def check_redis():
         return True
     except Exception:
         print("⚠️  Redis недоступен (не критично)")
-        print("💡 Запустите Redis или используйте Docker:")
-        print("   docker run -d -p 6379:6379 redis:7-alpine")
+        print("💡 Запустите Redis или используйте Docker: docker run -d -p 6379:6379 redis:7-alpine")
         return False
 
 def check_postgres():
-    """Проверка доступности PostgreSQL."""
+    """Проверка доступности PostgreSQL.
+    
+    Проверяет наличие библиотеки asyncpg.
+    Опциональная проверка соединения с PostgreSQL может быть добавлена.
+    """
     try:
         import asyncpg
         print("✅ asyncpg установлен")
-        # Простая проверка - не подключаемся, т.к. это async
+        # Можно добавить проверку соединения с БД
         return True
     except ImportError:
         print("⚠️  asyncpg не установлен (опционально)")
         return False
 
 def start_server(reload=True):
-    """Запуск сервера."""
+    """Запуск сервера RentScout API.
+    
+    Осуществляет запуск API с помощью uvicorn.
+    """
     print("\n" + "="*60)
     print("🚀 Запуск RentScout API...")
     print("="*60)
-    print("\n📍 Сервер будет доступен по адресу:")
-    print("   • API: http://127.0.0.1:8000")
-    print("   • Документация: http://127.0.0.1:8000/docs")
-    print("   • Метрики: http://127.0.0.1:8000/metrics")
-    print("\n⏹️  Для остановки нажмите Ctrl+C")
-    print("="*60 + "\n")
     
     cmd = [
         sys.executable, "-m", "uvicorn",
         "app.main:app",
         "--host", "127.0.0.1",
-        "--port", "8000"
+        "--port", "8000",
     ]
-    
     if reload:
         cmd.append("--reload")
     
@@ -96,24 +110,27 @@ def start_server(reload=True):
         subprocess.run(cmd)
     except KeyboardInterrupt:
         print("\n\n✅ Сервер остановлен")
+    except FileNotFoundError:
+        print("❌ uvicorn не установлен. Установите его с помощью pip.")
 
 def main():
-    """Основная функция."""
+    """Основная функция программы.
+    
+    Выполняет последовательную проверку окружения и запускает сервер RentScout 
+    при успешной верификации критичных зависимостей.
+    """
     print("🔍 Проверка окружения RentScout...\n")
     
     checks = [
-        ("Python версия", check_python_version),
-        ("Зависимости", check_dependencies),
+        ("Проверка версии Python", check_python_version),
+        ("Проверка зависимостей", check_dependencies),
         (".env файл", check_env_file),
-        ("Redis", check_redis),
+        ("Проверка Redis", check_redis),
+        ("Проверка PostgreSQL", check_postgres),
     ]
     
-    results = []
-    for name, check_func in checks:
-        result = check_func()
-        results.append(result)
+    results = [check_func() for _, check_func in checks]
     
-    # Критичны только первые 3 проверки
     if not all(results[:3]):
         print("\n❌ Критичные проверки не пройдены. Исправьте ошибки.")
         sys.exit(1)

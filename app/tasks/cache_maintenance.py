@@ -1,6 +1,6 @@
 """
-Background tasks for cache maintenance and cleanup.
-Implements automatic cache eviction and warming strategies.
+Фоновые задачи для обслуживания и очистки кеша.
+Реализует автоматическое вытеснение и стратегии прогрева кеша.
 """
 import asyncio
 from datetime import datetime, timedelta
@@ -18,7 +18,7 @@ except ImportError:
 
 class CacheMaintenanceTask:
     """
-    Background task for automatic cache maintenance.
+    Фоновая задача для автоматического обслуживания кеша.
     """
     
     def __init__(
@@ -35,7 +35,7 @@ class CacheMaintenanceTask:
         self._task: Optional[asyncio.Task] = None
     
     async def start(self):
-        """Start the maintenance task."""
+        """Запустить задачу обслуживания."""
         if self._running:
             logger.warning("Cache maintenance already running")
             return
@@ -59,7 +59,7 @@ class CacheMaintenanceTask:
         logger.info(f"🔄 Cache maintenance started (interval: {self.cleanup_interval}s)")
     
     async def stop(self):
-        """Stop the maintenance task."""
+        """Остановить задачу обслуживания."""
         if not self._running:
             return
         
@@ -78,7 +78,7 @@ class CacheMaintenanceTask:
         logger.info("Cache maintenance stopped")
     
     async def _run(self):
-        """Main maintenance loop."""
+        """Основной цикл обслуживания."""
         while self._running:
             try:
                 await self._perform_maintenance()
@@ -90,7 +90,7 @@ class CacheMaintenanceTask:
                 await asyncio.sleep(60)  # Wait before retry
     
     async def _perform_maintenance(self):
-        """Perform cache maintenance tasks."""
+        """Выполнить задачи обслуживания кеша."""
         logger.info("🧹 Starting cache maintenance")
         
         start_time = datetime.now()
@@ -108,7 +108,7 @@ class CacheMaintenanceTask:
         logger.info(f"✅ Cache maintenance completed in {duration:.2f}s")
     
     async def _clean_expired_keys(self):
-        """Remove expired keys from cache."""
+        """Удалить истекшие ключи из кеша."""
         if not self.redis_client:
             return
         
@@ -145,7 +145,7 @@ class CacheMaintenanceTask:
             logger.error(f"Error cleaning expired keys: {e}")
     
     async def _check_memory_usage(self):
-        """Check and manage Redis memory usage."""
+        """Проверить и управлять использованием памяти Redis."""
         if not self.redis_client:
             return
         
@@ -166,7 +166,7 @@ class CacheMaintenanceTask:
             logger.error(f"Error checking memory usage: {e}")
     
     async def _evict_lru_keys(self, target_mb: float):
-        """Evict least recently used keys to reach target memory."""
+        """Вытеснить наименее используемые ключи для достижения целевого объема памяти."""
         if not self.redis_client:
             return
         
@@ -224,7 +224,7 @@ class CacheMaintenanceTask:
             logger.error(f"Error evicting LRU keys: {e}")
     
     async def _log_statistics(self):
-        """Log cache statistics."""
+        """Залогировать статистику кеша."""
         try:
             # App cache stats
             app_stats = app_cache.get_stats()
@@ -246,7 +246,7 @@ class CacheMaintenanceTask:
 
 class CacheWarmer:
     """
-    Cache warming utility to pre-populate frequently accessed data.
+    Утилита прогрева кеша для предварительного заполнения часто используемых данных.
     """
     
     def __init__(self):
@@ -254,9 +254,9 @@ class CacheWarmer:
     
     def register(self, func: Callable):
         """
-        Register a function for cache warming.
+        Зарегистрировать функцию для прогрева кеша.
         
-        Example:
+        Пример:
             @cache_warmer.register
             async def warm_popular_cities():
                 for city in ["Москва", "Санкт-Петербург"]:
@@ -266,7 +266,7 @@ class CacheWarmer:
         return func
     
     async def warm_cache(self):
-        """Execute all registered warmup tasks."""
+        """Выполнить все зарегистрированные задачи прогрева."""
         logger.info(f"🔥 Starting cache warmup ({len(self.warmup_tasks)} tasks)")
         
         start_time = datetime.now()
@@ -295,7 +295,7 @@ cache_warmer = CacheWarmer()
 # Example warmup tasks
 @cache_warmer.register
 async def warm_popular_cities():
-    """Warm cache for popular cities."""
+    """Прогреть кеш для популярных городов."""
     from app.services.search import SearchService
     
     popular_cities = ["Москва", "Санкт-Петербург", "Казань", "Екатеринбург"]

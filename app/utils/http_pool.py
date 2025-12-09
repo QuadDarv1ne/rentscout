@@ -1,6 +1,6 @@
 """
-HTTP connection pool manager for optimized parser performance.
-Reuses connections and implements best practices for async HTTP clients.
+Менеджер пула HTTP-соединений для оптимизированной производительности парсеров.
+Переиспользует соединения и реализует лучшие практики для асинхронных HTTP клиентов.
 """
 import asyncio
 from typing import Optional, Dict, Any
@@ -15,8 +15,8 @@ from app.utils.logger import logger
 
 class HTTPClientPool:
     """
-    Singleton HTTP client pool manager.
-    Provides optimized connection pooling for parsers.
+    Singleton менеджер пула HTTP клиентов.
+    Предоставляет оптимизированный пулинг соединений для парсеров.
     """
     
     _instance: Optional['HTTPClientPool'] = None
@@ -39,14 +39,14 @@ class HTTPClientPool:
         **kwargs
     ) -> httpx.AsyncClient:
         """
-        Get or create an HTTP client with connection pooling.
+        Получить или создать HTTP клиент с пулом соединений.
         
         Args:
-            name: Client identifier
-            **kwargs: Additional httpx.AsyncClient parameters
+            name: Идентификатор клиента
+            **kwargs: Дополнительные параметры httpx.AsyncClient
         
         Returns:
-            Configured async HTTP client
+            Настроенный асинхронный HTTP клиент
         """
         async with self._lock:
             if name not in self.clients:
@@ -84,7 +84,7 @@ class HTTPClientPool:
             return self.clients[name]
     
     async def close_client(self, name: str) -> None:
-        """Close a specific client."""
+        """Закрыть конкретный клиент."""
         async with self._lock:
             if name in self.clients:
                 await self.clients[name].aclose()
@@ -92,7 +92,7 @@ class HTTPClientPool:
                 logger.info(f"Closed HTTP client '{name}'")
     
     async def close_all(self) -> None:
-        """Close all clients."""
+        """Закрыть все клиенты."""
         async with self._lock:
             for name, client in self.clients.items():
                 await client.aclose()
@@ -106,7 +106,7 @@ http_pool = HTTPClientPool()
 
 class OptimizedHTTPClient:
     """
-    Optimized HTTP client for parsers with retry logic and best practices.
+    Оптимизированный HTTP клиент для парсеров с логикой повторных попыток и лучшими практиками.
     """
     
     def __init__(self, name: str = "parser", user_agent: Optional[str] = None):
@@ -116,7 +116,7 @@ class OptimizedHTTPClient:
     
     @staticmethod
     def _get_default_user_agent() -> str:
-        """Get default user agent string."""
+        """Получить строку user agent по умолчанию."""
         return (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -124,7 +124,7 @@ class OptimizedHTTPClient:
         )
     
     async def __aenter__(self):
-        """Context manager entry."""
+        """Вход в контекстный менеджер."""
         self._client = await http_pool.get_client(
             name=self.name,
             headers={
@@ -140,7 +140,7 @@ class OptimizedHTTPClient:
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit - don't close client, keep pool alive."""
+        """Выход из контекстного менеджера - не закрываем клиент, сохраняем пул активным."""
         pass
     
     @retry(
@@ -155,15 +155,15 @@ class OptimizedHTTPClient:
         **kwargs
     ) -> httpx.Response:
         """
-        Optimized GET request with retry logic.
+        Оптимизированный GET запрос с логикой повторных попыток.
         
         Args:
-            url: Target URL
-            params: Query parameters
-            **kwargs: Additional httpx request parameters
+            url: Целевой URL
+            params: Параметры запроса
+            **kwargs: Дополнительные параметры httpx запроса
         
         Returns:
-            HTTP response
+            HTTP ответ
         """
         if not self._client:
             raise RuntimeError("Client not initialized. Use async context manager.")
@@ -192,16 +192,16 @@ class OptimizedHTTPClient:
         **kwargs
     ) -> httpx.Response:
         """
-        Optimized POST request with retry logic.
+        Оптимизированный POST запрос с логикой повторных попыток.
         
         Args:
-            url: Target URL
-            data: Form data
-            json: JSON data
-            **kwargs: Additional httpx request parameters
+            url: Целевой URL
+            data: Данные формы
+            json: JSON данные
+            **kwargs: Дополнительные параметры httpx запроса
         
         Returns:
-            HTTP response
+            HTTP ответ
         """
         if not self._client:
             raise RuntimeError("Client not initialized. Use async context manager.")
@@ -222,9 +222,9 @@ class OptimizedHTTPClient:
 @asynccontextmanager
 async def get_http_client(name: str = "default"):
     """
-    Context manager for getting an HTTP client.
+    Контекстный менеджер для получения HTTP клиента.
     
-    Example:
+    Пример:
         async with get_http_client("avito") as client:
             response = await client.get("https://avito.ru")
     """

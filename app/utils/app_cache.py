@@ -1,6 +1,6 @@
 """
-Application-level caching decorator for frequently accessed data.
-Provides memory and Redis-based caching with automatic invalidation.
+Кеширование на уровне приложения для часто используемых данных.
+Предоставляет кеширование в памяти и Redis с автоматической инвалидацией.
 """
 import asyncio
 import functools
@@ -23,7 +23,7 @@ except ImportError:
 
 
 class LRUCache:
-    """Thread-safe LRU cache implementation."""
+    """Потокобезопасная реализация LRU кеша."""
     
     def __init__(self, maxsize: int = 128):
         self.cache = OrderedDict()
@@ -33,7 +33,7 @@ class LRUCache:
         self._lock = asyncio.Lock()
     
     async def get(self, key: str) -> Optional[Any]:
-        """Get value from cache."""
+        """Получить значение из кеша."""
         async with self._lock:
             if key in self.cache:
                 self.hits += 1
@@ -44,7 +44,7 @@ class LRUCache:
             return None
     
     async def set(self, key: str, value: Any) -> None:
-        """Set value in cache."""
+        """Установить значение в кеш."""
         async with self._lock:
             if key in self.cache:
                 self.cache.move_to_end(key)
@@ -55,19 +55,19 @@ class LRUCache:
                 self.cache.popitem(last=False)
     
     async def delete(self, key: str) -> None:
-        """Delete key from cache."""
+        """Удалить ключ из кеша."""
         async with self._lock:
             self.cache.pop(key, None)
     
     async def clear(self) -> None:
-        """Clear entire cache."""
+        """Очистить весь кеш."""
         async with self._lock:
             self.cache.clear()
             self.hits = 0
             self.misses = 0
     
     def get_stats(self) -> dict:
-        """Get cache statistics."""
+        """Получить статистику кеша."""
         total = self.hits + self.misses
         hit_rate = (self.hits / total * 100) if total > 0 else 0
         return {
@@ -81,7 +81,7 @@ class LRUCache:
 
 class AppCache:
     """
-    Multi-level cache with memory (L1) and Redis (L2) support.
+    Многоуровневый кеш с поддержкой памяти (L1) и Redis (L2).
     """
     
     def __init__(self):
@@ -90,7 +90,7 @@ class AppCache:
         self._initialized = False
     
     async def initialize(self):
-        """Initialize Redis connection."""
+        """Инициализировать подключение к Redis."""
         if not REDIS_AVAILABLE or self._initialized:
             return
         
@@ -109,18 +109,18 @@ class AppCache:
             self.redis_client = None
     
     async def close(self):
-        """Close Redis connection."""
+        """Закрыть подключение к Redis."""
         if self.redis_client:
             await self.redis_client.close()
             self._initialized = False
     
     def _make_key(self, prefix: str, *args, **kwargs) -> str:
-        """Generate cache key from function arguments."""
+        """Сгенерировать ключ кеша из аргументов функции."""
         key_data = f"{prefix}:{args}:{sorted(kwargs.items())}"
         return hashlib.md5(key_data.encode()).hexdigest()
     
     async def get(self, key: str, use_redis: bool = True) -> Optional[Any]:
-        """Get value from cache (L1 -> L2)."""
+        """Получить значение из кеша (L1 -> L2)."""
         # Try L1 (memory) cache first
         value = await self.memory_cache.get(key)
         if value is not None:
@@ -147,7 +147,7 @@ class AppCache:
         ttl: int = 300,
         use_redis: bool = True
     ) -> None:
-        """Set value in cache (both L1 and L2)."""
+        """Установить значение в кеш (и L1, и L2)."""
         # Set in L1 (memory) cache
         await self.memory_cache.set(key, value)
         
@@ -160,7 +160,7 @@ class AppCache:
                 logger.warning(f"Redis set error: {e}")
     
     async def delete(self, key: str) -> None:
-        """Delete key from all cache levels."""
+        """Удалить ключ из всех уровней кеша."""
         await self.memory_cache.delete(key)
         
         if self.redis_client:
@@ -170,7 +170,7 @@ class AppCache:
                 logger.warning(f"Redis delete error: {e}")
     
     async def clear(self, pattern: Optional[str] = None) -> None:
-        """Clear cache (optionally by pattern)."""
+        """Очистить кеш (опционально по шаблону)."""
         await self.memory_cache.clear()
         
         if self.redis_client:
@@ -186,7 +186,7 @@ class AppCache:
                 logger.warning(f"Redis clear error: {e}")
     
     def get_stats(self) -> dict:
-        """Get cache statistics."""
+        """Получить статистику кеша."""
         stats = {
             "memory_cache": self.memory_cache.get_stats(),
             "redis_available": self.redis_client is not None
@@ -205,15 +205,15 @@ def cached(
     key_builder: Optional[Callable] = None
 ):
     """
-    Decorator for caching function results.
+    Декоратор для кеширования результатов функции.
     
     Args:
-        ttl: Time to live in seconds
-        prefix: Cache key prefix
-        use_redis: Whether to use Redis L2 cache
-        key_builder: Custom key builder function
+        ttl: Время жизни в секундах
+        prefix: Префикс ключа кеша
+        use_redis: Использовать ли Redis L2 кеш
+        key_builder: Пользовательская функция построения ключа
     
-    Example:
+    Пример:
         @cached(ttl=600, prefix="properties")
         async def get_properties(city: str):
             return await fetch_properties(city)
@@ -248,15 +248,15 @@ def cached(
 
 def invalidate_cache(pattern: str):
     """
-    Decorator to invalidate cache after function execution.
+    Декоратор для инвалидации кеша после выполнения функции.
     
     Args:
-        pattern: Cache key pattern to invalidate
+        pattern: Шаблон ключа кеша для инвалидации
     
-    Example:
+    Пример:
         @invalidate_cache("properties:*")
         async def update_property(property_id: int):
-            # Update logic
+            # Логика обновления
     """
     def decorator(func: Callable):
         @functools.wraps(func)

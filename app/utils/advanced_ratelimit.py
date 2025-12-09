@@ -1,6 +1,6 @@
 """
-Advanced rate limiting middleware with Redis backend.
-Implements sliding window and token bucket algorithms.
+Продвинутое ограничение частоты запросов (rate limiting) с бэкендом на Redis.
+Реализует алгоритмы sliding window и token bucket.
 """
 import asyncio
 import time
@@ -22,7 +22,7 @@ except ImportError:
 
 
 class RateLimitConfig:
-    """Rate limit configuration."""
+    """Конфигурация ограничения частоты запросов."""
     
     def __init__(
         self,
@@ -37,7 +37,7 @@ class RateLimitConfig:
 
 class RateLimiter:
     """
-    Advanced rate limiter with sliding window algorithm.
+    Продвинутый ограничитель частоты с алгоритмом sliding window.
     """
     
     def __init__(
@@ -52,7 +52,7 @@ class RateLimiter:
         self._initialized = False
     
     async def initialize(self):
-        """Initialize Redis connection."""
+        """Инициализировать подключение к Redis."""
         if not REDIS_AVAILABLE or not self.redis_url or self._initialized:
             return
         
@@ -70,7 +70,7 @@ class RateLimiter:
             self.redis_client = None
     
     async def close(self):
-        """Close Redis connection."""
+        """Закрыть подключение к Redis."""
         if self.redis_client:
             await self.redis_client.close()
             self._initialized = False
@@ -81,14 +81,14 @@ class RateLimiter:
         limit: Optional[RateLimitConfig] = None
     ) -> Tuple[bool, Dict[str, any]]:
         """
-        Check if request is allowed under rate limit.
+        Проверить, разрешен ли запрос в рамках ограничения частоты.
         
         Args:
-            key: Unique identifier (e.g., IP address, user ID)
-            limit: Rate limit config (uses default if not provided)
+            key: Уникальный идентификатор (например, IP адрес, ID пользователя)
+            limit: Конфигурация ограничения (используется по умолчанию, если не указано)
         
         Returns:
-            Tuple of (allowed: bool, info: dict)
+            Кортеж (разрешено: bool, инфо: dict)
         """
         config = limit or self.default_limit
         
@@ -102,7 +102,7 @@ class RateLimiter:
         key: str,
         config: RateLimitConfig
     ) -> Tuple[bool, Dict[str, any]]:
-        """Check rate limit using Redis (sliding window)."""
+        """Проверить ограничение частоты используя Redis (sliding window)."""
         now = time.time()
         window_start = now - config.window
         
@@ -160,7 +160,7 @@ class RateLimiter:
         key: str,
         config: RateLimitConfig
     ) -> Tuple[bool, Dict[str, any]]:
-        """Check rate limit using in-memory store (fallback)."""
+        """Проверить ограничение частоты используя память (fallback)."""
         now = time.time()
         window_start = now - config.window
         
@@ -196,7 +196,7 @@ class RateLimiter:
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
-    FastAPI middleware for rate limiting.
+    Middleware FastAPI для ограничения частоты запросов.
     """
     
     def __init__(
@@ -213,7 +213,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     
     @staticmethod
     def _default_key_func(request: Request) -> str:
-        """Default key function using client IP."""
+        """Функция ключа по умолчанию, использующая IP клиента."""
         # Try to get real IP from proxy headers
         forwarded = request.headers.get("X-Forwarded-For")
         if forwarded:
@@ -227,7 +227,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return request.client.host if request.client else "unknown"
     
     async def dispatch(self, request: Request, call_next):
-        """Process request with rate limiting."""
+        """Обработать запрос с ограничением частоты."""
         # Skip rate limiting for excluded paths
         if any(request.url.path.startswith(path) for path in self.exclude_paths):
             return await call_next(request)
@@ -275,9 +275,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 # Decorator for endpoint-specific rate limiting
 def rate_limit(requests: int = 10, window: int = 60):
     """
-    Decorator for endpoint-specific rate limiting.
+    Декоратор для ограничения частоты запросов на уровне endpoint.
     
-    Example:
+    Пример:
         @app.get("/api/search")
         @rate_limit(requests=5, window=60)
         async def search():
