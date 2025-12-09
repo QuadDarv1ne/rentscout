@@ -8,3 +8,15 @@ services:
   grafana:
     ports:
       - "3002:3000"
+
+  web:
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://rentscout:rentscout_password@postgres:5432/rentscout
+
+  celery-worker:
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://rentscout:rentscout_password@postgres:5432/rentscout
+
+  celery-beat:
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://rentscout:rentscout_password@postgres:5432/rentscout
