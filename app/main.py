@@ -18,6 +18,9 @@ from app.utils.metrics import MetricsMiddleware
 from app.utils.correlation_middleware import CorrelationIDMiddleware
 from app.utils.ip_ratelimiter import RateLimitMiddleware
 from app.db.models.session import init_db, close_db
+from app.utils.app_cache import app_cache
+from app.utils.http_pool import http_pool
+from app.tasks.cache_maintenance import cache_maintenance, cache_warmer
 
 # Пути к статическим файлам и шаблонам
 BASE_DIR = Path(__file__).resolve().parent
@@ -74,6 +77,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     # Подключаемся к Redis
     await advanced_cache_manager.connect()
     
+    # Инициализация нового app-level кеша
+    await app_cache.initialize()
+    logger.info("✅ Multi-level cache initialized")
+    
+    # Запуск автоматической очистки кеша
+    await cache_maintenance.start()
+    
     # Cache warming для популярных городов (асинхронно, не блокируем старт)
     if advanced_cache_manager.redis_client:
         search_service = SearchService()
@@ -84,6 +94,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
             )
         )
         logger.info("🔥 Cache warming started for popular cities")
+        
+        # Запуск дополнительного cache warming
+        asyncio.create_task(cache_warmer.warm_cache())
     
     yield
     
@@ -91,12 +104,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     logger.info(f"{settings.APP_NAME} starting graceful shutdown")
     app_state["is_shutting_down"] = True
     
+    # Остановка cache maintenance
+    await cache_maintenance.stop()
+    
     # Логируем статистику кеша перед выключением
     cache_stats = await advanced_cache_manager.get_stats()
-    logger.info(f"Final cache statistics: {cache_stats}")
+    logger.info(f"Final advanced cache statistics: {cache_stats}")
+    
+    app_cache_stats = app_cache.get_stats()
+    logger.info(f"Final app cache statistics: {app_cache_stats}")
     
     # Отключаемся от Redis
     await advanced_cache_manager.disconnect()
+    await app_cache.close()
+    
+    # Закрываем HTTP connection pool
+    await http_pool.close_all()
+    logger.info("✅ HTTP connection pool closed")
     
     # Закрываем PostgreSQL соединения
     await close_db()
