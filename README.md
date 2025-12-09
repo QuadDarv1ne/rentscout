@@ -32,9 +32,28 @@
 
 > **⚡ Самый быстрый способ**: См. [QUICKSTART.md](QUICKSTART.md)
 
-### Способ 1: Автоматический (рекомендуется)
+### Способ 1: Docker (рекомендуется)
 
 ```bash
-# Команда будет добавлена
+git clone https://github.com/QuadDarv1ne/rentscout.git
+cd rentscout
+cp .env.example .env
+docker-compose up -d
+```
+
+Откройте http://localhost:8000/docs
+
+### Способ 2: Локальная установка
+
+```bash
+git clone https://github.com/QuadDarv1ne/rentscout.git
+cd rentscout
+python -m venv venv
+source venv/bin/activate  # или venv\Scripts\activate на Windows
+pip install -r requirements.txt
+cp .env.example .env
+# Настройте .env файл
+alembic upgrade head
+uvicorn app.main:app --reload
 ```
 

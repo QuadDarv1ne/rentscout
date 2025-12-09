@@ -1,25 +1,178 @@
 version: '3.8'
 
 services:
+  # FastAPI приложение
   web:
-    build: .
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rentscout-api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
     ports:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://rentscout:rentscout_password@postgres:5432/rentscout
     depends_on:
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - rentscout-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    volumes:
+      - ./logs:/app/logs
 
+  # PostgreSQL база данных
+  postgres:
+    image: postgres:15-alpine
+    container_name: rentscout-postgres
+    environment:
+      - POSTGRES_USER=rentscout
+      - POSTGRES_PASSWORD=rentscout_password
+      - POSTGRES_DB=rentscout
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - rentscout-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rentscout"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis для кеширования
   redis:
-    image: redis:alpine
+    image: redis:7-alpine
+    container_name: rentscout-redis
+    command: redis-server --appendonly yes --requirepass redis_password
     ports:
       - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - rentscout-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # Celery worker для фоновых задач
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rentscout-celery-worker
+    command: celery -A app.tasks.celery worker --loglevel=info --concurrency=4
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://rentscout:rentscout_password@postgres:5432/rentscout
+    depends_on:
+      - redis
+      - postgres
+    restart: unless-stopped
+    networks:
+      - rentscout-network
+    volumes:
+      - ./logs:/app/logs
+
+  # Celery beat для периодических задач
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rentscout-celery-beat
+    command: celery -A app.tasks.celery beat --loglevel=info
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://rentscout:rentscout_password@postgres:5432/rentscout
+    depends_on:
+      - redis
+      - postgres
+      - celery-worker
+    restart: unless-stopped
+    networks:
+      - rentscout-network
+
+  # Prometheus для метрик
   prometheus:
-    image: prom/prometheus
+    image: prom/prometheus:latest
+    container_name: rentscout-prometheus
     ports:
       - "9090:9090"
     volumes:
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - ./docker/prometheus/alerts.yml:/etc/prometheus/alerts.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    networks:
+      - rentscout-network
+
+  # Grafana для визуализации метрик
+  grafana:
+    image: grafana/grafana:latest
+    container_name: rentscout-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=redis-datasource
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - rentscout-network
+
+  # Nginx как reverse proxy
+  nginx:
+    image: nginx:alpine
+    container_name: rentscout-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - web
+    restart: unless-stopped
+    networks:
+      - rentscout-network
+
+networks:
+  rentscout-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  prometheus-data:
+  grafana-data:
