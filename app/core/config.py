@@ -22,6 +22,14 @@ class Settings(BaseSettings):
         default="http://elasticsearch:9200",
         description="URL для подключения к Elasticsearch"
     )
+    ELASTICSEARCH_HOST: str = Field(
+        default="localhost",
+        description="Хост Elasticsearch"
+    )
+    ELASTICSEARCH_PORT: int = Field(
+        default=9200,
+        description="Порт Elasticsearch"
+    )
     DATABASE_URL: str = Field(
         default="postgresql+asyncpg://postgres:postgres@localhost:5432/rentscout",
         description="URL для подключения к PostgreSQL"
