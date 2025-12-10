@@ -32,6 +32,8 @@
 
 Проект был значительно улучшен в v2.0! Смотрите полное описание:
 
+- **[IMPROVEMENTS_v1.6.md](docs/IMPROVEMENTS_v1.6.md)** – Последние улучшения v1.6.0: Type Safety & Performance
+- **[IMPROVEMENTS_v1.5.md](docs/IMPROVEMENTS_v1.5.md)** – Система уведомлений и закладок
 - **[IMPROVEMENTS_v2.0.md](docs/IMPROVEMENTS_v2.0.md)** – Все улучшения, возможности и примеры
 - **[INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md)** – Как использовать новые компоненты
 - **[MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md)** – Миграция с v1.x на v2.0
