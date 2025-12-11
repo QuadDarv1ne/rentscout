@@ -1,3 +1,611 @@
+# RentScout API Documentation
+
+## Overview
+
+RentScout is a high-performance API for aggregating rental property data from leading platforms. It collects up-to-date information, filters duplicates, and provides a convenient interface for integration.
+
+## Base URL
+
+```
+http://localhost:8000/api
+```
+
+## Authentication
+
+Most endpoints are publicly accessible. Some administrative endpoints may require authentication (to be implemented).
+
+## Rate Limiting
+
+The API implements rate limiting to prevent abuse:
+- 100 requests per minute per IP address
+- Exceeding the limit returns a 429 status code
+
+## Error Responses
+
+The API uses standard HTTP status codes:
+
+| Status Code | Description |
+|-------------|-------------|
+| 200 | Success |
+| 400 | Bad Request - Invalid parameters |
+| 404 | Not Found - Resource doesn't exist |
+| 429 | Too Many Requests - Rate limit exceeded |
+| 500 | Internal Server Error - Something went wrong |
+
+## Core Endpoints
+
+### Property Search
+
+Search for rental properties across multiple platforms with advanced filtering.
+
+#### Search Properties
+
+`GET /api/properties/search`
+
+Search properties with basic filtering.
+
+##### Parameters
+
+| Name | Type | In | Required | Description |
+|------|------|----|----------|-------------|
+| city | string | query | Yes | City to search in |
+| property_type | string | query | No | Type of property (default: Квартира) |
+| min_price | number | query | No | Minimum price |
+| max_price | number | query | No | Maximum price |
+| min_rooms | integer | query | No | Minimum number of rooms |
+| max_rooms | integer | query | No | Maximum number of rooms |
+| min_area | number | query | No | Minimum area in square meters |
+| max_area | number | query | No | Maximum area in square meters |
+
+##### Response
+
+Array of property objects.
+
+#### Advanced Search
+
+`POST /api/properties/advanced-search`
+
+Advanced search with comprehensive filtering and ranking.
+
+##### Request Body
+
+```json
+{
+  "city": "Москва",
+  "property_type": "Квартира",
+  "min_price": 30000,
+  "max_price": 100000,
+  "min_rooms": 1,
+  "max_rooms": 3,
+  "min_area": 30,
+  "max_area": 100,
+  "sort_by": "price",
+  "sort_order": "asc",
+  "limit": 50
+}
+```
+
+##### Response
+
+Array of property objects sorted by the specified criteria.
+
+### Property Management
+
+Manage properties stored in the PostgreSQL database.
+
+#### Get Property by ID
+
+`GET /api/db/properties/{property_id}`
+
+Retrieve a specific property by its ID.
+
+##### Response
+
+Property object.
+
+#### Create Property
+
+`POST /api/db/properties/`
+
+Create a new property in the database.
+
+##### Request Body
+
+Property object.
+
+##### Response
+
+Created property object.
+
+#### Update Property
+
+`PUT /api/db/properties/{property_id}`
+
+Update an existing property.
+
+##### Request Body
+
+Property object with updated fields.
+
+##### Response
+
+Updated property object.
+
+#### Delete Property
+
+`DELETE /api/db/properties/{property_id}`
+
+Delete a property from the database.
+
+##### Response
+
+```json
+{
+  "success": true,
+  "message": "Property deleted successfully"
+}
+```
+
+### Property Analytics
+
+Analyze property data and market trends.
+
+#### Get Property Statistics
+
+`GET /api/db/properties/statistics`
+
+Get comprehensive statistics about properties in the database.
+
+##### Response
+
+```json
+{
+  "total_properties": 1250,
+  "sources": ["avito", "cian"],
+  "avg_price": 65000,
+  "min_price": 30000,
+  "max_price": 150000,
+  "avg_area": 65.5,
+  "price_per_sqm": 950
+}
+```
+
+#### Search Properties by Price per Square Meter
+
+`GET /api/db/properties/by-price-per-sqm`
+
+Find properties within a specific price per square meter range.
+
+##### Parameters
+
+| Name | Type | In | Required | Description |
+|------|------|----|----------|-------------|
+| min_price_per_sqm | number | query | No | Minimum price per square meter |
+| max_price_per_sqm | number | query | No | Maximum price per square meter |
+| limit | integer | query | No | Maximum number of results |
+
+##### Response
+
+Array of property objects.
+
+## Machine Learning Endpoints
+
+Advanced predictive analytics and market intelligence powered by machine learning.
+
+### Price Prediction
+
+`POST /api/ml/predict-price`
+
+Predict rental price based on property characteristics using machine learning.
+
+#### Request Body
+
+```json
+{
+  "city": "Москва",
+  "rooms": 2,
+  "area": 60,
+  "district": "Центральный",
+  "floor": 5,
+  "total_floors": 9,
+  "is_verified": true
+}
+```
+
+#### Response
+
+```json
+{
+  "predicted_price": 75000,
+  "confidence": 0.85,
+  "price_range": [65000, 85000],
+  "factors": {
+    "area": 1.0,
+    "rooms": 1.15,
+    "city": 1.5,
+    "district": 1.8,
+    "floor": 1.0,
+    "verified": 1.1
+  },
+  "trend": "stable",
+  "recommendation": "Рынок стабилен. Хорошее время для аренды. Ожидаемая цена: 75000 ₽"
+}
+```
+
+### Price Comparison
+
+`POST /api/ml/compare-price`
+
+Compare actual price with predicted market price.
+
+#### Request Body
+
+```json
+{
+  "actual_price": 70000,
+  "city": "Москва",
+  "rooms": 2,
+  "area": 60,
+  "district": "Центральный"
+}
+```
+
+#### Response
+
+```json
+{
+  "actual_price": 70000,
+  "predicted_price": 75000,
+  "difference": -5000,
+  "percentage_difference": -6.67,
+  "rating": "good",
+  "comment": "Хорошая цена"
+}
+```
+
+### Market Trends
+
+`GET /api/ml/market-trends/{city}`
+
+Analyze market trends for a specific city.
+
+#### Parameters
+
+| Name | Type | In | Required | Description |
+|------|------|----|----------|-------------|
+| rooms | integer | query | No | Number of rooms to filter by |
+
+#### Response
+
+```json
+{
+  "city": "Москва",
+  "rooms": 2,
+  "trend": "stable",
+  "comment": "Рынок стабилен",
+  "stats_7_days": {
+    "count": 250,
+    "avg_price": 72000,
+    "min_price": 45000,
+    "max_price": 120000
+  },
+  "stats_30_days": {
+    "count": 1100,
+    "avg_price": 71000,
+    "min_price": 40000,
+    "max_price": 130000
+  },
+  "change_percentage": 1.41
+}
+```
+
+### Optimal Pricing
+
+`GET /api/ml/optimal-price/{city}`
+
+Get optimal price range for quick rental.
+
+#### Parameters
+
+| Name | Type | In | Required | Description |
+|------|------|----|----------|-------------|
+| rooms | integer | query | Yes | Number of rooms |
+| area | number | query | Yes | Area in square meters |
+
+#### Response
+
+```json
+{
+  "optimal_price": 71250,
+  "min_competitive": 63750,
+  "max_competitive": 86250,
+  "market_average": 75000,
+  "confidence": 0.85
+}
+```
+
+### Price Statistics
+
+`GET /api/ml/price-statistics/{city}`
+
+Get price statistics for a city over a period.
+
+#### Parameters
+
+| Name | Type | In | Required | Description |
+|------|------|----|----------|-------------|
+| rooms | integer | query | No | Number of rooms |
+| days | integer | query | No | Period in days (default: 30) |
+
+#### Response
+
+```json
+{
+  "count": 1250,
+  "avg_price": 72000,
+  "min_price": 30000,
+  "max_price": 150000,
+  "median_price": 68000,
+  "std_dev": 15000
+}
+```
+
+## Advanced Search Endpoints
+
+Enhanced search capabilities with detailed analytics and property ranking.
+
+### Price Distribution
+
+`GET /api/properties/{city}/price-distribution`
+
+Analyze price distribution in a city.
+
+#### Parameters
+
+| Name | Type | In | Required | Description |
+|------|------|----|----------|-------------|
+| property_type | string | query | No | Property type |
+| bucket_count | integer | query | No | Number of distribution buckets |
+
+#### Response
+
+```json
+{
+  "count": 1250,
+  "min": 30000,
+  "max": 150000,
+  "avg": 72000,
+  "median": 68000,
+  "distribution": [50, 120, 200, 300, 250, 180, 100, 30, 20]
+}
+```
+
+### City Statistics
+
+`GET /api/properties/{city}/statistics`
+
+Get comprehensive statistics for a city.
+
+#### Parameters
+
+| Name | Type | In | Required | Description |
+|------|------|----|----------|-------------|
+| property_type | string | query | No | Property type |
+
+#### Response
+
+```json
+{
+  "city": "Москва",
+  "property_type": "Квартира",
+  "total_count": 1250,
+  "sources": ["avito", "cian", "domofond", "yandex_realty"],
+  "price": {
+    "min": 30000,
+    "max": 150000,
+    "avg": 72000
+  },
+  "area": {
+    "min": 20,
+    "max": 200,
+    "avg": 65.5
+  },
+  "rooms": {
+    "min": 1,
+    "max": 5,
+    "avg": 2.3
+  }
+}
+```
+
+### Compare Cities
+
+`GET /api/properties/compare-cities`
+
+Compare property markets across multiple cities.
+
+#### Parameters
+
+| Name | Type | In | Required | Description |
+|------|------|----|----------|-------------|
+| cities | array | query | Yes | List of cities to compare |
+| property_type | string | query | No | Property type |
+
+#### Response
+
+```json
+{
+  "Москва": {
+    "total_count": 1250,
+    "avg_price": 72000,
+    "min_price": 30000,
+    "max_price": 150000,
+    "avg_area": 65.5,
+    "price_per_sqm": 1100
+  },
+  "Санкт-Петербург": {
+    "total_count": 890,
+    "avg_price": 58000,
+    "min_price": 25000,
+    "max_price": 120000,
+    "avg_area": 58.2,
+    "price_per_sqm": 950
+  },
+  "best_value": "Санкт-Петербург"
+}
+```
+
+### Top Rated Properties
+
+`GET /api/properties/{city}/top-rated`
+
+Get properties ranked by comprehensive scoring system.
+
+#### Parameters
+
+| Name | Type | In | Required | Description |
+|------|------|----|----------|-------------|
+| property_type | string | query | No | Property type |
+| limit | integer | query | No | Maximum number of results |
+
+#### Response
+
+```json
+[
+  {
+    "property": {
+      "id": 12345,
+      "source": "avito",
+      "external_id": "avito_12345",
+      "title": "2-комнатная квартира в центре",
+      "price": 70000,
+      "rooms": 2,
+      "area": 60,
+      "city": "Москва",
+      "district": "Центральный",
+      "is_verified": true
+    },
+    "score": {
+      "total": 92.5,
+      "price_score": 85.0,
+      "area_score": 90.0,
+      "location_score": 95.0,
+      "amenities_score": 88.0,
+      "verification_score": 100.0,
+      "freshness_score": 95.0,
+      "photos_score": 80.0
+    },
+    "rating": "Отличное"
+  }
+]
+```
+
+## Property Alerts
+
+Create and manage property alerts to get notified about new listings.
+
+### Create Alert
+
+`POST /api/properties/alerts`
+
+Create a new property alert.
+
+#### Request Body
+
+```json
+{
+  "city": "Москва",
+  "max_price": 60000,
+  "min_price": 40000,
+  "rooms": 2,
+  "min_area": 50,
+  "max_area": 70,
+  "email": "user@example.com"
+}
+```
+
+#### Response
+
+Property alert object.
+
+### List Alerts
+
+`GET /api/properties/alerts`
+
+List all active alerts for a specific email.
+
+#### Parameters
+
+| Name | Type | In | Required | Description |
+|------|------|----|----------|-------------|
+| email | string | query | Yes | Email to filter alerts |
+
+#### Response
+
+Array of property alert objects.
+
+### Update Alert
+
+`PUT /api/properties/alerts/{alert_id}`
+
+Update an existing property alert.
+
+#### Parameters
+
+| Name | Type | In | Required | Description |
+|------|------|----|----------|-------------|
+| alert_id | integer | path | Yes | Alert ID to update |
+
+#### Request Body
+
+Same as create alert.
+
+#### Response
+
+Updated property alert object.
+
+### Deactivate Alert
+
+`POST /api/properties/alerts/{alert_id}/deactivate`
+
+Deactivate an existing property alert (does not delete it).
+
+#### Parameters
+
+| Name | Type | In | Required | Description |
+|------|------|----|----------|-------------|
+| alert_id | integer | path | Yes | Alert ID to deactivate |
+
+#### Response
+
+```json
+{
+  "success": true,
+  "message": "Alert deactivated successfully"
+}
+```
+
+### Delete Alert
+
+`DELETE /api/properties/alerts/{alert_id}`
+
+Delete an existing property alert.
+
+#### Parameters
+
+| Name | Type | In | Required | Description |
+|------|------|----|----------|-------------|
+| alert_id | integer | path | Yes | Alert ID to delete |
+
+#### Response
+
+```json
+{
+  "success": true,
+  "message": "Alert deleted successfully"
+}
+```
+
 ## Property Comparison
 
 Compare two properties to help users make informed decisions.
@@ -51,14 +659,6 @@ Compare two properties by their IDs.
 }
 ```
 
-#### Response Codes
-
-| Status Code | Description |
-|-------------|-------------|
-| 200 | Success |
-| 404 | One or both properties not found |
-| 500 | Internal server error |
-
 ## Property Recommendations
 
 Get personalized property recommendations based on user criteria.
@@ -83,14 +683,6 @@ Get property recommendations based on various criteria.
 #### Response
 
 Array of property objects sorted by value (price per square meter).
-
-#### Response Codes
-
-| Status Code | Description |
-|-------------|-------------|
-| 200 | Success |
-| 400 | Invalid parameters |
-| 500 | Internal server error |
 
 ## Price Trends
 
@@ -128,160 +720,6 @@ Get price trends for a specific city over a period of time.
 }
 ```
 
-#### Response Codes
-
-| Status Code | Description |
-|-------------|-------------|
-| 200 | Success |
-| 400 | Invalid parameters |
-| 500 | Internal server error |
-
-## Property Alerts
-
-Create and manage property alerts to get notified about new listings.
-
-### Create Alert
-
-`POST /api/properties/alerts`
-
-Create a new property alert.
-
-#### Request Body
-
-```json
-{
-  "city": "Москва",
-  "max_price": 60000,
-  "min_price": 40000,
-  "rooms": 2,
-  "min_area": 50,
-  "max_area": 70,
-  "email": "user@example.com"
-}
-```
-
-#### Response
-
-Property alert object.
-
-#### Response Codes
-
-| Status Code | Description |
-|-------------|-------------|
-| 201 | Alert created successfully |
-| 400 | Invalid parameters |
-| 500 | Internal server error |
-
-### List Alerts
-
-`GET /api/properties/alerts`
-
-List all active alerts for a specific email.
-
-#### Parameters
-
-| Name | Type | In | Required | Description |
-|------|------|----|----------|-------------|
-| email | string | query | Yes | Email to filter alerts |
-
-#### Response
-
-Array of property alert objects.
-
-#### Response Codes
-
-| Status Code | Description |
-|-------------|-------------|
-| 200 | Success |
-| 400 | Invalid parameters |
-| 500 | Internal server error |
-
-### Update Alert
-
-`PUT /api/properties/alerts/{alert_id}`
-
-Update an existing property alert.
-
-#### Parameters
-
-| Name | Type | In | Required | Description |
-|------|------|----|----------|-------------|
-| alert_id | integer | path | Yes | Alert ID to update |
-
-#### Request Body
-
-Same as create alert.
-
-#### Response
-
-Updated property alert object.
-
-#### Response Codes
-
-| Status Code | Description |
-|-------------|-------------|
-| 200 | Alert updated successfully |
-| 404 | Alert not found |
-| 500 | Internal server error |
-
-### Deactivate Alert
-
-`POST /api/properties/alerts/{alert_id}/deactivate`
-
-Deactivate an existing property alert (does not delete it).
-
-#### Parameters
-
-| Name | Type | In | Required | Description |
-|------|------|----|----------|-------------|
-| alert_id | integer | path | Yes | Alert ID to deactivate |
-
-#### Response
-
-```json
-{
-  "success": true,
-  "message": "Alert deactivated successfully"
-}
-```
-
-#### Response Codes
-
-| Status Code | Description |
-|-------------|-------------|
-| 200 | Alert deactivated successfully |
-| 404 | Alert not found |
-| 500 | Internal server error |
-
-### Delete Alert
-
-`DELETE /api/properties/alerts/{alert_id}`
-
-Delete an existing property alert.
-
-#### Parameters
-
-| Name | Type | In | Required | Description |
-|------|------|----|----------|-------------|
-| alert_id | integer | path | Yes | Alert ID to delete |
-
-#### Response
-
-```json
-{
-  "success": true,
-  "message": "Alert deleted successfully"
-}
-```
-
-#### Response Codes
-
-| Status Code | Description |
-|-------------|-------------|
-| 200 | Alert deleted successfully |
-| 404 | Alert not found |
-| 500 | Internal server error |
-
 ## Metrics and Monitoring
 
 The API exposes Prometheus metrics at `/metrics` for monitoring:
@@ -296,7 +734,14 @@ The API exposes Prometheus metrics at `/metrics` for monitoring:
 
 ## Changelog
 
-### v1.1.0 (2023-06-16)
+### v1.7.0 (2023-06-17)
+- Enhanced ML model with scikit-learn integration
+- Improved property scoring system with freshness and photos metrics
+- Added top-rated properties endpoint with detailed scoring breakdown
+- Enhanced database integration for all ML endpoints
+- Improved API documentation with better examples
+
+### v1.6.0 (2023-06-16)
 - Added property comparison endpoint
 - Added property recommendations endpoint
 - Added price trends analysis endpoint
