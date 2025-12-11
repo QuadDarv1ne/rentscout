@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Dict, Any
 from pathlib import Path
 
-from app.api.endpoints import health, properties, tasks, properties_db, advanced_search, notifications, bookmarks, ml_predictions, quality_metrics, advanced_metrics, batch_operations, error_handling, duplicates, cache_optimization, system_inspection
+from app.api.endpoints import health, properties, tasks, properties_db, advanced_search, notifications, bookmarks, ml_predictions, quality_metrics, advanced_metrics, batch_operations, error_handling, duplicates, cache_optimization, system_inspection, ml_cache_ttl, distributed_tracing, auto_scaling, advanced_analytics, performance_profiling
 from app.core.config import settings
 from app.services.advanced_cache import advanced_cache_manager
 from app.services.search import SearchService
@@ -241,6 +241,13 @@ app.include_router(error_handling.router, prefix="", tags=["error-handling"])
 app.include_router(duplicates.router, prefix="", tags=["duplicates"])
 app.include_router(cache_optimization.router, prefix="", tags=["cache-optimization"])
 app.include_router(system_inspection.router, prefix="", tags=["system-inspection"])
+
+# v2.2.0 Routers - ML, Tracing, Auto-scaling, Analytics, Profiling
+app.include_router(ml_cache_ttl.router, prefix="", tags=["ml-cache-ttl"])
+app.include_router(distributed_tracing.router, prefix="", tags=["distributed-tracing"])
+app.include_router(auto_scaling.router, prefix="", tags=["auto-scaling"])
+app.include_router(advanced_analytics.router, prefix="", tags=["advanced-analytics"])
+app.include_router(performance_profiling.router, prefix="", tags=["performance-profiling"])
 
 # Инициализация Prometheus инструментатора
 Instrumentator().instrument(app).expose(app)

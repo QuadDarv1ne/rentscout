@@ -56,6 +56,24 @@ Search properties with basic filtering.
 | max_rooms | integer | query | No | Maximum number of rooms |
 | min_area | number | query | No | Minimum area in square meters |
 | max_area | number | query | No | Maximum area in square meters |
+| min_floor | integer | query | No | Minimum floor |
+| max_floor | integer | query | No | Maximum floor |
+| min_total_floors | integer | query | No | Minimum total floors |
+| max_total_floors | integer | query | No | Maximum total floors |
+| district | string | query | No | District filter |
+| has_photos | boolean | query | No | Filter by presence of photos |
+| source | string | query | No | Filter by source (avito, cian, etc.) |
+| features | array | query | No | List of required features |
+| max_price_per_sqm | number | query | No | Maximum price per square meter |
+| has_contact | boolean | query | No | Filter by presence of contact info |
+| min_first_seen | string | query | No | Minimum first seen date (ISO format) |
+| max_first_seen | string | query | No | Maximum first seen date (ISO format) |
+| min_last_seen | string | query | No | Minimum last seen date (ISO format) |
+| max_last_seen | string | query | No | Maximum last seen date (ISO format) |
+| sort_by | string | query | No | Sort by field (price, area, rooms, floor, first_seen, last_seen) |
+| sort_order | string | query | No | Sort order (asc or desc) |
+| skip | integer | query | No | Number of records to skip (pagination) |
+| limit | integer | query | No | Max records in response (1-100) |
 
 ##### Response
 
@@ -311,6 +329,10 @@ Get optimal price range for quick rental.
 |------|------|----|----------|-------------|
 | rooms | integer | query | Yes | Number of rooms |
 | area | number | query | Yes | Area in square meters |
+| district | string | query | No | District |
+| floor | integer | query | No | Floor |
+| total_floors | integer | query | No | Total floors |
+| is_verified | boolean | query | No | Verified property |
 
 #### Response
 
@@ -399,7 +421,7 @@ Get comprehensive statistics for a city.
   "city": "Москва",
   "property_type": "Квартира",
   "total_count": 1250,
-  "sources": ["avito", "cian", "domofond", "yandex_realty"],
+  "sources": ["avito", "cian", "domofond", "yandex_realty", "domclick"],
   "price": {
     "min": 30000,
     "max": 150000,
@@ -414,6 +436,11 @@ Get comprehensive statistics for a city.
     "min": 1,
     "max": 5,
     "avg": 2.3
+  },
+  "price_per_sqm": {
+    "min": 500,
+    "max": 2000,
+    "avg": 1100
   }
 }
 ```
@@ -493,7 +520,9 @@ Get properties ranked by comprehensive scoring system.
       "amenities_score": 88.0,
       "verification_score": 100.0,
       "freshness_score": 95.0,
-      "photos_score": 80.0
+      "photos_score": 80.0,
+      "price_per_sqm_score": 87.5,
+      "market_position_score": 90.0
     },
     "rating": "Отличное"
   }
@@ -720,6 +749,39 @@ Get price trends for a specific city over a period of time.
 }
 ```
 
+## Property Export
+
+Export property data in various formats for offline analysis.
+
+### Export Properties
+
+`GET /api/properties/export/{format}`
+
+Export search results in CSV, JSON, or JSONL format.
+
+#### Parameters
+
+| Name | Type | In | Required | Description |
+|------|------|----|----------|-------------|
+| format | string | path | Yes | Export format (csv, json, jsonl) |
+| city | string | query | Yes | City to search in |
+| property_type | string | query | No | Property type |
+| min_price | number | query | No | Minimum price |
+| max_price | number | query | No | Maximum price |
+| min_rooms | integer | query | No | Minimum rooms |
+| max_rooms | integer | query | No | Maximum rooms |
+| min_area | number | query | No | Minimum area |
+| max_area | number | query | No | Maximum area |
+| district | string | query | No | District filter |
+| has_photos | boolean | query | No | Filter by photos |
+| source | string | query | No | Filter by source |
+| sort_by | string | query | No | Sort by field |
+| sort_order | string | query | No | Sort order |
+
+#### Response
+
+File download with exported data.
+
 ## Metrics and Monitoring
 
 The API exposes Prometheus metrics at `/metrics` for monitoring:
@@ -733,6 +795,14 @@ The API exposes Prometheus metrics at `/metrics` for monitoring:
 - Business metrics (comparisons, recommendations, trends, alerts)
 
 ## Changelog
+
+### v2.0.0 (2025-12-11)
+- Added support for DomClick real estate platform
+- Enhanced property scoring system with additional metrics (price per sqm, market position)
+- Improved ML model accuracy with ensemble methods (LinearRegression + RandomForest)
+- Optimized database indexes for better query performance
+- Enhanced API documentation with comprehensive examples
+- Added property export functionality (CSV, JSON, JSONL)
 
 ### v1.7.0 (2023-06-17)
 - Enhanced ML model with scikit-learn integration
