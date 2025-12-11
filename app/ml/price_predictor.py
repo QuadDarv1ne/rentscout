@@ -10,6 +10,9 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 import statistics
 import math
+import numpy as np
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import StandardScaler
 
 from app.utils.logger import logger
 
@@ -62,6 +65,10 @@ class PricePredictorML:
                 "Невский": 1.2,
             }
         }
+        # Initialize ML model
+        self.model = LinearRegression()
+        self.scaler = StandardScaler()
+        self.model_trained = False
     
     def add_history(
         self,
@@ -81,6 +88,39 @@ class PricePredictorML:
                 area=area,
             )
         )
+    
+    def train_model(self):
+        """Train the ML model with historical data."""
+        if len(self.history) < 10:
+            logger.warning("Not enough data to train model. Need at least 10 samples.")
+            return False
+        
+        # Prepare training data
+        X = []
+        y = []
+        
+        for record in self.history:
+            if record.rooms is not None and record.area is not None:
+                # Features: rooms, area, price_per_sqm
+                features = [
+                    record.rooms,
+                    record.area,
+                    record.price / record.area if record.area > 0 else 0
+                ]
+                X.append(features)
+                y.append(record.price)
+        
+        if len(X) < 5:
+            logger.warning("Not enough complete data samples for training.")
+            return False
+        
+        # Train the model
+        X_scaled = self.scaler.fit_transform(X)
+        self.model.fit(X_scaled, y)
+        self.model_trained = True
+        
+        logger.info(f"ML model trained with {len(X)} samples")
+        return True
     
     def predict_price(
         self,
@@ -150,6 +190,18 @@ class PricePredictorML:
             * floor_factor
             * verified_factor
         )
+        
+        # Используем ML модель если она обучена
+        if self.model_trained:
+            try:
+                features = [[rooms, area, predicted_price / area if area > 0 else 0]]
+                features_scaled = self.scaler.transform(features)
+                ml_prediction = self.model.predict(features_scaled)[0]
+                
+                # Комбинируем правила и ML предсказание
+                predicted_price = (predicted_price * 0.7) + (ml_prediction * 0.3)
+            except Exception as e:
+                logger.warning(f"ML prediction failed: {e}")
         
         # Анализ исторических данных для корректировки
         if self.history:
@@ -261,6 +313,9 @@ class PricePredictorML:
                     rooms=record.rooms,
                     area=record.area,
                 ))
+            
+            # Train the model with loaded data
+            self.train_model()
             
             logger.info(f"Loaded {len(self.history)} records from database for {city}")
             return len(self.history)
@@ -403,28 +458,29 @@ class PricePredictorML:
         actual_price: float,
         predicted_price: float,
     ) -> Dict[str, Any]:
-        """Сравнить реальную и предсказанную цены."""
+        """Сравнить реальную цену с предсказанной."""
         difference = actual_price - predicted_price
-        percentage = (difference / predicted_price) * 100
+        percentage_diff = (difference / predicted_price * 100) if predicted_price > 0 else 0
         
-        if abs(percentage) <= 10:
+        # Определяем рейтинг
+        if abs(percentage_diff) <= 5:
             rating = "excellent"
-            comment = "Цена соответствует рыночной"
-        elif abs(percentage) <= 20:
+            comment = "Отличная цена!"
+        elif abs(percentage_diff) <= 15:
             rating = "good"
-            comment = "Цена близка к рыночной"
-        elif percentage > 20:
+            comment = "Хорошая цена"
+        elif percentage_diff > 15:
             rating = "overpriced"
-            comment = "Цена выше рыночной"
+            comment = "Цена завышена"
         else:
             rating = "underpriced"
-            comment = "Цена ниже рыночной (возможно выгодное предложение)"
+            comment = "Цена занижена"
         
         return {
             "actual_price": actual_price,
             "predicted_price": predicted_price,
             "difference": round(difference, 2),
-            "difference_percent": round(percentage, 2),
+            "percentage_difference": round(percentage_diff, 2),
             "rating": rating,
             "comment": comment,
         }
@@ -436,19 +492,26 @@ class PricePredictorML:
         area: float,
     ) -> Dict[str, Any]:
         """Получить оптимальный диапазон цен для быстрой аренды."""
-        prediction = self.predict_price(city, rooms, area)
+        # Предсказываем рыночную цену
+        prediction = self.predict_price(
+            city=city,
+            rooms=rooms,
+            area=area,
+        )
         
-        # Оптимальная цена - немного ниже предсказанной
+        # Оптимальная цена немного ниже рынка для быстрой сдачи
         optimal_price = prediction.predicted_price * 0.95
+        min_competitive = prediction.predicted_price * 0.85
+        max_competitive = prediction.predicted_price * 1.15
+        market_average = prediction.predicted_price
         
         return {
             "optimal_price": round(optimal_price, 2),
-            "min_competitive": round(prediction.price_range[0], 2),
-            "max_competitive": round(prediction.price_range[1], 2),
-            "market_average": round(prediction.predicted_price, 2),
-            "recommendation": f"Рекомендуем цену {optimal_price:.0f} ₽ для быстрой аренды",
+            "min_competitive": round(min_competitive, 2),
+            "max_competitive": round(max_competitive, 2),
+            "market_average": round(market_average, 2),
+            "confidence": prediction.confidence,
         }
 
-
-# Глобальный экземпляр
+# Global instance
 price_predictor = PricePredictorML()

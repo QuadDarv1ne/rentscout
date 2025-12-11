@@ -3,12 +3,13 @@ API endpoints для ML предсказаний и аналитики цен.
 """
 
 from typing import Optional
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ml.price_predictor import price_predictor, PricePrediction
 from app.utils.logger import logger
-
+from app.db.models.session import get_db
 
 router = APIRouter(prefix="/ml", tags=["ml-predictions"])
 
@@ -47,12 +48,42 @@ class PriceComparisonRequest(BaseModel):
     district: Optional[str] = None
 
 
+class PriceComparisonResponse(BaseModel):
+    """Ответ на сравнение цены."""
+    actual_price: float
+    predicted_price: float
+    difference: float
+    percentage_difference: float
+    rating: str
+    comment: str
+
+
+class OptimalPriceResponse(BaseModel):
+    """Ответ с оптимальным диапазоном цен."""
+    optimal_price: float
+    min_competitive: float
+    max_competitive: float
+    market_average: float
+    confidence: float
+
+
+class MarketTrendResponse(BaseModel):
+    """Ответ с трендом рынка."""
+    city: str
+    rooms: Optional[int]
+    trend: str
+    comment: str
+    stats_7_days: dict
+    stats_30_days: dict
+    change_percentage: float
+
+
 # ============================================================================
 # Endpoints
 # ============================================================================
 
 @router.post("/predict-price", response_model=PricePredictionResponse)
-async def predict_price(request: PricePredictionRequest):
+async def predict_price(request: PricePredictionRequest, db: AsyncSession = Depends(get_db)):
     """
     Предсказать цену аренды на основе характеристик.
     
@@ -73,6 +104,9 @@ async def predict_price(request: PricePredictionRequest):
     - Тренд рынка
     - Рекомендацию
     """
+    # Load historical data for better predictions
+    price_predictor.load_from_database(db, request.city, days=30)
+    
     prediction = price_predictor.predict_price(
         city=request.city,
         rooms=request.rooms,
@@ -98,6 +132,7 @@ async def get_price_statistics(
     city: str,
     rooms: Optional[int] = Query(None, ge=0, le=10),
     days: int = Query(30, ge=1, le=365, description="Период в днях"),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Получить статистику цен за период.
@@ -113,6 +148,9 @@ async def get_price_statistics(
     - Медиана
     - Стандартное отклонение
     """
+    # Load data from database
+    price_predictor.load_from_database(db, city, days=days, rooms=rooms)
+    
     stats = price_predictor.get_price_statistics(
         city=city,
         rooms=rooms,
@@ -122,8 +160,8 @@ async def get_price_statistics(
     return stats
 
 
-@router.post("/compare-price")
-async def compare_price(request: PriceComparisonRequest):
+@router.post("/compare-price", response_model=PriceComparisonResponse)
+async def compare_price(request: PriceComparisonRequest, db: AsyncSession = Depends(get_db)):
     """
     Сравнить реальную цену с рыночной.
     
@@ -135,6 +173,9 @@ async def compare_price(request: PriceComparisonRequest):
     - Рейтинг (excellent/good/overpriced/underpriced)
     - Комментарий
     """
+    # Load historical data for better predictions
+    price_predictor.load_from_database(db, request.city, days=30)
+    
     # Предсказываем рыночную цену
     prediction = price_predictor.predict_price(
         city=request.city,
@@ -152,11 +193,12 @@ async def compare_price(request: PriceComparisonRequest):
     return comparison
 
 
-@router.get("/optimal-price/{city}")
+@router.get("/optimal-price/{city}", response_model=OptimalPriceResponse)
 async def get_optimal_price(
     city: str,
     rooms: int = Query(..., ge=0, le=10),
     area: float = Query(..., ge=10, le=500),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Получить оптимальный диапазон цен для быстрой аренды.
@@ -169,6 +211,9 @@ async def get_optimal_price(
     
     Помогает определить цену для быстрой сдачи квартиры.
     """
+    # Load historical data for better predictions
+    price_predictor.load_from_database(db, city, days=30)
+    
     optimal = price_predictor.get_optimal_price_range(
         city=city,
         rooms=rooms,
@@ -178,10 +223,11 @@ async def get_optimal_price(
     return optimal
 
 
-@router.get("/market-trends/{city}")
+@router.get("/market-trends/{city}", response_model=MarketTrendResponse)
 async def get_market_trends(
     city: str,
     rooms: Optional[int] = Query(None, ge=0, le=10),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Получить тренды рынка для города.
@@ -196,6 +242,9 @@ async def get_market_trends(
     - Статистику
     - Рекомендации
     """
+    # Load historical data
+    price_predictor.load_from_database(db, city, days=30, rooms=rooms)
+    
     # Получаем статистику за разные периоды
     stats_7d = price_predictor.get_price_statistics(city, rooms, days=7)
     stats_30d = price_predictor.get_price_statistics(city, rooms, days=30)
@@ -244,4 +293,5 @@ async def ml_health():
         ],
         "model": "LinearRegression",
         "history_size": len(price_predictor.history),
+        "model_trained": getattr(price_predictor, 'model_trained', False),
     }

@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Dict, Any
 from pathlib import Path
 
-from app.api.endpoints import health, properties, tasks, properties_db, advanced_search, notifications, bookmarks, ml_predictions, quality_metrics
+from app.api.endpoints import health, properties, tasks, properties_db, advanced_search, notifications, bookmarks, ml_predictions, quality_metrics, advanced_metrics, batch_operations, error_handling, duplicates, cache_optimization, system_inspection
 from app.core.config import settings
 from app.services.advanced_cache import advanced_cache_manager
 from app.services.search import SearchService
@@ -17,6 +17,7 @@ from app.utils.logger import logger
 from app.utils.metrics import MetricsMiddleware
 from app.utils.correlation_middleware import CorrelationIDMiddleware
 from app.utils.ip_ratelimiter import RateLimitMiddleware
+from app.utils.advanced_metrics import SystemMetricsCollector
 from app.db.models.session import init_db, close_db
 from app.utils.app_cache import app_cache
 from app.utils.http_pool import http_pool
@@ -234,9 +235,18 @@ app.include_router(notifications.router, prefix="/api", tags=["notifications"])
 app.include_router(bookmarks.router, prefix="/api", tags=["bookmarks"])
 app.include_router(ml_predictions.router, prefix="/api", tags=["ml-predictions"])
 app.include_router(quality_metrics.router, prefix="/api", tags=["quality-metrics"])
+app.include_router(advanced_metrics.router, prefix="", tags=["metrics"])
+app.include_router(batch_operations.router, prefix="", tags=["batch-processing"])
+app.include_router(error_handling.router, prefix="", tags=["error-handling"])
+app.include_router(duplicates.router, prefix="", tags=["duplicates"])
+app.include_router(cache_optimization.router, prefix="", tags=["cache-optimization"])
+app.include_router(system_inspection.router, prefix="", tags=["system-inspection"])
 
 # Инициализация Prometheus инструментатора
 Instrumentator().instrument(app).expose(app)
+
+# Запуск сборщика системных метрик
+SystemMetricsCollector.start_background_collection(interval=60)
 
 
 # HTML страницы

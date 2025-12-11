@@ -1,8 +1,10 @@
 """Property scoring and ranking system."""
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
+import math
+from datetime import datetime, timedelta
 
-from app.models.schemas import PropertyCreate
+from app.models.schemas import Property
 
 
 @dataclass
@@ -14,6 +16,8 @@ class PropertyScore:
     location_score: float
     amenities_score: float
     verification_score: float
+    freshness_score: float  # New score component for recency
+    photos_score: float     # New score component for photo quality
     
     def to_dict(self) -> Dict[str, float]:
         """Convert to dictionary."""
@@ -23,7 +27,9 @@ class PropertyScore:
             "area_score": round(self.area_score, 2),
             "location_score": round(self.location_score, 2),
             "amenities_score": round(self.amenities_score, 2),
-            "verification_score": round(self.verification_score, 2)
+            "verification_score": round(self.verification_score, 2),
+            "freshness_score": round(self.freshness_score, 2),
+            "photos_score": round(self.photos_score, 2)
         }
 
 
@@ -32,16 +38,18 @@ class PropertyScoringSystem:
     
     # Weights for different scoring components
     WEIGHTS = {
-        "price": 0.30,
-        "area": 0.25,
-        "location": 0.20,
+        "price": 0.25,
+        "area": 0.20,
+        "location": 0.15,
         "amenities": 0.15,
-        "verification": 0.10
+        "verification": 0.10,
+        "freshness": 0.10,  # New weight
+        "photos": 0.05,     # New weight
     }
     
     @staticmethod
     def calculate_score(
-        prop: PropertyCreate,
+        prop: Property,
         market_avg_price: Optional[float] = None,
         market_avg_area: Optional[float] = None
     ) -> PropertyScore:
@@ -67,13 +75,21 @@ class PropertyScoringSystem:
         # Verification score
         verification_score = 100.0 if prop.is_verified else 50.0
         
+        # Freshness score (newer listings = higher score)
+        freshness_score = PropertyScoringSystem._calculate_freshness_score(prop)
+        
+        # Photos score (more/better photos = higher score)
+        photos_score = PropertyScoringSystem._calculate_photos_score(prop)
+        
         # Calculate weighted total
         total = (
             price_score * PropertyScoringSystem.WEIGHTS["price"] +
             area_score * PropertyScoringSystem.WEIGHTS["area"] +
             location_score * PropertyScoringSystem.WEIGHTS["location"] +
             amenities_score * PropertyScoringSystem.WEIGHTS["amenities"] +
-            verification_score * PropertyScoringSystem.WEIGHTS["verification"]
+            verification_score * PropertyScoringSystem.WEIGHTS["verification"] +
+            freshness_score * PropertyScoringSystem.WEIGHTS["freshness"] +
+            photos_score * PropertyScoringSystem.WEIGHTS["photos"]
         )
         
         return PropertyScore(
@@ -82,7 +98,9 @@ class PropertyScoringSystem:
             area_score=area_score,
             location_score=location_score,
             amenities_score=amenities_score,
-            verification_score=verification_score
+            verification_score=verification_score,
+            freshness_score=freshness_score,
+            photos_score=photos_score
         )
     
     @staticmethod
@@ -144,7 +162,7 @@ class PropertyScoringSystem:
             return max(0.0, 50.0 - (0.7 - ratio) * 100)
     
     @staticmethod
-    def _calculate_location_score(prop: PropertyCreate) -> float:
+    def _calculate_location_score(prop: Property) -> float:
         """Calculate location score based on district (0-100)."""
         # Premium districts
         premium_districts = {
@@ -189,7 +207,7 @@ class PropertyScoringSystem:
         return 60.0
     
     @staticmethod
-    def _calculate_amenities_score(prop: PropertyCreate) -> float:
+    def _calculate_amenities_score(prop: Property) -> float:
         """Calculate amenities score based on available information (0-100)."""
         score = 0.0
         
@@ -218,10 +236,72 @@ class PropertyScoringSystem:
         return min(100.0, score)
     
     @staticmethod
+    def _calculate_freshness_score(prop: Property) -> float:
+        """Calculate freshness score based on when the property was listed (0-100)."""
+        # If we don't have a created_at timestamp, return neutral score
+        if not hasattr(prop, 'created_at') or prop.created_at is None:
+            return 75.0  # Neutral score
+        
+        # Calculate days since listing
+        if isinstance(prop.created_at, str):
+            try:
+                listing_date = datetime.fromisoformat(prop.created_at.replace('Z', '+00:00'))
+            except ValueError:
+                return 75.0  # Neutral score if parsing fails
+        else:
+            listing_date = prop.created_at
+        
+        days_since_listing = (datetime.now().replace(tzinfo=listing_date.tzinfo) - listing_date).days
+        
+        # Newer listings get higher scores
+        if days_since_listing <= 1:
+            return 100.0  # Today
+        elif days_since_listing <= 3:
+            return 90.0   # Within 3 days
+        elif days_since_listing <= 7:
+            return 80.0   # Within a week
+        elif days_since_listing <= 14:
+            return 70.0   # Within 2 weeks
+        elif days_since_listing <= 30:
+            return 60.0   # Within a month
+        else:
+            return max(20.0, 50.0 - (days_since_listing - 30) * 0.5)  # Older listings
+    
+    @staticmethod
+    def _calculate_photos_score(prop: Property) -> float:
+        """Calculate photos score based on quantity and quality (0-100)."""
+        if not prop.photos or len(prop.photos) == 0:
+            return 0.0
+        
+        photo_count = len(prop.photos)
+        
+        # Quantity score (0-50)
+        quantity_score = min(50.0, photo_count * 10)
+        
+        # Quality heuristics (0-50)
+        quality_score = 0.0
+        
+        # Check for diverse photos (interior, exterior, kitchen, bathroom, etc.)
+        # This is a simplified check - in reality, you'd want image analysis
+        if photo_count >= 5:
+            quality_score += 20.0  # Enough photos for variety
+        elif photo_count >= 3:
+            quality_score += 10.0
+        
+        # Bonus for having many photos
+        if photo_count >= 10:
+            quality_score += 15.0
+        elif photo_count >= 7:
+            quality_score += 10.0
+        
+        total_photos_score = quantity_score + quality_score
+        return min(100.0, total_photos_score)
+    
+    @staticmethod
     def rank_properties(
-        properties: list[PropertyCreate],
+        properties: List[Property],
         market_stats: Optional[Dict[str, float]] = None
-    ) -> list[tuple[PropertyCreate, PropertyScore]]:
+    ) -> List[tuple[Property, PropertyScore]]:
         """Rank properties by score."""
         if market_stats is None:
             # Calculate market stats from properties

@@ -1,7 +1,8 @@
 """Advanced search endpoints."""
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.schemas import Property
 from app.utils.advanced_search import (
@@ -12,6 +13,7 @@ from app.utils.advanced_search import (
 from app.services.search import SearchService
 from app.utils.metrics import metrics_collector
 from app.utils.property_scoring import PropertyScoringSystem
+from app.db.models.session import get_db
 
 
 router = APIRouter()
@@ -42,13 +44,20 @@ class PriceDistributionResponse(BaseModel):
     distribution: List[int] = Field(..., description="Price distribution buckets")
 
 
+class TopRatedPropertiesResponse(BaseModel):
+    """Response for top rated properties."""
+    property: Property
+    score: Dict[str, float]
+    rating: str
+
+
 @router.post(
     "/properties/advanced-search",
     response_model=List[Property],
     summary="Advanced property search with filtering and ranking",
     description="Search properties with advanced filtering, sorting, and deduplication"
 )
-async def advanced_search(request: AdvancedSearchRequest):
+async def advanced_search(request: AdvancedSearchRequest, db: AsyncSession = Depends(get_db)):
     """Advanced search with filtering and ranking."""
     start_time = __import__('time').time()
     
@@ -104,7 +113,8 @@ async def advanced_search(request: AdvancedSearchRequest):
 async def get_price_distribution(
     city: str,
     property_type: str = Query(default="Квартира"),
-    bucket_count: int = Query(default=10, ge=5, le=100)
+    bucket_count: int = Query(default=10, ge=5, le=100),
+    db: AsyncSession = Depends(get_db)
 ):
     """Get price distribution statistics for a city."""
     start_time = __import__('time').time()
@@ -138,7 +148,8 @@ async def get_price_distribution(
 )
 async def get_city_statistics(
     city: str,
-    property_type: str = Query(default="Квартира")
+    property_type: str = Query(default="Квартира"),
+    db: AsyncSession = Depends(get_db)
 ):
     """Get comprehensive statistics for properties in a city."""
     start_time = __import__('time').time()
@@ -208,7 +219,8 @@ async def get_city_statistics(
 )
 async def compare_cities(
     cities: List[str] = Query(..., description="List of cities to compare"),
-    property_type: str = Query(default="Квартира")
+    property_type: str = Query(default="Квартира"),
+    db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
     """Compare property markets across multiple cities."""
     start_time = __import__('time').time()
@@ -256,14 +268,16 @@ async def compare_cities(
 
 @router.get(
     "/properties/{city}/top-rated",
+    response_model=List[TopRatedPropertiesResponse],
     summary="Get top-rated properties by scoring system",
     description="Get best value properties based on comprehensive scoring"
 )
 async def get_top_rated_properties(
     city: str,
     property_type: str = Query(default="Квартира"),
-    limit: int = Query(default=10, ge=1, le=100)
-) -> List[Dict[str, Any]]:
+    limit: int = Query(default=10, ge=1, le=100),
+    db: AsyncSession = Depends(get_db)
+) -> List[TopRatedPropertiesResponse]:
     """Get top-rated properties using scoring system."""
     start_time = __import__('time').time()
     
@@ -275,7 +289,7 @@ async def get_top_rated_properties(
         if not properties:
             return []
         
-        # Rank properties
+        # Rank properties using the enhanced scoring system
         ranked = PropertyScoringSystem.rank_properties(properties)
         
         # Get top N
@@ -284,11 +298,11 @@ async def get_top_rated_properties(
         # Format results
         results = []
         for prop, score in top_properties:
-            results.append({
-                "property": prop.dict(),
-                "score": score.to_dict(),
-                "rating": PropertyScoringSystem.get_value_rating(score)
-            })
+            results.append(TopRatedPropertiesResponse(
+                property=prop,
+                score=score.to_dict(),
+                rating=PropertyScoringSystem.get_value_rating(score)
+            ))
         
         duration = __import__('time').time() - start_time
         metrics_collector.record_search_operation(city, len(results), duration)
