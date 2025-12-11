@@ -105,7 +105,7 @@ async def predict_price(request: PricePredictionRequest, db: AsyncSession = Depe
     - Рекомендацию
     """
     # Load historical data for better predictions
-    price_predictor.load_from_database(db, request.city, days=30)
+    price_predictor.load_from_database(db, request.city, days=60)
     
     prediction = price_predictor.predict_price(
         city=request.city,
@@ -131,7 +131,7 @@ async def predict_price(request: PricePredictionRequest, db: AsyncSession = Depe
 async def get_price_statistics(
     city: str,
     rooms: Optional[int] = Query(None, ge=0, le=10),
-    days: int = Query(30, ge=1, le=365, description="Период в днях"),
+    days: int = Query(60, ge=1, le=365, description="Период в днях"),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -140,7 +140,7 @@ async def get_price_statistics(
     **Параметры:**
     - `city` - город
     - `rooms` - количество комнат (опционально)
-    - `days` - период для анализа (по умолчанию 30)
+    - `days` - период для анализа (по умолчанию 60)
     
     **Возвращает:**
     - Количество объявлений
@@ -174,7 +174,7 @@ async def compare_price(request: PriceComparisonRequest, db: AsyncSession = Depe
     - Комментарий
     """
     # Load historical data for better predictions
-    price_predictor.load_from_database(db, request.city, days=30)
+    price_predictor.load_from_database(db, request.city, days=60)
     
     # Предсказываем рыночную цену
     prediction = price_predictor.predict_price(
@@ -198,6 +198,10 @@ async def get_optimal_price(
     city: str,
     rooms: int = Query(..., ge=0, le=10),
     area: float = Query(..., ge=10, le=500),
+    district: Optional[str] = Query(None),
+    floor: Optional[int] = Query(None, ge=1),
+    total_floors: Optional[int] = Query(None, ge=1),
+    is_verified: bool = Query(False),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -212,12 +216,16 @@ async def get_optimal_price(
     Помогает определить цену для быстрой сдачи квартиры.
     """
     # Load historical data for better predictions
-    price_predictor.load_from_database(db, city, days=30)
+    price_predictor.load_from_database(db, city, days=60)
     
     optimal = price_predictor.get_optimal_price_range(
         city=city,
         rooms=rooms,
         area=area,
+        district=district,
+        floor=floor,
+        total_floors=total_floors,
+        is_verified=is_verified,
     )
     
     return optimal
@@ -243,7 +251,7 @@ async def get_market_trends(
     - Рекомендации
     """
     # Load historical data
-    price_predictor.load_from_database(db, city, days=30, rooms=rooms)
+    price_predictor.load_from_database(db, city, days=60, rooms=rooms)
     
     # Получаем статистику за разные периоды
     stats_7d = price_predictor.get_price_statistics(city, rooms, days=7)
@@ -291,7 +299,8 @@ async def ml_health():
             "optimal_pricing",
             "statistics",
         ],
-        "model": "LinearRegression",
+        "model": "Ensemble (LinearRegression + RandomForest)",
         "history_size": len(price_predictor.history),
         "model_trained": getattr(price_predictor, 'model_trained', False),
+        "model_performance": getattr(price_predictor, 'model_performance', {}),
     }

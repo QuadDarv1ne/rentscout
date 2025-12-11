@@ -12,7 +12,10 @@ import statistics
 import math
 import numpy as np
 from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_absolute_error, r2_score
 
 from app.utils.logger import logger
 
@@ -36,6 +39,10 @@ class PriceHistory:
     source: str
     rooms: Optional[int] = None
     area: Optional[float] = None
+    district: Optional[str] = None
+    floor: Optional[int] = None
+    total_floors: Optional[int] = None
+    is_verified: bool = False
 
 
 class PricePredictorML:
@@ -57,18 +64,31 @@ class PricePredictorML:
                 "Арбат": 1.9,
                 "Таганский": 1.3,
                 "Измайлово": 0.9,
+                "Замоскворечье": 1.6,
+                "Басманный": 1.4,
+                "Пресненский": 1.5,
+                "Красносельский": 1.2,
             },
             "Санкт-Петербург": {
                 "Центральный": 1.6,
                 "Петроградский": 1.5,
                 "Василеостровский": 1.4,
                 "Невский": 1.2,
+                "Московский": 1.1,
+                "Фрунзенский": 1.0,
             }
         }
-        # Initialize ML model
-        self.model = LinearRegression()
+        # Initialize ML models
+        self.linear_model = LinearRegression()
+        self.rf_model = RandomForestRegressor(n_estimators=50, random_state=42)
         self.scaler = StandardScaler()
         self.model_trained = False
+        self.model_performance = {
+            "linear_mae": 0.0,
+            "rf_mae": 0.0,
+            "linear_r2": 0.0,
+            "rf_r2": 0.0
+        }
     
     def add_history(
         self,
@@ -77,22 +97,30 @@ class PricePredictorML:
         source: str,
         rooms: Optional[int] = None,
         area: Optional[float] = None,
+        district: Optional[str] = None,
+        floor: Optional[int] = None,
+        total_floors: Optional[int] = None,
+        is_verified: bool = False,
     ):
         """Добавить историческую запись о цене."""
         self.history.append(
             PriceHistory(
-                date=date,
+                date=date.isoformat(),
                 price=price,
                 source=source,
                 rooms=rooms,
                 area=area,
+                district=district,
+                floor=floor,
+                total_floors=total_floors,
+                is_verified=is_verified,
             )
         )
     
     def train_model(self):
-        """Train the ML model with historical data."""
-        if len(self.history) < 10:
-            logger.warning("Not enough data to train model. Need at least 10 samples.")
+        """Train the ML models with historical data."""
+        if len(self.history) < 15:
+            logger.warning("Not enough data to train model. Need at least 15 samples.")
             return False
         
         # Prepare training data
@@ -101,26 +129,95 @@ class PricePredictorML:
         
         for record in self.history:
             if record.rooms is not None and record.area is not None:
-                # Features: rooms, area, price_per_sqm
+                # Features: rooms, area, floor_ratio, is_verified
+                floor_ratio = 0.5
+                if record.floor and record.total_floors and record.total_floors > 0:
+                    floor_ratio = record.floor / record.total_floors
+                
                 features = [
                     record.rooms,
                     record.area,
-                    record.price / record.area if record.area > 0 else 0
+                    floor_ratio,
+                    1.0 if record.is_verified else 0.0
                 ]
                 X.append(features)
                 y.append(record.price)
         
-        if len(X) < 5:
+        if len(X) < 10:
             logger.warning("Not enough complete data samples for training.")
             return False
         
-        # Train the model
-        X_scaled = self.scaler.fit_transform(X)
-        self.model.fit(X_scaled, y)
+        # Split data for training and testing
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        
+        # Scale features
+        X_train_scaled = self.scaler.fit_transform(X_train)
+        X_test_scaled = self.scaler.transform(X_test)
+        
+        # Train linear regression model
+        self.linear_model.fit(X_train_scaled, y_train)
+        
+        # Train random forest model
+        self.rf_model.fit(X_train, y_train)
+        
+        # Evaluate models
+        linear_pred = self.linear_model.predict(X_test_scaled)
+        rf_pred = self.rf_model.predict(X_test)
+        
+        # Calculate metrics
+        self.model_performance = {
+            "linear_mae": mean_absolute_error(y_test, linear_pred),
+            "rf_mae": mean_absolute_error(y_test, rf_pred),
+            "linear_r2": r2_score(y_test, linear_pred),
+            "rf_r2": r2_score(y_test, rf_pred)
+        }
+        
         self.model_trained = True
         
-        logger.info(f"ML model trained with {len(X)} samples")
+        logger.info(f"ML models trained with {len(X)} samples")
+        logger.info(f"Linear Regression MAE: {self.model_performance['linear_mae']:.2f}, R²: {self.model_performance['linear_r2']:.3f}")
+        logger.info(f"Random Forest MAE: {self.model_performance['rf_mae']:.2f}, R²: {self.model_performance['rf_r2']:.3f}")
+        
         return True
+    
+    def _get_city_base_price(self, city: str) -> float:
+        """Get base price per square meter for a city."""
+        base_price_per_sqm = {
+            "Москва": 1500,
+            "Санкт-Петербург": 1200,
+            "Казань": 800,
+            "Новосибирск": 700,
+            "Екатеринбург": 750,
+            "Краснодар": 850,
+            "Самара": 650,
+            "Воронеж": 600,
+            "Волгоград": 550,
+            "Пермь": 600,
+        }
+        return base_price_per_sqm.get(city, 600)
+    
+    def _get_district_multiplier(self, city: str, district: Optional[str]) -> float:
+        """Get district multiplier for pricing."""
+        if not district or city not in self.district_coefficients:
+            return 1.0
+        return self.district_coefficients[city].get(district, 1.0)
+    
+    def _get_floor_factor(self, floor: Optional[int], total_floors: Optional[int]) -> float:
+        """Calculate floor factor for pricing."""
+        if not floor or not total_floors or total_floors <= 0:
+            return 1.0
+            
+        floor_ratio = floor / total_floors
+        
+        # Preferred floors are typically middle floors (0.3-0.7 ratio)
+        if 0.3 <= floor_ratio <= 0.7:
+            return 1.05  # Premium for middle floors
+        elif floor == 1:
+            return 0.95  # Discount for first floor
+        elif floor == total_floors:
+            return 0.97  # Slight discount for top floor
+        else:
+            return 1.0  # Standard pricing
     
     def predict_price(
         self,
@@ -143,15 +240,7 @@ class PricePredictorML:
         - Исторические данные
         """
         # Базовая цена за м² по городам
-        base_price_per_sqm = {
-            "Москва": 1500,
-            "Санкт-Петербург": 1200,
-            "Казань": 800,
-            "Новосибирск": 700,
-            "Екатеринбург": 750,
-        }
-        
-        base_price = base_price_per_sqm.get(city, 600)
+        base_price = self._get_city_base_price(city)
         
         # Фактор 1: Площадь
         area_price = base_price * area
@@ -164,25 +253,16 @@ class PricePredictorML:
         city_factor = self.city_coefficients.get(city, 1.0)
         
         # Фактор 4: Район
-        district_factor = 1.0
-        if district and city in self.district_coefficients:
-            district_factor = self.district_coefficients[city].get(district, 1.0)
+        district_factor = self._get_district_multiplier(city, district)
         
         # Фактор 5: Этаж
-        floor_factor = 1.0
-        if floor and total_floors:
-            if floor == 1:
-                floor_factor = 0.95  # Первый этаж обычно дешевле
-            elif floor == total_floors:
-                floor_factor = 0.97  # Последний этаж тоже дешевле
-            else:
-                floor_factor = 1.0
+        floor_factor = self._get_floor_factor(floor, total_floors)
         
         # Фактор 6: Верификация
         verified_factor = 1.1 if is_verified else 1.0
         
-        # Итоговая цена
-        predicted_price = (
+        # Итоговая цена по правилам
+        rule_based_price = (
             area_price
             * rooms_factor
             * city_factor
@@ -192,20 +272,38 @@ class PricePredictorML:
         )
         
         # Используем ML модель если она обучена
+        ml_prediction = None
         if self.model_trained:
             try:
-                features = [[rooms, area, predicted_price / area if area > 0 else 0]]
-                features_scaled = self.scaler.transform(features)
-                ml_prediction = self.model.predict(features_scaled)[0]
+                # Prepare features for prediction
+                floor_ratio = 0.5
+                if floor and total_floors and total_floors > 0:
+                    floor_ratio = floor / total_floors
                 
-                # Комбинируем правила и ML предсказание
-                predicted_price = (predicted_price * 0.7) + (ml_prediction * 0.3)
+                features_linear = [[rooms, area, floor_ratio, 1.0 if is_verified else 0.0]]
+                features_rf = [[rooms, area, floor_ratio, 1.0 if is_verified else 0.0]]
+                
+                # Scale features for linear model
+                features_linear_scaled = self.scaler.transform(features_linear)
+                
+                # Get predictions
+                linear_pred = self.linear_model.predict(features_linear_scaled)[0]
+                rf_pred = self.rf_model.predict(features_rf)[0]
+                
+                # Weighted ensemble: 40% rule-based, 30% linear, 30% random forest
+                ml_prediction = (rule_based_price * 0.4) + (linear_pred * 0.3) + (rf_pred * 0.3)
+                
+                logger.info(f"Rule-based: {rule_based_price:.0f}, Linear: {linear_pred:.0f}, RF: {rf_pred:.0f}, Ensemble: {ml_prediction:.0f}")
             except Exception as e:
                 logger.warning(f"ML prediction failed: {e}")
+                ml_prediction = rule_based_price
+        
+        # Если ML модель не обучена, используем только правило
+        predicted_price = ml_prediction if ml_prediction is not None else rule_based_price
         
         # Анализ исторических данных для корректировки
         if self.history:
-            cutoff = datetime.now() - timedelta(days=30)
+            cutoff = datetime.now() - timedelta(days=60)
             recent_prices = [
                 h.price for h in self.history
                 if datetime.fromisoformat(h.date) >= cutoff
@@ -213,8 +311,8 @@ class PricePredictorML:
             
             if recent_prices:
                 avg_historical = statistics.mean(recent_prices)
-                # Корректируем предсказание на основе исторических данных
-                predicted_price = (predicted_price * 0.7) + (avg_historical * 0.3)
+                # Корректируем предсказание на основе исторических данных (20% weight)
+                predicted_price = (predicted_price * 0.8) + (avg_historical * 0.2)
         
         # Диапазон цен (±15%)
         price_range = (
@@ -228,8 +326,12 @@ class PricePredictorML:
             confidence += 0.1
         if district:
             confidence += 0.05
-        if self.history:
+        if self.history and len(self.history) > 20:
             confidence += 0.1
+        if self.model_trained:
+            # Increase confidence based on model performance
+            r2_score_avg = (self.model_performance["linear_r2"] + self.model_performance["rf_r2"]) / 2
+            confidence += min(0.15, r2_score_avg * 0.15)
         confidence = min(confidence, 0.95)
         
         # Определение тренда
@@ -272,6 +374,10 @@ class PricePredictorML:
         source: str = "manual",
         rooms: Optional[int] = None,
         area: Optional[float] = None,
+        district: Optional[str] = None,
+        floor: Optional[int] = None,
+        total_floors: Optional[int] = None,
+        is_verified: bool = False,
         date: Optional[datetime] = None,
     ):
         """Добавить исторические данные о цене."""
@@ -284,13 +390,17 @@ class PricePredictorML:
             source=source,
             rooms=rooms,
             area=area,
+            district=district,
+            floor=floor,
+            total_floors=total_floors,
+            is_verified=is_verified,
         ))
 
     def load_from_database(
         self,
         db,
         city: str,
-        days: int = 30,
+        days: int = 60,
         rooms: Optional[int] = None,
     ) -> int:
         """Загрузить исторические данные из базы."""
@@ -312,6 +422,10 @@ class PricePredictorML:
                     source=record.source or "database",
                     rooms=record.rooms,
                     area=record.area,
+                    district=record.district,
+                    floor=record.floor,
+                    total_floors=record.total_floors,
+                    is_verified=bool(record.is_verified),
                 ))
             
             # Train the model with loaded data
@@ -331,7 +445,10 @@ class PricePredictorML:
         rooms: Optional[int] = None,
         area: Optional[float] = None,
         district: Optional[str] = None,
+        floor: Optional[int] = None,
+        total_floors: Optional[int] = None,
         source: Optional[str] = None,
+        is_verified: bool = False,
     ) -> bool:
         """Сохранить историческую цену в базу."""
         try:
@@ -344,7 +461,10 @@ class PricePredictorML:
                 rooms=rooms,
                 area=area,
                 district=district,
+                floor=floor,
+                total_floors=total_floors,
                 source=source,
+                is_verified=is_verified,
             )
             
             self.add_history(
@@ -352,6 +472,10 @@ class PricePredictorML:
                 source=source or "database",
                 rooms=rooms,
                 area=area,
+                district=district,
+                floor=floor,
+                total_floors=total_floors,
+                is_verified=is_verified,
             )
             
             logger.info(f"Saved price to database: {city} - {price} RUB")
@@ -365,14 +489,14 @@ class PricePredictorML:
         if not self.history:
             return "stable"
         
-        # Фильтруем релевантные данные (за последние 30 дней)
-        cutoff = datetime.now() - timedelta(days=30)
+        # Фильтруем релевантные данные (за последние 60 дней)
+        cutoff = datetime.now() - timedelta(days=60)
         recent = [h for h in self.history if datetime.fromisoformat(h.date) >= cutoff]
         
         if rooms:
             recent = [h for h in recent if h.rooms == rooms]
         
-        if len(recent) < 3:
+        if len(recent) < 5:
             return "stable"
         
         # Сортируем по дате
@@ -385,9 +509,9 @@ class PricePredictorML:
         
         change = (second_half_avg - first_half_avg) / first_half_avg
         
-        if change > 0.02:  # 2% порог вместо 5%
+        if change > 0.03:  # 3% порог вместо 2%
             return "increasing"
-        elif change < -0.02:
+        elif change < -0.03:
             return "decreasing"
         else:
             return "stable"
@@ -419,7 +543,7 @@ class PricePredictorML:
         self,
         city: str,
         rooms: Optional[int] = None,
-        days: int = 30,
+        days: int = 60,
     ) -> Dict[str, Any]:
         """Получить статистику цен за период."""
         cutoff_date = datetime.now() - timedelta(days=days)
@@ -490,6 +614,10 @@ class PricePredictorML:
         city: str,
         rooms: int,
         area: float,
+        district: Optional[str] = None,
+        floor: Optional[int] = None,
+        total_floors: Optional[int] = None,
+        is_verified: bool = False,
     ) -> Dict[str, Any]:
         """Получить оптимальный диапазон цен для быстрой аренды."""
         # Предсказываем рыночную цену
@@ -497,6 +625,10 @@ class PricePredictorML:
             city=city,
             rooms=rooms,
             area=area,
+            district=district,
+            floor=floor,
+            total_floors=total_floors,
+            is_verified=is_verified,
         )
         
         # Оптимальная цена немного ниже рынка для быстрой сдачи
