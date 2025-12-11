@@ -11,6 +11,7 @@ from app.parsers.avito.parser import AvitoParser
 from app.parsers.cian.parser import CianParser
 from app.parsers.domofond.parser import DomofondParser
 from app.parsers.yandex_realty.parser import YandexRealtyParser
+from app.parsers.domclick.parser import DomclickParser
 from app.parsers.base_parser import BaseParser
 from app.utils.parser_errors import ErrorClassifier, ErrorSeverity
 from app.utils.metrics import metrics_collector
@@ -23,7 +24,7 @@ class SearchService:
 
     def __init__(self) -> None:
         """Инициализация сервиса поиска."""
-        self.parsers: List[BaseParser] = [AvitoParser(), CianParser(), DomofondParser(), YandexRealtyParser()]
+        self.parsers: List[BaseParser] = [AvitoParser(), CianParser(), DomofondParser(), YandexRealtyParser(), DomclickParser()]
 
     async def search(self, city: str, property_type: str = "Квартира") -> List[Property]:
         """

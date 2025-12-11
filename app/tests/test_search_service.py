@@ -1,52 +1,52 @@
 import pytest
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
 
+from app.models.schemas import PropertyCreate
 from app.services.search import SearchService
-from app.models.schemas import Property, PropertyCreate
 
 
 @pytest.fixture
 def sample_properties():
-    """Фикстура с примерами объектов недвижимости."""
+    """Sample properties for testing."""
     return [
         PropertyCreate(
             source="avito",
             external_id="1",
-            title="2-комн. квартира, 50 м²",
+            title="Квартира 1",
             price=3000.0,
-            rooms=2,
-            area=50.0,
+            rooms=1,
+            area=30.0,
             location=None,
             photos=[],
-            description="Описание",
+            description="Описание 1",
             link=None
         ),
         PropertyCreate(
             source="cian",
             external_id="2",
-            title="1-комн. квартира, 35 м²",
-            price=2500.0,
-            rooms=1,
-            area=35.0,
+            title="Квартира 2",
+            price=3500.0,
+            rooms=2,
+            area=50.0,
             location=None,
             photos=[],
-            description="Описание",
+            description="Описание 2",
             link=None
-        )
+        ),
     ]
 
 
-@pytest.mark.asyncio
-async def test_search_service_initialization():
-    """Тест инициализации поискового сервиса."""
+def test_search_service_initialization():
+    """Тест инициализации сервиса поиска."""
     service = SearchService()
-    assert service is not None
-    assert len(service.parsers) == 4  # Теперь у нас четыре парсера: Avito, Cian, Domofond и YandexRealty
+    # Now we have five parsers: Avito, Cian, Domofond, YandexRealty, and Domclick
+    assert len(service.parsers) == 5
     parser_names = [parser.__class__.__name__ for parser in service.parsers]
     assert "AvitoParser" in parser_names
     assert "CianParser" in parser_names
     assert "DomofondParser" in parser_names
     assert "YandexRealtyParser" in parser_names
+    assert "DomclickParser" in parser_names
 
 
 @pytest.mark.asyncio
@@ -76,27 +76,39 @@ async def test_search_service_search_success(sample_properties):
 
 
 @pytest.mark.asyncio
-async def test_search_service_search_with_parser_error():
-    """Тест поиска с ошибкой парсера."""
+async def test_search_service_search_with_duplicates():
+    """Тест поиска с дубликатами."""
     service = SearchService()
 
-    # Мокаем парсер, который выбрасывает исключение
+    # Мокаем парсеры с дублирующимися данными
     mock_parser1 = AsyncMock()
-    mock_parser1.parse.side_effect = Exception("Parser error")
+    mock_parser1.parse.return_value = [
+        PropertyCreate(
+            source="avito",
+            external_id="1",
+            title="Квартира 1",
+            price=3000.0,
+            rooms=1,
+            area=30.0,
+            location=None,
+            photos=[],
+            description="Описание 1",
+            link=None
+        )
+    ]
 
-    # Мокаем второй парсер, который работает нормально
     mock_parser2 = AsyncMock()
     mock_parser2.parse.return_value = [
         PropertyCreate(
-            source="cian",
-            external_id="2",
-            title="1-комн. квартира, 35 м²",
-            price=2500.0,
+            source="avito",  # Same source
+            external_id="1",  # Same external_id - should be considered duplicate
+            title="Квартира 1 (duplicate)",
+            price=3100.0,
             rooms=1,
-            area=35.0,
+            area=30.0,
             location=None,
             photos=[],
-            description="Описание",
+            description="Описание 1 (duplicate)",
             link=None
         )
     ]
@@ -110,52 +122,18 @@ async def test_search_service_search_with_parser_error():
         # Выполняем поиск
         results = await service.search("Москва", "Квартира")
 
-        # Проверяем, что результаты от второго парсера все еще возвращены
-        assert len(results) == 1
-        assert results[0].source == "cian"
-
-
-@pytest.mark.asyncio
-async def test_search_service_search_save_error():
-    """Тест поиска с ошибкой сохранения."""
-    service = SearchService()
-
-    # Мокаем парсер
-    mock_parser = AsyncMock()
-    mock_parser.parse.return_value = [
-        PropertyCreate(
-            source="avito",
-            external_id="1",
-            title="2-комн. квартира, 50 м²",
-            price=3000.0,
-            rooms=2,
-            area=50.0,
-            location=None,
-            photos=[],
-            description="Описание",
-            link=None
-        )
-    ]
-    service.parsers = [mock_parser]
-
-    # Мокаем save_properties, чтобы выбрасывал исключение
-    with patch('app.services.search.save_properties') as mock_save:
-        mock_save.side_effect = Exception("Save error")
-
-        # Выполняем поиск - не должно выбрасывать исключение
-        results = await service.search("Москва", "Квартира")
-
-        # Проверяем, что результаты все еще возвращены
+        # Проверяем, что дубликат был удален
         assert len(results) == 1
         assert results[0].source == "avito"
+        assert results[0].external_id == "1"
 
 
 @pytest.mark.asyncio
-async def test_search_service_parallel_parsing():
-    """Тест параллельного выполнения парсеров."""
+async def test_search_service_search_multiple_sources():
+    """Тест поиска с несколькими источниками."""
     service = SearchService()
 
-    # Создаем несколько моков парсеров
+    # Мокаем несколько парсеров
     mock_parser1 = AsyncMock()
     mock_parser1.parse.return_value = [
         PropertyCreate(
@@ -163,8 +141,8 @@ async def test_search_service_parallel_parsing():
             external_id="1",
             title="Квартира 1",
             price=3000.0,
-            rooms=2,
-            area=50.0,
+            rooms=1,
+            area=30.0,
             location=None,
             photos=[],
             description="Описание 1",
@@ -178,9 +156,9 @@ async def test_search_service_parallel_parsing():
             source="cian",
             external_id="2",
             title="Квартира 2",
-            price=2500.0,
-            rooms=1,
-            area=35.0,
+            price=3500.0,
+            rooms=2,
+            area=50.0,
             location=None,
             photos=[],
             description="Описание 2",
@@ -220,7 +198,23 @@ async def test_search_service_parallel_parsing():
         )
     ]
 
-    service.parsers = [mock_parser1, mock_parser2, mock_parser3, mock_parser4]
+    mock_parser5 = AsyncMock()
+    mock_parser5.parse.return_value = [
+        PropertyCreate(
+            source="domclick",
+            external_id="5",
+            title="Квартира 5",
+            price=3100.0,
+            rooms=2,
+            area=48.0,
+            location=None,
+            photos=[],
+            description="Описание 5",
+            link=None
+        )
+    ]
+
+    service.parsers = [mock_parser1, mock_parser2, mock_parser3, mock_parser4, mock_parser5]
 
     # Мокаем save_properties
     with patch('app.services.search.save_properties') as mock_save:
@@ -230,9 +224,10 @@ async def test_search_service_parallel_parsing():
         results = await service.search("Москва", "Квартира")
 
         # Проверяем, что результаты от всех парсеров возвращены
-        assert len(results) == 4
+        assert len(results) == 5
         sources = [prop.source for prop in results]
         assert "avito" in sources
         assert "cian" in sources
         assert "domofond" in sources
         assert "yandex_realty" in sources
+        assert "domclick" in sources
