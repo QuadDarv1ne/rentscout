@@ -176,6 +176,9 @@ async def get_city_statistics(
         rooms = [p.rooms for p in properties if p.rooms]
         sources = list(set(p.source for p in properties))
         
+        # Calculate price per sqm
+        prices_per_sqm = [p.price / p.area for p in properties if p.price and p.area and p.area > 0]
+        
         stats = {
             "city": city,
             "property_type": property_type,
@@ -198,6 +201,12 @@ async def get_city_statistics(
                 "max": max(rooms) if rooms else None,
                 "avg": sum(rooms) / len(rooms) if rooms else None,
                 "count": len(rooms)
+            },
+            "price_per_sqm": {
+                "min": min(prices_per_sqm) if prices_per_sqm else None,
+                "max": max(prices_per_sqm) if prices_per_sqm else None,
+                "avg": sum(prices_per_sqm) / len(prices_per_sqm) if prices_per_sqm else None,
+                "count": len(prices_per_sqm)
             }
         }
         
@@ -236,21 +245,21 @@ async def compare_cities(
                 prices = [p.price for p in properties if p.price]
                 areas = [p.area for p in properties if p.area]
                 
+                # Calculate price per sqm
+                prices_per_sqm = [p.price / p.area for p in properties if p.price and p.area and p.area > 0]
+                
                 comparison[city] = {
                     "total_count": len(properties),
                     "avg_price": sum(prices) / len(prices) if prices else None,
                     "min_price": min(prices) if prices else None,
                     "max_price": max(prices) if prices else None,
                     "avg_area": sum(areas) / len(areas) if areas else None,
-                    "price_per_sqm": (
-                        sum(p.price / p.area for p in properties if p.price and p.area and p.area > 0) /
-                        len([p for p in properties if p.price and p.area and p.area > 0])
-                    ) if any(p.price and p.area and p.area > 0 for p in properties) else None
+                    "price_per_sqm": sum(prices_per_sqm) / len(prices_per_sqm) if prices_per_sqm else None
                 }
             else:
                 comparison[city] = None
         
-        # Find best value city
+        # Find best value city (lowest price per sqm)
         valid_cities = {k: v for k, v in comparison.items() if v and v["price_per_sqm"]}
         if valid_cities:
             best_value_city = min(valid_cities.items(), key=lambda x: x[1]["price_per_sqm"])
@@ -278,7 +287,7 @@ async def get_top_rated_properties(
     limit: int = Query(default=10, ge=1, le=100),
     db: AsyncSession = Depends(get_db)
 ) -> List[TopRatedPropertiesResponse]:
-    """Get top-rated properties using scoring system."""
+    """Get top-rated properties using enhanced scoring system."""
     start_time = __import__('time').time()
     
     try:
