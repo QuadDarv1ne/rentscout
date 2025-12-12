@@ -5,7 +5,7 @@ Provides insights and recommendations for automatic resource scaling.
 """
 
 from fastapi import APIRouter, HTTPException, Query
-from typing import Dict, List
+from typing import Dict, List, Any
 from datetime import datetime
 from pydantic import BaseModel
 
@@ -164,7 +164,7 @@ async def get_resource_status(resource_type: str) -> ResourceStatus:
 
 
 @router.get("/api/auto-scaling/all-resources")
-async def get_all_resources() -> Dict[str, any]:
+async def get_all_resources() -> Dict[str, Any]:
     """
     Get status of all resources
     

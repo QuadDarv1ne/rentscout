@@ -5,7 +5,7 @@ Provides access to trace data, span information, and tracing statistics.
 """
 
 from fastapi import APIRouter, HTTPException, Query
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 from pydantic import BaseModel
 
@@ -20,14 +20,14 @@ class SpanEventResponse(BaseModel):
     """Response model for span event"""
     name: str
     timestamp: str
-    attributes: Dict[str, any]
+    attributes: Dict[str, Any]
 
 
 class SpanLinkResponse(BaseModel):
     """Response model for span link"""
     trace_id: str
     span_id: str
-    attributes: Dict[str, any]
+    attributes: Dict[str, Any]
 
 
 class SpanResponse(BaseModel):
@@ -41,7 +41,7 @@ class SpanResponse(BaseModel):
     end_time: Optional[str]
     duration_ms: float
     status: str
-    attributes: Dict[str, any]
+    attributes: Dict[str, Any]
     events: List[SpanEventResponse]
     links: List[SpanLinkResponse]
 

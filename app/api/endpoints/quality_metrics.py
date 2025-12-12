@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 from app.utils.logger import logger
 from app.db.models.session import get_db
-from app.models.schemas import PropertyResponse
+from app.models.schemas import Property
 
 router = APIRouter(prefix="/api/quality", tags=["quality-metrics"])
 
