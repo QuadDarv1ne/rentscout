@@ -6,6 +6,7 @@ from typing import Optional, List, Dict
 from dataclasses import dataclass
 import httpx
 from app.utils.logger import logger
+from app.core.config import settings
 
 
 @dataclass
@@ -49,16 +50,62 @@ class ProxyManager:
         - https://www.proxy-list.download/
         - https://www.sslproxies.org/
         """
-        # TODO: Загрузить из файла или переменных окружения
-        # Пример:
-        # self.proxies.append(ProxyConfig(
-        #     protocol="http",
-        #     host="proxy.example.com",
-        #     port=8080,
-        #     username="user",
-        #     password="pass"
-        # ))
-        pass
+        # Загрузка из файла, указано в настройках settings.PROXY_FILE
+        try:
+            if getattr(settings, "PROXY_FILE", None):
+                import os
+                proxy_path = settings.PROXY_FILE
+                if os.path.isabs(proxy_path):
+                    path = proxy_path
+                else:
+                    # Относительный путь относительно корня проекта
+                    path = os.path.join(os.getcwd(), proxy_path)
+
+                if os.path.exists(path):
+                    with open(path, "r", encoding="utf-8") as f:
+                        for line in f:
+                            entry = line.strip()
+                            if not entry or entry.startswith("#"):
+                                continue
+                            # Поддержка форматов:
+                            # protocol://host:port
+                            # protocol://user:pass@host:port
+                            try:
+                                # Простая разборка строки
+                                # Отделяем протокол
+                                proto_split = entry.split("://", 1)
+                                if len(proto_split) != 2:
+                                    continue
+                                protocol, rest = proto_split
+
+                                # Проверяем наличие учётных данных
+                                if "@" in rest:
+                                    creds, host_port = rest.split("@", 1)
+                                    if ":" in creds:
+                                        username, password = creds.split(":", 1)
+                                    else:
+                                        username, password = creds, None
+                                else:
+                                    username = None
+                                    password = None
+                                    host_port = rest
+
+                                # Хост и порт
+                                host, port_str = host_port.split(":", 1)
+                                port = int(port_str)
+
+                                self.proxies.append(ProxyConfig(
+                                    protocol=protocol,
+                                    host=host,
+                                    port=port,
+                                    username=username,
+                                    password=password
+                                ))
+                    logger.info(f"Loaded {len(self.proxies)} proxies from {path}")
+                else:
+                    logger.warning(f"Proxy file not found: {path}")
+        except Exception as e:
+            logger.error(f"Failed to load proxies: {e}")
     
     def get_random_proxy(self) -> Optional[ProxyConfig]:
         """Возвращает случайный рабочий прокси"""

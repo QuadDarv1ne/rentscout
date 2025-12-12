@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import httpx
+from app.utils.enhanced_http import EnhancedHTTPClient
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -52,7 +53,7 @@ class OptimizedBaseParser(ABC):
         """
         self.config = config
         self.name = config.name
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: Optional[EnhancedHTTPClient] = None
         self._semaphore = asyncio.Semaphore(config.max_concurrent)
         self._rate_limiter = asyncio.Semaphore(config.rate_limit)
         self._last_request_time = 0.0
@@ -69,27 +70,16 @@ class OptimizedBaseParser(ABC):
         await self._close_client()
         
     async def _initialize_client(self):
-        """Инициализация HTTP клиента с connection pooling."""
+        """Инициализация улучшенного HTTP клиента."""
         if self._client is None:
-            limits = httpx.Limits(
-                max_keepalive_connections=20,
-                max_connections=100,
-                keepalive_expiry=30
-            )
-            self._client = httpx.AsyncClient(
-                base_url=self.config.base_url,
-                timeout=httpx.Timeout(self.config.timeout),
-                limits=limits,
-                http2=True,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                }
-            )
+            self._client = EnhancedHTTPClient()
+            # Создаём внутреннюю сессию
+            await self._client.create_session()
             
     async def _close_client(self):
         """Закрытие HTTP клиента."""
         if self._client is not None:
-            await self._client.aclose()
+            await self._client.close()
             self._client = None
             
     async def _rate_limit_wait(self):
@@ -109,9 +99,9 @@ class OptimizedBaseParser(ABC):
         retry=retry_if_exception_type((httpx.TimeoutException, httpx.NetworkError))
     )
     async def _make_request(
-        self, 
-        method: str, 
-        url: str, 
+        self,
+        method: str,
+        url: str,
         **kwargs
     ) -> httpx.Response:
         """
@@ -130,8 +120,16 @@ class OptimizedBaseParser(ABC):
             
             if self._client is None:
                 await self._initialize_client()
-                
-            response = await self._client.request(method, url, **kwargs)
+
+            # Используем методы enhanced клиента
+            method_upper = method.upper()
+            if method_upper == "GET":
+                response = await self._client.get(url, **kwargs)
+            elif method_upper == "POST":
+                response = await self._client.post(url, **kwargs)
+            else:
+                # Для других методов, пробуем напрямую через внутреннюю сессию
+                response = await self._client.session.request(method_upper, url, **kwargs)
             response.raise_for_status()
             return response
             
