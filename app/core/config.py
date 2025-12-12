@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     
     # Parser settings
     PROXY_ENABLED: bool = Field(default=False, description="Включить использование proxy")
+    PROXY_FILE: str = Field(default="proxies.txt", description="Файл со списком прокси")
+    USE_RANDOM_HEADERS: bool = Field(default=True, description="Использовать случайные заголовки")
+    MIN_REQUEST_DELAY: float = Field(default=2.0, ge=0, le=60, description="Минимальная задержка между запросами (сек)")
+    MAX_REQUEST_DELAY: float = Field(default=5.0, ge=0, le=60, description="Максимальная задержка между запросами (сек)")
     CIAN_MAX_RETRIES: int = Field(default=3, ge=1, le=10, description="Макс повторы для Cian")
     AVITO_RATE_LIMIT: int = Field(default=5, ge=1, le=100, description="Rate limit для Avito")
     RATE_LIMIT_WINDOW: int = Field(default=60, ge=1, le=3600, description="Окно rate limit в секундах")
