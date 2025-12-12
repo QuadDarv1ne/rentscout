@@ -22,6 +22,7 @@ async with EnhancedHTTPClient() as client:
 ```
 
 **Что это дает:**
+
 - Имитация запросов от реальных браузеров
 - Ротация User-Agent для каждого запроса
 - Реалистичные HTTP заголовки
@@ -29,24 +30,28 @@ async with EnhancedHTTPClient() as client:
 ### 2. Прокси-серверы
 
 **Настройка в `.env`:**
+
 ```env
 PROXY_ENABLED=true
 PROXY_FILE=proxies.txt
 ```
 
 **Формат `proxies.txt`:**
-```
+
+```text
 http://proxy1.example.com:8080
 http://username:password@proxy2.example.com:3128
 socks5://proxy3.example.com:1080
 ```
 
 **Бесплатные источники прокси:**
-- https://free-proxy-list.net/
-- https://www.sslproxies.org/
-- https://hidemy.name/ru/proxy-list/
+
+- <https://free-proxy-list.net/>
+- <https://www.sslproxies.org/>
+- <https://hidemy.name/ru/proxy-list/>
 
 **Платные сервисы (рекомендуется):**
+
 - Bright Data (ex-Luminati)
 - Smartproxy
 - Oxylabs
@@ -55,12 +60,14 @@ socks5://proxy3.example.com:1080
 ### 3. Задержки между запросами
 
 **Настройка в `.env`:**
+
 ```env
 MIN_REQUEST_DELAY=2.0
 MAX_REQUEST_DELAY=5.0
 ```
 
 **Что это дает:**
+
 - Имитация поведения человека
 - Снижение нагрузки на сервер
 - Меньше шансов быть заблокированным
@@ -81,12 +88,14 @@ verify=False  # Отключает проверку SSL
 ### 1. Headless браузеры (Playwright/Selenium)
 
 **Установка:**
+
 ```bash
 pip install playwright playwright-stealth
 playwright install chromium
 ```
 
 **Пример использования:**
+
 ```python
 from playwright.async_api import async_playwright
 
@@ -105,11 +114,13 @@ async with async_playwright() as p:
 ### 2. Обход Captcha
 
 **Сервисы:**
-- 2Captcha: https://2captcha.com/
-- Anti-Captcha: https://anti-captcha.com/
-- CapSolver: https://www.capsolver.com/
+
+- 2Captcha: <https://2captcha.com/>
+- Anti-Captcha: <https://anti-captcha.com/>
+- CapSolver: <https://www.capsolver.com/>
 
 **Пример с 2Captcha:**
+
 ```python
 from twocaptcha import TwoCaptcha
 
@@ -138,6 +149,7 @@ with open('cookies.json', 'r') as f:
 ### 4. JavaScript рендеринг
 
 Для сайтов с динамическим контентом используйте:
+
 - Playwright
 - Selenium
 - Pyppeteer
@@ -146,26 +158,31 @@ with open('cookies.json', 'r') as f:
 ## 🎯 Рекомендуемый подход для каждого сайта
 
 ### Avito
-1. ✅ Официальное API: https://developers.avito.ru/
+
+1. ✅ Официальное API: <https://developers.avito.ru/>
 2. 🔄 Headless браузер с прокси
 3. ⏱️ Большие задержки (5-10 сек)
 
 ### Cian
-1. ✅ Официальное API: https://api.cian.ru/
+
+1. ✅ Официальное API: <https://api.cian.ru/>
 2. 🔄 Случайные заголовки + прокси
 3. 🍪 Cookie management
 
 ### Yandex Realty
-1. ✅ Официальное API: https://yandex.ru/dev/realty/
+
+1. ✅ Официальное API: <https://yandex.ru/dev/realty/>
 2. 🔄 Headless браузер (строгая защита)
 3. 🎭 Решение captcha
 
 ### DomClick
+
 1. 🔑 Требует авторизации
 2. 🔄 Cookie management
 3. 📝 Получите API ключ если возможно
 
 ### Domofond
+
 1. 🔧 Исправить SSL конфигурацию
 2. 🔄 Прокси с поддержкой SNI
 3. 📦 Или использовать headless браузер
@@ -210,6 +227,7 @@ print(headers)
 ## 📊 Мониторинг
 
 Следите за:
+
 - Успешностью запросов (% 200 ответов)
 - Частотой captcha
 - Скоростью блокировки IP
