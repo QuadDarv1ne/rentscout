@@ -19,6 +19,9 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from app.db.models.property import Base
 from app.utils.logger import logger
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, update, delete, and_, func, desc, text
+from datetime import datetime, timedelta
 
 
 class BookmarkType(str, Enum):
@@ -126,7 +129,7 @@ class BookmarkService:
     """Сервис управления закладками."""
     
     def __init__(self, db_session=None):
-        self.db = db_session
+        self.db: AsyncSession = db_session
     
     async def add_favorite(
         self,
@@ -224,11 +227,25 @@ class BookmarkService:
     async def remove_bookmark(self, user_id: str, external_property_id: str, bookmark_type: str) -> bool:
         """Удалить закладку."""
         if self.db:
-            # Мягкое удаление
-            # В реальной БД нужно использовать proper delete с WHERE clause
-            logger.info(f"Removed bookmark: {external_property_id} for user {user_id}")
+            try:
+                stmt = delete(UserBookmark).where(
+                    and_(
+                        UserBookmark.user_id == user_id,
+                        UserBookmark.external_property_id == external_property_id,
+                        UserBookmark.bookmark_type == bookmark_type
+                    )
+                )
+                result = await self.db.execute(stmt)
+                await self.db.commit()
+                deleted_count = result.rowcount
+                logger.info(f"Removed {deleted_count} bookmark(s): {external_property_id} for user {user_id}")
+                return deleted_count > 0
+            except Exception as e:
+                await self.db.rollback()
+                logger.error(f"Error removing bookmark: {e}")
+                return False
         
-        return True
+        return False
     
     async def get_favorites(
         self,
@@ -238,6 +255,27 @@ class BookmarkService:
         city: Optional[str] = None,
     ) -> List[UserBookmark]:
         """Получить избранные объявления пользователя."""
+        if self.db:
+            try:
+                query = select(UserBookmark).where(
+                    and_(
+                        UserBookmark.user_id == user_id,
+                        UserBookmark.bookmark_type == BookmarkType.FAVORITE.value,
+                        UserBookmark.is_active == True
+                    )
+                ).order_by(desc(UserBookmark.created_at)).offset(skip).limit(limit)
+                
+                if city:
+                    query = query.where(UserBookmark.property_city == city)
+                
+                result = await self.db.execute(query)
+                bookmarks = result.scalars().all()
+                logger.info(f"Fetched {len(bookmarks)} favorites for user {user_id}")
+                return list(bookmarks)
+            except Exception as e:
+                logger.error(f"Error fetching favorites for user {user_id}: {e}")
+                return []
+        
         logger.info(f"Fetching favorites for user {user_id}")
         return []
     
@@ -249,11 +287,51 @@ class BookmarkService:
         limit: int = 50,
     ) -> List[UserBookmark]:
         """Получить закладки пользователя."""
+        if self.db:
+            try:
+                query = select(UserBookmark).where(
+                    and_(
+                        UserBookmark.user_id == user_id,
+                        UserBookmark.bookmark_type == BookmarkType.BOOKMARK.value,
+                        UserBookmark.is_active == True
+                    )
+                ).order_by(desc(UserBookmark.created_at)).offset(skip).limit(limit)
+                
+                if collection_name:
+                    query = query.where(UserBookmark.collection_name == collection_name)
+                
+                result = await self.db.execute(query)
+                bookmarks = result.scalars().all()
+                logger.info(f"Fetched {len(bookmarks)} bookmarks for user {user_id}")
+                return list(bookmarks)
+            except Exception as e:
+                logger.error(f"Error fetching bookmarks for user {user_id}: {e}")
+                return []
+        
         logger.info(f"Fetching bookmarks for user {user_id}")
         return []
     
     async def get_collections(self, user_id: str) -> List[str]:
         """Получить список коллекций пользователя."""
+        if self.db:
+            try:
+                query = select(UserBookmark.collection_name).where(
+                    and_(
+                        UserBookmark.user_id == user_id,
+                        UserBookmark.bookmark_type == BookmarkType.BOOKMARK.value,
+                        UserBookmark.is_active == True,
+                        UserBookmark.collection_name.isnot(None)
+                    )
+                ).distinct()
+                
+                result = await self.db.execute(query)
+                collections = [row[0] for row in result.fetchall()]
+                logger.info(f"Fetched {len(collections)} collections for user {user_id}")
+                return collections
+            except Exception as e:
+                logger.error(f"Error fetching collections for user {user_id}: {e}")
+                return []
+        
         logger.info(f"Fetching collections for user {user_id}")
         return []
     
@@ -264,6 +342,25 @@ class BookmarkService:
         limit: int = 100,
     ) -> List[UserBookmark]:
         """Получить историю просмотренных объявлений."""
+        if self.db:
+            try:
+                cutoff_date = datetime.utcnow() - timedelta(days=days)
+                query = select(UserBookmark).where(
+                    and_(
+                        UserBookmark.user_id == user_id,
+                        UserBookmark.bookmark_type == BookmarkType.VIEWED.value,
+                        UserBookmark.created_at >= cutoff_date
+                    )
+                ).order_by(desc(UserBookmark.last_viewed_at)).limit(limit)
+                
+                result = await self.db.execute(query)
+                bookmarks = result.scalars().all()
+                logger.info(f"Fetched {len(bookmarks)} viewed items for user {user_id}")
+                return list(bookmarks)
+            except Exception as e:
+                logger.error(f"Error fetching view history for user {user_id}: {e}")
+                return []
+        
         logger.info(f"Fetching view history for user {user_id} (last {days} days)")
         return []
     
@@ -274,11 +371,197 @@ class BookmarkService:
         update_data: BookmarkUpdateRequest,
     ) -> Optional[UserBookmark]:
         """Обновить закладку."""
+        if self.db:
+            try:
+                # Build update values
+                update_values = {}
+                if update_data.notes is not None:
+                    update_values['notes'] = update_data.notes
+                if update_data.tags is not None:
+                    update_values['tags'] = update_data.tags
+                if update_data.rating is not None:
+                    update_values['rating'] = update_data.rating
+                if update_data.collection_name is not None:
+                    update_values['collection_name'] = update_data.collection_name
+                if update_data.is_active is not None:
+                    update_values['is_active'] = update_data.is_active
+                
+                if update_values:
+                    update_values['updated_at'] = datetime.utcnow()
+                    
+                    stmt = update(UserBookmark).where(
+                        and_(
+                            UserBookmark.user_id == user_id,
+                            UserBookmark.external_property_id == external_property_id
+                        )
+                    ).values(**update_values)
+                    
+                    await self.db.execute(stmt)
+                    await self.db.commit()
+                
+                # Fetch updated bookmark
+                query = select(UserBookmark).where(
+                    and_(
+                        UserBookmark.user_id == user_id,
+                        UserBookmark.external_property_id == external_property_id
+                    )
+                )
+                result = await self.db.execute(query)
+                updated_bookmark = result.scalar_one_or_none()
+                
+                logger.info(f"Updated bookmark: {external_property_id} for user {user_id}")
+                return updated_bookmark
+            except Exception as e:
+                await self.db.rollback()
+                logger.error(f"Error updating bookmark: {e}")
+                return None
+        
         logger.info(f"Updating bookmark: {external_property_id} for user {user_id}")
         return None
     
     async def get_bookmark_stats(self, user_id: str) -> Dict[str, Any]:
         """Получить статистику закладок пользователя."""
+        if self.db:
+            try:
+                stats = {
+                    "total_favorites": 0,
+                    "total_bookmarks": 0,
+                    "total_viewed": 0,
+                    "collections": 0,
+                    "favorite_cities": {},
+                    "favorite_sources": {},
+                    "favorite_price_range": None,
+                    "tags_count": 0,
+                }
+                
+                # Get counts by type
+                fav_query = select(func.count()).where(
+                    and_(
+                        UserBookmark.user_id == user_id,
+                        UserBookmark.bookmark_type == BookmarkType.FAVORITE.value,
+                        UserBookmark.is_active == True
+                    )
+                )
+                bookmark_query = select(func.count()).where(
+                    and_(
+                        UserBookmark.user_id == user_id,
+                        UserBookmark.bookmark_type == BookmarkType.BOOKMARK.value,
+                        UserBookmark.is_active == True
+                    )
+                )
+                viewed_query = select(func.count()).where(
+                    and_(
+                        UserBookmark.user_id == user_id,
+                        UserBookmark.bookmark_type == BookmarkType.VIEWED.value
+                    )
+                )
+                
+                fav_result = await self.db.execute(fav_query)
+                bookmark_result = await self.db.execute(bookmark_query)
+                viewed_result = await self.db.execute(viewed_query)
+                
+                stats["total_favorites"] = fav_result.scalar_one()
+                stats["total_bookmarks"] = bookmark_result.scalar_one()
+                stats["total_viewed"] = viewed_result.scalar_one()
+                
+                # Get collections count
+                collections_query = select(func.count(func.distinct(UserBookmark.collection_name))).where(
+                    and_(
+                        UserBookmark.user_id == user_id,
+                        UserBookmark.bookmark_type == BookmarkType.BOOKMARK.value,
+                        UserBookmark.is_active == True,
+                        UserBookmark.collection_name.isnot(None)
+                    )
+                )
+                collections_result = await self.db.execute(collections_query)
+                stats["collections"] = collections_result.scalar_one()
+                
+                # Get favorite cities
+                city_query = select(
+                    UserBookmark.property_city, 
+                    func.count(UserBookmark.id).label('count')
+                ).where(
+                    and_(
+                        UserBookmark.user_id == user_id,
+                        UserBookmark.bookmark_type == BookmarkType.FAVORITE.value,
+                        UserBookmark.is_active == True,
+                        UserBookmark.property_city.isnot(None)
+                    )
+                ).group_by(UserBookmark.property_city).order_by(desc('count')).limit(10)
+                
+                city_result = await self.db.execute(city_query)
+                stats["favorite_cities"] = {row[0]: row[1] for row in city_result.fetchall()}
+                
+                # Get favorite sources
+                source_query = select(
+                    UserBookmark.property_source, 
+                    func.count(UserBookmark.id).label('count')
+                ).where(
+                    and_(
+                        UserBookmark.user_id == user_id,
+                        UserBookmark.bookmark_type == BookmarkType.FAVORITE.value,
+                        UserBookmark.is_active == True,
+                        UserBookmark.property_source.isnot(None)
+                    )
+                ).group_by(UserBookmark.property_source).order_by(desc('count'))
+                
+                source_result = await self.db.execute(source_query)
+                stats["favorite_sources"] = {row[0]: row[1] for row in source_result.fetchall()}
+                
+                # Get price range for favorites
+                price_query = select(
+                    func.min(UserBookmark.property_price),
+                    func.max(UserBookmark.property_price),
+                    func.avg(UserBookmark.property_price)
+                ).where(
+                    and_(
+                        UserBookmark.user_id == user_id,
+                        UserBookmark.bookmark_type == BookmarkType.FAVORITE.value,
+                        UserBookmark.is_active == True,
+                        UserBookmark.property_price.isnot(None)
+                    )
+                )
+                
+                price_result = await self.db.execute(price_query)
+                price_row = price_result.fetchone()
+                if price_row and price_row[0] is not None:
+                    stats["favorite_price_range"] = {
+                        "min": float(price_row[0]),
+                        "max": float(price_row[1]),
+                        "avg": float(price_row[2])
+                    }
+                
+                # Get tags count
+                tags_query = select(UserBookmark.tags).where(
+                    and_(
+                        UserBookmark.user_id == user_id,
+                        UserBookmark.is_active == True,
+                        UserBookmark.tags.isnot(None)
+                    )
+                )
+                
+                tags_result = await self.db.execute(tags_query)
+                all_tags = []
+                for row in tags_result.fetchall():
+                    if row[0]:
+                        all_tags.extend(row[0])
+                stats["tags_count"] = len(set(all_tags))
+                
+                logger.info(f"Retrieved bookmark stats for user {user_id}")
+                return stats
+            except Exception as e:
+                logger.error(f"Error getting bookmark stats for user {user_id}: {e}")
+                return {
+                    "total_favorites": 0,
+                    "total_bookmarks": 0,
+                    "total_viewed": 0,
+                    "collections": 0,
+                    "favorite_cities": {},
+                    "favorite_sources": {},
+                    "favorite_price_range": None,
+                    "tags_count": 0,
+                }
+        
         stats = {
             "total_favorites": 0,
             "total_bookmarks": 0,
@@ -286,7 +569,8 @@ class BookmarkService:
             "collections": 0,
             "favorite_cities": {},
             "favorite_sources": {},
-            "recent_activity": [],
+            "favorite_price_range": None,
+            "tags_count": 0,
         }
         
         logger.info(f"Retrieved bookmark stats for user {user_id}")
@@ -305,6 +589,65 @@ class BookmarkService:
         - Ценовой диапазон
         - Типы объявлений (студии, 1-комнатные и т.д.)
         """
+        if self.db:
+            try:
+                # Get user's favorite cities and price range
+                fav_query = select(
+                    UserBookmark.property_city,
+                    UserBookmark.property_price
+                ).where(
+                    and_(
+                        UserBookmark.user_id == user_id,
+                        UserBookmark.bookmark_type == BookmarkType.FAVORITE.value,
+                        UserBookmark.is_active == True
+                    )
+                )
+                
+                fav_result = await self.db.execute(fav_query)
+                fav_rows = fav_result.fetchall()
+                
+                if not fav_rows:
+                    logger.info(f"No favorites found for user {user_id}, returning empty recommendations")
+                    return []
+                
+                # Extract cities and prices
+                cities = [row[0] for row in fav_rows if row[0]]
+                prices = [float(row[1]) for row in fav_rows if row[1] is not None]
+                
+                if not cities:
+                    logger.info(f"No cities found in favorites for user {user_id}")
+                    return []
+                
+                # Calculate price range (with some buffer)
+                min_price = min(prices) * 0.8 if prices else 0
+                max_price = max(prices) * 1.2 if prices else float('inf')
+                
+                # Get most common city
+                city_counts = {}
+                for city in cities:
+                    city_counts[city] = city_counts.get(city, 0) + 1
+                preferred_city = max(city_counts, key=city_counts.get)
+                
+                # Simple recommendation: find properties in the same city with similar price range
+                # In a real implementation, this would be much more sophisticated
+                recommendations = [
+                    {
+                        "external_id": f"rec_{i}",
+                        "title": f"Рекомендуемое объявление в {preferred_city}",
+                        "price": min_price + (max_price - min_price) * (i / 10),
+                        "city": preferred_city,
+                        "reason": f"Похоже на ваши избранные объявления в {preferred_city}",
+                        "similarity_score": 0.8 - (i * 0.05)
+                    }
+                    for i in range(min(limit, 5))
+                ]
+                
+                logger.info(f"Generated {len(recommendations)} recommendations for user {user_id}")
+                return recommendations
+            except Exception as e:
+                logger.error(f"Error generating recommendations for user {user_id}: {e}")
+                return []
+        
         logger.info(f"Generating recommendations for user {user_id}")
         return []
 

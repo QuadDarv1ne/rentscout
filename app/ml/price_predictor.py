@@ -14,8 +14,10 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_absolute_error, r2_score
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error
+from sklearn.pipeline import Pipeline
+from sklearn.compose import TransformedTargetRegressor
 
 from app.utils.logger import logger
 
@@ -80,15 +82,28 @@ class PricePredictorML:
         }
         # Initialize ML models
         self.linear_model = LinearRegression()
-        self.rf_model = RandomForestRegressor(n_estimators=50, random_state=42)
+        self.rf_model = RandomForestRegressor(n_estimators=100, random_state=42, max_depth=10)
         self.scaler = StandardScaler()
         self.model_trained = False
         self.model_performance = {
             "linear_mae": 0.0,
             "rf_mae": 0.0,
             "linear_r2": 0.0,
-            "rf_r2": 0.0
+            "rf_r2": 0.0,
+            "linear_rmse": 0.0,
+            "rf_rmse": 0.0,
+            "cross_val_score_linear": 0.0,
+            "cross_val_score_rf": 0.0
         }
+        self.feature_names = [
+            "rooms", 
+            "area", 
+            "floor_ratio", 
+            "is_verified",
+            "city_coefficient",
+            "district_coefficient",
+            "area_per_room"
+        ]
     
     def add_history(
         self,
@@ -119,36 +134,55 @@ class PricePredictorML:
     
     def train_model(self):
         """Train the ML models with historical data."""
-        if len(self.history) < 15:
-            logger.warning("Not enough data to train model. Need at least 15 samples.")
+        if len(self.history) < 20:
+            logger.warning("Not enough data to train model. Need at least 20 samples.")
             return False
         
-        # Prepare training data
+        # Prepare training data with enhanced features
         X = []
         y = []
+        cities = list(self.city_coefficients.keys())
         
         for record in self.history:
-            if record.rooms is not None and record.area is not None:
-                # Features: rooms, area, floor_ratio, is_verified
+            if record.rooms is not None and record.area is not None and record.area > 0:
+                # Enhanced features
                 floor_ratio = 0.5
                 if record.floor and record.total_floors and record.total_floors > 0:
                     floor_ratio = record.floor / record.total_floors
+                
+                # City coefficient
+                city_coeff = self.city_coefficients.get(record.city, 1.0) if record.city else 1.0
+                
+                # District coefficient
+                district_coeff = 1.0
+                if record.district and record.city:
+                    district_coeff = self.district_coefficients.get(record.city, {}).get(record.district, 1.0)
+                
+                # Area per room
+                area_per_room = record.area / max(record.rooms, 1)
                 
                 features = [
                     record.rooms,
                     record.area,
                     floor_ratio,
-                    1.0 if record.is_verified else 0.0
+                    1.0 if record.is_verified else 0.0,
+                    city_coeff,
+                    district_coeff,
+                    area_per_room
                 ]
                 X.append(features)
                 y.append(record.price)
         
-        if len(X) < 10:
-            logger.warning("Not enough complete data samples for training.")
+        if len(X) < 15:
+            logger.warning(f"Not enough complete data samples for training. Have {len(X)}, need at least 15.")
             return False
         
+        # Convert to numpy arrays
+        X = np.array(X)
+        y = np.array(y)
+        
         # Split data for training and testing
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
         
         # Scale features
         X_train_scaled = self.scaler.fit_transform(X_train)
@@ -165,18 +199,41 @@ class PricePredictorML:
         rf_pred = self.rf_model.predict(X_test)
         
         # Calculate metrics
+        linear_mae = mean_absolute_error(y_test, linear_pred)
+        rf_mae = mean_absolute_error(y_test, rf_pred)
+        linear_r2 = r2_score(y_test, linear_pred)
+        rf_r2 = r2_score(y_test, rf_pred)
+        linear_rmse = np.sqrt(mean_squared_error(y_test, linear_pred))
+        rf_rmse = np.sqrt(mean_squared_error(y_test, rf_pred))
+        
+        # Cross-validation scores
+        try:
+            cv_scores_linear = cross_val_score(self.linear_model, X_train_scaled, y_train, cv=5, scoring='r2')
+            cv_scores_rf = cross_val_score(self.rf_model, X_train, y_train, cv=5, scoring='r2')
+            cv_score_linear_mean = cv_scores_linear.mean()
+            cv_score_rf_mean = cv_scores_rf.mean()
+        except Exception as e:
+            logger.warning(f"Cross-validation failed: {e}")
+            cv_score_linear_mean = 0.0
+            cv_score_rf_mean = 0.0
+        
         self.model_performance = {
-            "linear_mae": mean_absolute_error(y_test, linear_pred),
-            "rf_mae": mean_absolute_error(y_test, rf_pred),
-            "linear_r2": r2_score(y_test, linear_pred),
-            "rf_r2": r2_score(y_test, rf_pred)
+            "linear_mae": linear_mae,
+            "rf_mae": rf_mae,
+            "linear_r2": linear_r2,
+            "rf_r2": rf_r2,
+            "linear_rmse": linear_rmse,
+            "rf_rmse": rf_rmse,
+            "cross_val_score_linear": cv_score_linear_mean,
+            "cross_val_score_rf": cv_score_rf_mean
         }
         
         self.model_trained = True
         
         logger.info(f"ML models trained with {len(X)} samples")
-        logger.info(f"Linear Regression MAE: {self.model_performance['linear_mae']:.2f}, R²: {self.model_performance['linear_r2']:.3f}")
-        logger.info(f"Random Forest MAE: {self.model_performance['rf_mae']:.2f}, R²: {self.model_performance['rf_r2']:.3f}")
+        logger.info(f"Linear Regression MAE: {linear_mae:.2f}, R²: {linear_r2:.3f}, RMSE: {linear_rmse:.2f}")
+        logger.info(f"Random Forest MAE: {rf_mae:.2f}, R²: {rf_r2:.3f}, RMSE: {rf_rmse:.2f}")
+        logger.info(f"Cross-validation scores - Linear: {cv_score_linear_mean:.3f}, RF: {cv_score_rf_mean:.3f}")
         
         return True
     
@@ -275,13 +332,24 @@ class PricePredictorML:
         ml_prediction = None
         if self.model_trained:
             try:
-                # Prepare features for prediction
+                # Prepare enhanced features for prediction
                 floor_ratio = 0.5
                 if floor and total_floors and total_floors > 0:
                     floor_ratio = floor / total_floors
                 
-                features_linear = [[rooms, area, floor_ratio, 1.0 if is_verified else 0.0]]
-                features_rf = [[rooms, area, floor_ratio, 1.0 if is_verified else 0.0]]
+                # City coefficient
+                city_coeff = self.city_coefficients.get(city, 1.0)
+                
+                # District coefficient
+                district_coeff = 1.0
+                if district and city:
+                    district_coeff = self.district_coefficients.get(city, {}).get(district, 1.0)
+                
+                # Area per room
+                area_per_room = area / max(rooms, 1)
+                
+                features_linear = [[rooms, area, floor_ratio, 1.0 if is_verified else 0.0, city_coeff, district_coeff, area_per_room]]
+                features_rf = [[rooms, area, floor_ratio, 1.0 if is_verified else 0.0, city_coeff, district_coeff, area_per_room]]
                 
                 # Scale features for linear model
                 features_linear_scaled = self.scaler.transform(features_linear)
@@ -290,10 +358,24 @@ class PricePredictorML:
                 linear_pred = self.linear_model.predict(features_linear_scaled)[0]
                 rf_pred = self.rf_model.predict(features_rf)[0]
                 
-                # Weighted ensemble: 40% rule-based, 30% linear, 30% random forest
-                ml_prediction = (rule_based_price * 0.4) + (linear_pred * 0.3) + (rf_pred * 0.3)
+                # Dynamic weighting based on model performance
+                linear_weight = max(0.1, self.model_performance["linear_r2"]) if self.model_performance["linear_r2"] > 0 else 0.1
+                rf_weight = max(0.1, self.model_performance["rf_r2"]) if self.model_performance["rf_r2"] > 0 else 0.1
+                
+                # Normalize weights
+                total_weight = linear_weight + rf_weight
+                if total_weight > 0:
+                    linear_weight /= total_weight
+                    rf_weight /= total_weight
+                else:
+                    linear_weight = rf_weight = 0.45  # Equal split if no performance data
+                
+                # Weighted ensemble: dynamic weights based on performance + rule-based
+                rule_weight = 0.1  # Reduced rule-based weight
+                ml_prediction = (rule_based_price * rule_weight) + (linear_pred * linear_weight) + (rf_pred * rf_weight)
                 
                 logger.info(f"Rule-based: {rule_based_price:.0f}, Linear: {linear_pred:.0f}, RF: {rf_pred:.0f}, Ensemble: {ml_prediction:.0f}")
+                logger.debug(f"Weights - Rule: {rule_weight:.2f}, Linear: {linear_weight:.2f}, RF: {rf_weight:.2f}")
             except Exception as e:
                 logger.warning(f"ML prediction failed: {e}")
                 ml_prediction = rule_based_price
@@ -321,17 +403,26 @@ class PricePredictorML:
         )
         
         # Уверенность модели
-        confidence = 0.75
+        confidence = 0.7
         if is_verified:
             confidence += 0.1
         if district:
             confidence += 0.05
-        if self.history and len(self.history) > 20:
+        if self.history and len(self.history) > 30:
             confidence += 0.1
         if self.model_trained:
             # Increase confidence based on model performance
             r2_score_avg = (self.model_performance["linear_r2"] + self.model_performance["rf_r2"]) / 2
-            confidence += min(0.15, r2_score_avg * 0.15)
+            confidence += min(0.2, r2_score_avg * 0.2)
+            
+            # Also consider cross-validation scores
+            cv_score_avg = (self.model_performance["cross_val_score_linear"] + self.model_performance["cross_val_score_rf"]) / 2
+            confidence += min(0.1, cv_score_avg * 0.1)
+        
+        # Adjust based on data quantity
+        if len(self.history) < 50:
+            confidence *= 0.8  # Reduce confidence for small datasets
+        
         confidence = min(confidence, 0.95)
         
         # Определение тренда

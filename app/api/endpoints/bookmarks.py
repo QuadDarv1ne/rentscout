@@ -3,8 +3,9 @@ API endpoints для управления закладками и избранн
 """
 
 from typing import Optional, List
-from fastapi import APIRouter, HTTPException, Query, Body
+from fastapi import APIRouter, HTTPException, Query, Body, Depends
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.bookmarks import (
     BookmarkService,
@@ -13,6 +14,7 @@ from app.db.models.bookmarks import (
     BookmarkCreateRequest,
     BookmarkUpdateRequest,
 )
+from app.db.models.session import get_db
 from app.utils.logger import logger
 
 
@@ -98,6 +100,7 @@ class RecommendationResponse(BaseModel):
 async def add_bookmark(
     user_id: str = Query(..., description="ID пользователя"),
     bookmark: AddBookmarkRequest = Body(...),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Добавить объявление в закладки/избранное.
@@ -112,6 +115,9 @@ async def add_bookmark(
     - `user_id` - уникальный ID пользователя
     - `collection_name` - обязателен если `bookmark_type=bookmark`
     """
+    # Create a new service instance with the database session
+    service = BookmarkService(db_session=db)
+    
     if bookmark.bookmark_type == BookmarkType.BOOKMARK.value:
         if not bookmark.collection_name:
             raise HTTPException(
@@ -119,7 +125,7 @@ async def add_bookmark(
                 detail="collection_name required for bookmark type"
             )
         
-        result = await bookmark_service.add_bookmark(
+        result = await service.add_bookmark(
             user_id=user_id,
             external_property_id=bookmark.external_property_id,
             property_title=bookmark.property_title,
@@ -130,7 +136,7 @@ async def add_bookmark(
             collection_name=bookmark.collection_name,
         )
     else:
-        result = await bookmark_service.add_favorite(
+        result = await service.add_favorite(
             user_id=user_id,
             external_property_id=bookmark.external_property_id,
             property_title=bookmark.property_title,
@@ -143,20 +149,20 @@ async def add_bookmark(
     logger.info(f"Bookmark added for user {user_id}")
     
     return {
-        "id": 1,  # Пока возвращаем mock ID
-        "external_property_id": bookmark.external_property_id,
-        "property_title": bookmark.property_title,
-        "property_source": bookmark.property_source,
-        "property_price": int(bookmark.property_price),
-        "property_city": bookmark.property_city,
-        "property_link": bookmark.property_link,
-        "bookmark_type": bookmark.bookmark_type,
-        "collection_name": bookmark.collection_name,
-        "notes": bookmark.notes,
-        "tags": bookmark.tags or [],
-        "rating": bookmark.rating,
-        "created_at": "2025-12-08T13:00:00Z",
-        "updated_at": "2025-12-08T13:00:00Z",
+        "id": result.id,
+        "external_property_id": result.external_property_id,
+        "property_title": result.property_title,
+        "property_source": result.property_source,
+        "property_price": result.property_price,
+        "property_city": result.property_city,
+        "property_link": result.property_link,
+        "bookmark_type": result.bookmark_type,
+        "collection_name": result.collection_name,
+        "notes": result.notes,
+        "tags": result.tags or [],
+        "rating": result.rating,
+        "created_at": result.created_at.isoformat() if result.created_at else None,
+        "updated_at": result.updated_at.isoformat() if result.updated_at else None,
     }
 
 
@@ -166,6 +172,7 @@ async def get_favorites(
     city: Optional[str] = Query(None, description="Фильтр по городу"),
     skip: int = Query(0, ge=0, description="Пропустить N элементов"),
     limit: int = Query(50, ge=1, le=100, description="Максимум элементов"),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Получить избранные объявления пользователя.
@@ -176,7 +183,8 @@ async def get_favorites(
     - `skip` - для пагинации
     - `limit` - максимум элементов на странице
     """
-    favorites = await bookmark_service.get_favorites(
+    service = BookmarkService(db_session=db)
+    favorites = await service.get_favorites(
         user_id=user_id,
         city=city,
         skip=skip,
@@ -197,13 +205,15 @@ async def get_bookmarks(
     collection: Optional[str] = Query(None, description="Название коллекции"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Получить закладки пользователя.
     
     Может быть отфильтровано по названию коллекции.
     """
-    bookmarks = await bookmark_service.get_bookmarks(
+    service = BookmarkService(db_session=db)
+    bookmarks = await service.get_bookmarks(
         user_id=user_id,
         collection_name=collection,
         skip=skip,
@@ -220,9 +230,11 @@ async def get_bookmarks(
 @router.get("/collections")
 async def get_collections(
     user_id: str = Query(..., description="ID пользователя"),
+    db: AsyncSession = Depends(get_db),
 ):
     """Получить список всех коллекций пользователя."""
-    collections = await bookmark_service.get_collections(user_id=user_id)
+    service = BookmarkService(db_session=db)
+    collections = await service.get_collections(user_id=user_id)
     
     return {
         "count": len(collections),
@@ -235,6 +247,7 @@ async def get_view_history(
     user_id: str = Query(..., description="ID пользователя"),
     days: int = Query(30, ge=1, le=365, description="Последние N дней"),
     limit: int = Query(100, ge=1, le=500, description="Максимум элементов"),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Получить историю просмотренных объявлений.
@@ -243,7 +256,8 @@ async def get_view_history(
     - `days` - показать просмотры за последние N дней
     - `limit` - максимум элементов в ответе
     """
-    history = await bookmark_service.get_viewed_history(
+    service = BookmarkService(db_session=db)
+    history = await service.get_viewed_history(
         user_id=user_id,
         days=days,
         limit=limit,
@@ -261,6 +275,7 @@ async def update_bookmark(
     user_id: str = Query(..., description="ID пользователя"),
     external_property_id: str = None,
     update_request: UpdateBookmarkRequest = Body(..., description="Данные для обновления"),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Обновить информацию о закладке (заметки, оценку, теги).
@@ -271,7 +286,8 @@ async def update_bookmark(
     - rating - оценка 1-5
     - collection_name - переместить в другую коллекцию
     """
-    await bookmark_service.update_bookmark(
+    service = BookmarkService(db_session=db)
+    await service.update_bookmark(
         user_id=user_id,
         external_property_id=external_property_id,
         update_data=update_request,
@@ -288,6 +304,7 @@ async def remove_bookmark(
     user_id: str = Query(..., description="ID пользователя"),
     external_property_id: str = Query(..., description="ID объявления"),
     bookmark_type: str = Query(BookmarkType.FAVORITE.value, description="Тип закладки"),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Удалить закладку.
@@ -297,7 +314,8 @@ async def remove_bookmark(
     - `external_property_id` - ID объявления
     - `bookmark_type` - тип закладки (favorite, bookmark и т.д.)
     """
-    success = await bookmark_service.remove_bookmark(
+    service = BookmarkService(db_session=db)
+    success = await service.remove_bookmark(
         user_id=user_id,
         external_property_id=external_property_id,
         bookmark_type=bookmark_type,
@@ -315,6 +333,7 @@ async def remove_bookmark(
 @router.get("/stats", response_model=BookmarkStatsResponse)
 async def get_bookmark_stats(
     user_id: str = Query(..., description="ID пользователя"),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Получить статистику закладок пользователя.
@@ -325,7 +344,8 @@ async def get_bookmark_stats(
     - Популярные города и источники
     - Диапазон цен
     """
-    stats = await bookmark_service.get_bookmark_stats(user_id=user_id)
+    service = BookmarkService(db_session=db)
+    stats = await service.get_bookmark_stats(user_id=user_id)
     
     # Добавляем все необходимые поля
     return {
@@ -344,6 +364,7 @@ async def get_bookmark_stats(
 async def get_recommendations(
     user_id: str = Query(..., description="ID пользователя"),
     limit: int = Query(10, ge=1, le=50, description="Максимум рекомендаций"),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Получить рекомендации на основе избранного пользователя.
@@ -356,7 +377,8 @@ async def get_recommendations(
     
     Возвращает новые объявления, которые соответствуют предпочтениям.
     """
-    recommendations = await bookmark_service.get_recommendations(
+    service = BookmarkService(db_session=db)
+    recommendations = await service.get_recommendations(
         user_id=user_id,
         limit=limit,
     )
