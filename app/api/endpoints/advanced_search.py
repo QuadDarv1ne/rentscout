@@ -11,6 +11,7 @@ from app.utils.advanced_search import (
     SortOrder
 )
 from app.services.search import SearchService
+from app.services.optimized_search import OptimizedSearchService
 from app.utils.metrics import metrics_collector
 from app.utils.property_scoring import PropertyScoringSystem
 from app.db.models.session import get_db
@@ -63,8 +64,11 @@ async def advanced_search(request: AdvancedSearchRequest, db: AsyncSession = Dep
     
     try:
         # Fetch properties
-        search_service = SearchService()
-        properties = await search_service.search(request.city, request.property_type)
+        search_service = OptimizedSearchService()
+        properties, is_cached, stats = await search_service.search_cached(request.city, request.property_type)
+        
+        # Log cache statistics
+        logger.info(f"Advanced search for {request.city} completed. Properties found: {len(properties)}. Cache hit: {is_cached}")
         
         # Create filter
         search_filter = SearchFilter(
@@ -121,8 +125,11 @@ async def get_price_distribution(
     
     try:
         # Fetch properties
-        search_service = SearchService()
-        properties = await search_service.search(city, property_type)
+        search_service = OptimizedSearchService()
+        properties, is_cached, stats = await search_service.search_cached(city, property_type)
+        
+        # Log cache statistics
+        logger.info(f"Price distribution search for {city} completed. Properties found: {len(properties)}. Cache hit: {is_cached}")
         
         # Get distribution
         distribution = AdvancedSearchEngine.get_price_distribution(
@@ -235,11 +242,13 @@ async def compare_cities(
     start_time = __import__('time').time()
     
     try:
-        search_service = SearchService()
+        search_service = OptimizedSearchService()
         comparison = {}
+        cache_stats = []
         
         for city in cities:
-            properties = await search_service.search(city, property_type)
+            properties, is_cached, stats = await search_service.search_cached(city, property_type)
+            cache_stats.append((city, is_cached))
             
             if properties:
                 prices = [p.price for p in properties if p.price]
@@ -268,6 +277,10 @@ async def compare_cities(
         duration = __import__('time').time() - start_time
         metrics_collector.record_search_operation(",".join(cities), sum(1 for v in comparison.values() if v), duration)
         
+        # Log cache statistics
+        cache_hits = sum(1 for _, is_cached in cache_stats if is_cached)
+        logger.info(f"Compare cities completed for {len(cities)} cities. Cache hits: {cache_hits}/{len(cities)}")
+        
         return comparison
     
     except Exception as e:
@@ -292,8 +305,11 @@ async def get_top_rated_properties(
     
     try:
         # Fetch properties
-        search_service = SearchService()
-        properties = await search_service.search(city, property_type)
+        search_service = OptimizedSearchService()
+        properties, is_cached, stats = await search_service.search_cached(city, property_type)
+        
+        # Log cache statistics
+        logger.info(f"Top rated properties search for {city} completed. Properties found: {len(properties)}. Cache hit: {is_cached}")
         
         if not properties:
             return []

@@ -15,6 +15,7 @@ from app.parsers.domclick.parser import DomclickParser
 from app.parsers.base_parser import BaseParser
 from app.utils.parser_errors import ErrorClassifier, ErrorSeverity
 from app.utils.metrics import metrics_collector
+from app.utils.performance_profiling import profile_function
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ class SearchService:
         """Инициализация сервиса поиска."""
         self.parsers: List[BaseParser] = [AvitoParser(), CianParser(), DomofondParser(), YandexRealtyParser(), DomclickParser()]
 
+    @profile_function
     async def search(self, city: str, property_type: str = "Квартира") -> List[Property]:
         """
         Поиск недвижимости с использованием параллельного выполнения парсеров.
@@ -127,6 +129,7 @@ class SearchService:
         
         return unique_properties
 
+    @profile_function
     async def _parse_with_parser(self, parser: BaseParser, city: str, property_type: str) -> List[Property]:
         """
         Выполняет парсинг с конкретным парсером с обработкой ошибок и повторными попытками.

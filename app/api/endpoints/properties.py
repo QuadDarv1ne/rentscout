@@ -9,6 +9,7 @@ from app.models.schemas import Property, PropertyCreate, PaginatedProperties
 from app.services.cache import cache
 from app.services.filter import PropertyFilter
 from app.services.search import SearchService
+from app.services.optimized_search import OptimizedSearchService
 from app.services.export import ExportService
 from app.utils.logger import logger
 from app.utils.retry import retry
@@ -26,8 +27,9 @@ router = APIRouter()
 @retry(max_attempts=3, initial_delay=1.0, exceptions=(Exception,))
 async def _search_properties(city: str, property_type: str) -> List[PropertyCreate]:
     """Вспомогательная функция поиска с поддержкой повторных попыток."""
-    search_service = SearchService()
-    return await search_service.search(city, property_type)
+    search_service = OptimizedSearchService()
+    results, is_cached, stats = await search_service.search_cached(city, property_type)
+    return results
 
 
 @router.get(
@@ -113,6 +115,9 @@ async def get_properties(
     try:
         # Используем вспомогательную функцию с retry логикой
         all_properties = await _search_properties(city, property_type)
+        
+        # Log cache statistics
+        logger.info(f"Search for {city} completed. Properties found: {len(all_properties)}")
 
         # Apply filters
         property_filter = PropertyFilter(
@@ -262,8 +267,8 @@ async def export_properties(
             )
         
         # Получаем свойства
-        search_service = SearchService()
-        all_properties = await search_service.search(city, property_type)
+        search_service = OptimizedSearchService()
+        all_properties, is_cached, stats = await search_service.search_cached(city, property_type)
         
         # Применяем фильтры
         property_filter = PropertyFilter(
@@ -290,6 +295,9 @@ async def export_properties(
         
         # Экспортируем в выбранном формате
         export_service = ExportService()
+        
+        # Log cache statistics
+        logger.info(f"Export for {city} completed. Properties exported: {len(filtered_properties)}. Cache hit: {is_cached}")
         
         if format == "csv":
             content = export_service.to_csv(filtered_properties)
