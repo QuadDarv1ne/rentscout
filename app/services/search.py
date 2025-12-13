@@ -16,6 +16,7 @@ from app.parsers.base_parser import BaseParser
 from app.utils.parser_errors import ErrorClassifier, ErrorSeverity
 from app.utils.metrics import metrics_collector
 from app.utils.performance_profiling import profile_function
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -41,11 +42,41 @@ class SearchService:
         """
         start_time = time.time()
         
-        # Выполняем парсеры параллельно
-        parser_tasks = [self._parse_with_parser(parser, city, property_type) for parser in self.parsers]
+        # Выполняем парсеры параллельно с индивидуальными таймаутами
+        individual_timeout = getattr(settings, 'PARSER_TIMEOUT', 15.0)
+        overall_timeout = getattr(settings, 'SEARCH_TIMEOUT', 45.0)
+        
+        # Convert to float as settings are integers
+        individual_timeout = float(individual_timeout)
+        overall_timeout = float(overall_timeout)
+        
+        parser_tasks = [
+            asyncio.wait_for(
+                self._parse_with_parser(parser, city, property_type),
+                timeout=individual_timeout  # Individual parser timeout
+            ) 
+            for parser in self.parsers
+        ]
 
-        # Ждем завершения всех задач
-        parser_results = await asyncio.gather(*parser_tasks, return_exceptions=True)
+        # Ждем завершения всех задач с общим таймаутом
+        try:
+            raw_results = await asyncio.wait_for(
+                asyncio.gather(*parser_tasks, return_exceptions=True),
+                timeout=overall_timeout
+            )
+            # Process results, handling TimeoutError exceptions
+            parser_results = []
+            for i, result in enumerate(raw_results):
+                if isinstance(result, asyncio.TimeoutError):
+                    parser_name = self.parsers[i].__class__.__name__
+                    logger.warning(f"Parser {parser_name} timed out for {city}")
+                    parser_results.append(Exception(f"Parser {parser_name} timed out"))
+                else:
+                    parser_results.append(result)
+        except asyncio.TimeoutError:
+            logger.warning(f"Overall search timeout exceeded for {city} (timeout: {overall_timeout}s)")
+            # Return partial results or empty list
+            parser_results = []
 
         # Собираем результаты, логируя ошибки с учетом их типа
         all_properties = []

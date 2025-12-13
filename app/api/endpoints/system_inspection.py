@@ -17,6 +17,7 @@ import psutil
 import asyncio
 
 from app.utils.logger import logger
+from app.utils.db_pool_monitor import get_db_pool_health
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
@@ -33,12 +34,16 @@ async def system_health() -> Dict[str, Any]:
     """
     try:
         # Get component statuses
+        # Get database pool health
+        db_pool_health = get_db_pool_health()
+        
         components = {
             "api": "operational",
             "cache": "operational",
             "database": "operational",
             "metrics": "operational",
             "parsers": "operational",
+            "db_pool": "operational" if db_pool_health["health_status"] == "healthy" else "degraded"
         }
         
         # Determine overall status
@@ -185,6 +190,21 @@ async def system_processes(
         }
     except Exception as e:
         logger.error(f"Failed to get processes: {e}")
+        return {"error": str(e)}
+
+
+@router.get("/db-pool")
+async def system_db_pool() -> Dict[str, Any]:
+    """
+    Get database connection pool statistics and health.
+    
+    Returns:
+        Database pool statistics and health metrics
+    """
+    try:
+        return get_db_pool_health()
+    except Exception as e:
+        logger.error(f"Failed to get database pool info: {e}")
         return {"error": str(e)}
 
 

@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     # Timeout settings
     REQUEST_TIMEOUT: int = Field(default=30, ge=5, le=300, description="Timeout для HTTP запросов")
     PARSER_TIMEOUT: int = Field(default=60, ge=10, le=600, description="Timeout для парсеров")
+    SEARCH_TIMEOUT: int = Field(default=120, ge=30, le=600, description="Общий timeout для поиска")
     
     # Retry settings
     MAX_RETRIES: int = Field(default=3, ge=1, le=10, description="Макс повторы запросов")

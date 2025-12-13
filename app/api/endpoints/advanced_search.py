@@ -163,8 +163,11 @@ async def get_city_statistics(
     
     try:
         # Fetch properties
-        search_service = SearchService()
-        properties = await search_service.search(city, property_type)
+        search_service = OptimizedSearchService()
+        properties, is_cached, stats = await search_service.search_cached(city, property_type)
+        
+        # Log cache statistics
+        logger.info(f"City statistics search for {city} completed. Properties found: {len(properties)}. Cache hit: {is_cached}")
         
         if not properties:
             return {

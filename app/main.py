@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Dict, Any
 from pathlib import Path
 
-from app.api.endpoints import health, properties, tasks, properties_db, advanced_search, notifications, bookmarks, ml_predictions, quality_metrics, advanced_metrics, batch_operations, error_handling, duplicates, cache_optimization, system_inspection, ml_cache_ttl, distributed_tracing, auto_scaling, advanced_analytics, performance_profiling
+from app.api.endpoints import health, properties, tasks, properties_db, advanced_search, notifications, bookmarks, ml_predictions, quality_metrics, advanced_metrics, batch_operations, error_handling, duplicates, cache_optimization, system_inspection, ml_cache_ttl, distributed_tracing, auto_scaling, advanced_analytics, performance_profiling, db_pool_monitoring
 from app.core.config import settings
 from app.services.advanced_cache import advanced_cache_manager
 from app.services.search import SearchService
@@ -248,6 +248,8 @@ app.include_router(distributed_tracing.router, prefix="", tags=["distributed-tra
 app.include_router(auto_scaling.router, prefix="", tags=["auto-scaling"])
 app.include_router(advanced_analytics.router, prefix="", tags=["advanced-analytics"])
 app.include_router(performance_profiling.router, prefix="", tags=["performance-profiling"])
+app.include_router(db_pool_monitoring.router, prefix="", tags=["database-pool-monitoring"])
+
 
 # Инициализация Prometheus инструментатора
 Instrumentator().instrument(app).expose(app)
