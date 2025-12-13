@@ -10,10 +10,11 @@ Provides comprehensive system health monitoring and diagnostics:
 """
 
 from fastapi import APIRouter, Query
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 import platform
 import psutil
+import asyncio
 
 from app.utils.logger import logger
 
@@ -371,11 +372,12 @@ async def system_status() -> Dict[str, Any]:
     try:
         cpu_percent = psutil.cpu_percent(interval=0.1)
         memory = psutil.virtual_memory()
+        disk = psutil.disk_usage('/')
         
         # Determine status
-        if cpu_percent > 90 or memory.percent > 90:
+        if cpu_percent > 90 or memory.percent > 90 or disk.percent > 95:
             status = "critical"
-        elif cpu_percent > 75 or memory.percent > 75:
+        elif cpu_percent > 75 or memory.percent > 75 or disk.percent > 85:
             status = "warning"
         else:
             status = "healthy"
@@ -385,12 +387,347 @@ async def system_status() -> Dict[str, Any]:
             "cpu_percent": round(cpu_percent, 2),
             "memory_percent": round(memory.percent, 2),
             "memory_available_mb": round(memory.available / (1024**2), 2),
+            "disk_percent": round(disk.percent, 2),
+            "disk_free_gb": round(disk.free / (1024**3), 2),
             "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to get system status: {e}")
         return {
             "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+@router.get("/load-average")
+async def system_load_average() -> Dict[str, Any]:
+    """
+    Get system load average (Linux/Unix only).
+    
+    Returns:
+        - load_avg_1min: Load average over 1 minute
+        - load_avg_5min: Load average over 5 minutes
+        - load_avg_15min: Load average over 15 minutes
+        - cpu_count: Number of CPU cores
+    """
+    try:
+        # Load average is only available on Unix systems
+        if hasattr(psutil, 'getloadavg'):
+            load_avg = psutil.getloadavg()
+            cpu_count = psutil.cpu_count()
+            
+            return {
+                "load_avg_1min": round(load_avg[0], 2),
+                "load_avg_5min": round(load_avg[1], 2),
+                "load_avg_15min": round(load_avg[2], 2),
+                "cpu_count": cpu_count,
+                "load_per_cpu_1min": round(load_avg[0] / cpu_count, 2) if cpu_count > 0 else 0,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "status": "unsupported",
+                "message": "Load average not available on this platform",
+                "timestamp": datetime.now().isoformat()
+            }
+    except Exception as e:
+        logger.error(f"Failed to get load average: {e}")
+        return {
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+@router.get("/disk-io")
+async def system_disk_io() -> Dict[str, Any]:
+    """
+    Get disk I/O statistics.
+    
+    Returns:
+        - read_bytes: Bytes read
+        - write_bytes: Bytes written
+        - read_count: Read operations
+        - write_count: Write operations
+        - read_speed: Read speed (bytes/sec)
+        - write_speed: Write speed (bytes/sec)
+    """
+    try:
+        # Get initial counters
+        disk_io_1 = psutil.disk_io_counters()
+        await asyncio.sleep(1)  # Wait 1 second
+        disk_io_2 = psutil.disk_io_counters()
+        
+        if disk_io_1 and disk_io_2:
+            # Calculate speeds
+            read_speed = disk_io_2.read_bytes - disk_io_1.read_bytes
+            write_speed = disk_io_2.write_bytes - disk_io_1.write_bytes
+            
+            return {
+                "read_bytes": disk_io_2.read_bytes,
+                "write_bytes": disk_io_2.write_bytes,
+                "read_count": disk_io_2.read_count,
+                "write_count": disk_io_2.write_count,
+                "read_speed_bytes_per_sec": read_speed,
+                "write_speed_bytes_per_sec": write_speed,
+                "read_speed_mb_per_sec": round(read_speed / (1024**2), 2),
+                "write_speed_mb_per_sec": round(write_speed / (1024**2), 2),
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "status": "unavailable",
+                "message": "Disk I/O counters not available",
+                "timestamp": datetime.now().isoformat()
+            }
+    except Exception as e:
+        logger.error(f"Failed to get disk I/O stats: {e}")
+        return {
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+@router.get("/network-io")
+async def system_network_io() -> Dict[str, Any]:
+    """
+    Get network I/O statistics.
+    
+    Returns:
+        - bytes_sent: Bytes sent
+        - bytes_recv: Bytes received
+        - packets_sent: Packets sent
+        - packets_recv: Packets received
+        - speed_sent: Send speed (bytes/sec)
+        - speed_recv: Receive speed (bytes/sec)
+    """
+    try:
+        # Get initial counters
+        net_io_1 = psutil.net_io_counters()
+        await asyncio.sleep(1)  # Wait 1 second
+        net_io_2 = psutil.net_io_counters()
+        
+        if net_io_1 and net_io_2:
+            # Calculate speeds
+            send_speed = net_io_2.bytes_sent - net_io_1.bytes_sent
+            recv_speed = net_io_2.bytes_recv - net_io_1.bytes_recv
+            
+            return {
+                "bytes_sent": net_io_2.bytes_sent,
+                "bytes_recv": net_io_2.bytes_recv,
+                "packets_sent": net_io_2.packets_sent,
+                "packets_recv": net_io_2.packets_recv,
+                "speed_sent_bytes_per_sec": send_speed,
+                "speed_recv_bytes_per_sec": recv_speed,
+                "speed_sent_mb_per_sec": round(send_speed / (1024**2), 2),
+                "speed_recv_mb_per_sec": round(recv_speed / (1024**2), 2),
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "status": "unavailable",
+                "message": "Network I/O counters not available",
+                "timestamp": datetime.now().isoformat()
+            }
+    except Exception as e:
+        logger.error(f"Failed to get network I/O stats: {e}")
+        return {
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+@router.get("/temperature")
+async def system_temperature() -> Dict[str, Any]:
+    """
+    Get system temperature sensors (if available).
+    
+    Returns:
+        - temperatures: List of temperature sensors
+        - critical_sensors: Sensors with critical temperatures
+    """
+    try:
+        temps = psutil.sensors_temperatures()
+        
+        if temps:
+            temp_data = {}
+            critical_sensors = []
+            
+            for name, entries in temps.items():
+                temp_data[name] = []
+                for entry in entries:
+                    temp_info = {
+                        "label": entry.label or "N/A",
+                        "current": entry.current,
+                        "high": entry.high,
+                        "critical": entry.critical
+                    }
+                    temp_data[name].append(temp_info)
+                    
+                    # Check if temperature is critical
+                    if entry.critical and entry.current >= entry.critical:
+                        critical_sensors.append({
+                            "sensor": name,
+                            "label": entry.label or "N/A",
+                            "current": entry.current,
+                            "critical": entry.critical
+                        })
+            
+            return {
+                "temperatures": temp_data,
+                "critical_sensors": critical_sensors,
+                "has_critical": len(critical_sensors) > 0,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "status": "unavailable",
+                "message": "Temperature sensors not available",
+                "timestamp": datetime.now().isoformat()
+            }
+    except Exception as e:
+        logger.error(f"Failed to get temperature data: {e}")
+        return {
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+@router.get("/battery")
+async def system_battery() -> Dict[str, Any]:
+    """
+    Get battery information (for laptops/mobile devices).
+    
+    Returns:
+        - percent: Battery charge percentage
+        - secsleft: Seconds left until empty
+        - power_plugged: Whether device is plugged in
+    """
+    try:
+        battery = psutil.sensors_battery()
+        
+        if battery:
+            return {
+                "percent": battery.percent,
+                "secsleft": battery.secsleft,
+                "power_plugged": battery.power_plugged,
+                "time_left_hours": round(battery.secsleft / 3600, 2) if battery.secsleft != psutil.POWER_TIME_UNLIMITED else "Unlimited",
+                "status": "plugged" if battery.power_plugged else "unplugged",
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "status": "unavailable",
+                "message": "Battery information not available (desktop system?)",
+                "timestamp": datetime.now().isoformat()
+            }
+    except Exception as e:
+        logger.error(f"Failed to get battery info: {e}")
+        return {
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+@router.get("/users")
+async def system_users() -> Dict[str, Any]:
+    """
+    Get currently logged-in users.
+    
+    Returns:
+        - users: List of logged-in users
+        - count: Number of users
+    """
+    try:
+        users = psutil.users()
+        user_list = []
+        
+        for user in users:
+            user_list.append({
+                "name": user.name,
+                "terminal": user.terminal,
+                "host": user.host,
+                "started": datetime.fromtimestamp(user.started).isoformat(),
+                "pid": user.pid
+            })
+        
+        return {
+            "users": user_list,
+            "count": len(user_list),
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to get user info: {e}")
+        return {
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+@router.get("/boot-time")
+async def system_boot_time() -> Dict[str, Any]:
+    """
+    Get system boot time.
+    
+    Returns:
+        - boot_time: Unix timestamp of boot time
+        - boot_time_iso: ISO formatted boot time
+        - uptime_seconds: System uptime in seconds
+    """
+    try:
+        boot_time = psutil.boot_time()
+        uptime = datetime.now().timestamp() - boot_time
+        
+        return {
+            "boot_time": boot_time,
+            "boot_time_iso": datetime.fromtimestamp(boot_time).isoformat(),
+            "uptime_seconds": int(uptime),
+            "uptime_human": f"{int(uptime // 86400)} days, {int((uptime % 86400) // 3600)} hours, {int((uptime % 3600) // 60)} minutes",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to get boot time: {e}")
+        return {
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+@router.get("/virtual-memory")
+async def system_virtual_memory() -> Dict[str, Any]:
+    """
+    Get detailed virtual memory statistics.
+    
+    Returns detailed memory information including swap.
+    """
+    try:
+        memory = psutil.virtual_memory()
+        swap = psutil.swap_memory()
+        
+        return {
+            "virtual_memory": {
+                "total_mb": round(memory.total / (1024**2), 2),
+                "available_mb": round(memory.available / (1024**2), 2),
+                "used_mb": round(memory.used / (1024**2), 2),
+                "free_mb": round(memory.free / (1024**2), 2),
+                "percent": memory.percent,
+                "buffers_mb": round(getattr(memory, 'buffers', 0) / (1024**2), 2),
+                "cached_mb": round(getattr(memory, 'cached', 0) / (1024**2), 2),
+                "shared_mb": round(getattr(memory, 'shared', 0) / (1024**2), 2)
+            },
+            "swap_memory": {
+                "total_mb": round(swap.total / (1024**2), 2),
+                "used_mb": round(swap.used / (1024**2), 2),
+                "free_mb": round(swap.free / (1024**2), 2),
+                "percent": swap.percent,
+                "swapped_in_mb": round(swap.sin / (1024**2), 2),
+                "swapped_out_mb": round(swap.sout / (1024**2), 2)
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to get virtual memory info: {e}")
+        return {
             "error": str(e),
             "timestamp": datetime.now().isoformat()
         }
