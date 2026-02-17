@@ -85,23 +85,27 @@ def test_db_pool_monitor_reset_stats(db_pool_monitor):
 
 def test_get_db_pool_health(db_pool_monitor):
     """Test get_db_pool_health function."""
-    # Test healthy status
+    # Test healthy status (20% utilization)
     db_pool_monitor.checkout_count = 2
-    db_pool_monitor.checkin_count = 2
-    health = get_db_pool_health()
-    assert health["health_status"] == "healthy"
-    assert len(health["recommendations"]) == 0
+    db_pool_monitor.checkin_count = 0
+    # Mock pool size to 10 for 20% utilization
+    with patch('app.utils.db_pool_monitor.engine.pool.size', return_value=10):
+        health = get_db_pool_health()
+        assert health["health_status"] == "healthy"
+        assert len(health["recommendations"]) == 0
     
-    # Test warning status
-    db_pool_monitor.checkout_count = 9
-    db_pool_monitor.checkin_count = 1
-    health = get_db_pool_health()
-    assert health["health_status"] == "warning"
-    assert len(health["recommendations"]) > 0
+    # Test warning status (80% utilization)
+    db_pool_monitor.checkout_count = 8
+    db_pool_monitor.checkin_count = 0
+    with patch('app.utils.db_pool_monitor.engine.pool.size', return_value=10):
+        health = get_db_pool_health()
+        assert health["health_status"] == "warning"
+        assert len(health["recommendations"]) > 0
     
-    # Test critical status
+    # Test critical status (95% utilization)
     db_pool_monitor.checkout_count = 19
     db_pool_monitor.checkin_count = 1
-    health = get_db_pool_health()
-    assert health["health_status"] == "critical"
-    assert len(health["recommendations"]) > 0
+    with patch('app.utils.db_pool_monitor.engine.pool.size', return_value=20):
+        health = get_db_pool_health()
+        assert health["health_status"] == "critical"
+        assert len(health["recommendations"]) > 0
