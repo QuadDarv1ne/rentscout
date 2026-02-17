@@ -68,8 +68,8 @@ async def get_properties(
     max_first_seen: Optional[str] = Query(None, description="Максимальная дата первого появления (ISO format)"),
     min_last_seen: Optional[str] = Query(None, description="Минимальная дата последнего появления (ISO format)"),
     max_last_seen: Optional[str] = Query(None, description="Максимальная дата последнего появления (ISO format)"),
-    sort_by: str = Query("price", regex="^(price|area|rooms|floor|first_seen|last_seen)$", description="Поле для сортировки (price, area, rooms, floor, first_seen, last_seen)"),
-    sort_order: str = Query("asc", regex="^(asc|desc)$", description="Порядок сортировки (asc или desc)"),
+    sort_by: str = Query("price", pattern="^(price|area|rooms|floor|first_seen|last_seen)$", description="Поле для сортировки (price, area, rooms, floor, first_seen, last_seen)"),
+    sort_order: str = Query("asc", pattern="^(asc|desc)$", description="Порядок сортировки (asc или desc)"),
     skip: int = Query(0, ge=0, description="Количество записей для пропуска"),
     limit: int = Query(50, ge=1, le=100, description="Максимальное количество записей в ответе (1-100)"),
     parsers: list = Depends(get_parsers),
@@ -230,8 +230,8 @@ async def export_properties(
     district: Optional[str] = Query(None),
     has_photos: Optional[bool] = Query(None),
     source: Optional[str] = Query(None),
-    sort_by: str = Query("price", regex="^(price|area|rooms|floor|first_seen|last_seen)$"),
-    sort_order: str = Query("asc", regex="^(asc|desc)$"),
+    sort_by: str = Query("price", pattern="^(price|area|rooms|floor|first_seen|last_seen)$"),
+    sort_order: str = Query("asc", pattern="^(asc|desc)$"),
 ) -> StreamingResponse:
     """
     Экспортировать результаты поиска в выбранном формате.

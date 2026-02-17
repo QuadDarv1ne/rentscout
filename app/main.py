@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Dict, Any
 from pathlib import Path
 
-from app.api.endpoints import health, properties, tasks, properties_db, advanced_search, notifications, bookmarks, ml_predictions, quality_metrics, advanced_metrics, batch_operations, error_handling, duplicates, cache_optimization, system_inspection, ml_cache_ttl, distributed_tracing, auto_scaling, advanced_analytics, performance_profiling, db_pool_monitoring
+from app.api.endpoints import health, properties, tasks, properties_db, advanced_search, notifications, bookmarks, ml_predictions, quality_metrics, advanced_metrics, batch_operations, error_handling, cache_optimization, system_inspection, ml_cache_ttl, distributed_tracing, auto_scaling, advanced_analytics, performance_profiling, db_pool_monitoring
 from app.core.config import settings
 from app.services.advanced_cache import advanced_cache_manager
 from app.services.search import SearchService
@@ -238,7 +238,7 @@ app.include_router(quality_metrics.router, prefix="/api", tags=["quality-metrics
 app.include_router(advanced_metrics.router, prefix="", tags=["metrics"])
 app.include_router(batch_operations.router, prefix="", tags=["batch-processing"])
 app.include_router(error_handling.router, prefix="", tags=["error-handling"])
-app.include_router(duplicates.router, prefix="", tags=["duplicates"])
+
 app.include_router(cache_optimization.router, prefix="", tags=["cache-optimization"])
 app.include_router(system_inspection.router, prefix="", tags=["system-inspection"])
 
