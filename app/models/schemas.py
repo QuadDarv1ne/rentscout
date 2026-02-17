@@ -106,6 +106,11 @@ class DeactivateResult(BaseModel):
     deactivated_count: int
 
 
+class PropertyResponse(Property):
+    """Ответ с данными объекта недвижимости."""
+    pass
+
+
 class PaginatedProperties(BaseModel):
     """Пагинированный ответ со списком свойств."""
     items: List[Property] = Field(..., description="Список объектов недвижимости")

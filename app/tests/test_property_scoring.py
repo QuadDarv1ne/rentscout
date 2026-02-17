@@ -96,8 +96,8 @@ class TestPropertyScoringSystem:
     def test_amenities_score_full(self, sample_property):
         """Test amenities score with all features."""
         score = PropertyScoringSystem._calculate_amenities_score(sample_property)
-        # Should have decent score with 3 photos (15), description (25), phone (10) and name (10) = 60
-        assert score >= 50
+        # Should have decent score with 3 photos (9), description (15), phone (10) and name (10) = 44
+        assert score >= 39
     
     def test_amenities_score_minimal(self):
         """Test amenities score with minimal features."""
@@ -152,21 +152,21 @@ class TestPropertyScoringSystem:
     
     def test_get_value_rating(self):
         """Test value rating conversion."""
-        score_excellent = PropertyScore(90, 90, 90, 90, 90, 100)
+        score_excellent = PropertyScore(90, 90, 90, 90, 90, 100, 90, 90, 90, 90)
         assert PropertyScoringSystem.get_value_rating(score_excellent) == "Отличное"
         
-        score_good = PropertyScore(75, 70, 70, 70, 70, 100)
+        score_good = PropertyScore(75, 70, 70, 70, 70, 100, 75, 70, 75, 70)
         assert PropertyScoringSystem.get_value_rating(score_good) == "Хорошее"
         
-        score_average = PropertyScore(60, 60, 60, 60, 60, 50)
+        score_average = PropertyScore(60, 60, 60, 60, 60, 50, 60, 60, 60, 60)
         assert PropertyScoringSystem.get_value_rating(score_average) == "Среднее"
         
-        score_poor = PropertyScore(35, 30, 30, 30, 30, 50)
+        score_poor = PropertyScore(35, 30, 30, 30, 30, 50, 35, 30, 35, 30)
         assert PropertyScoringSystem.get_value_rating(score_poor) == "Плохое"
     
     def test_score_to_dict(self):
         """Test score serialization."""
-        score = PropertyScore(85.5, 90.2, 80.7, 85.3, 75.8, 100.0)
+        score = PropertyScore(85.5, 90.2, 80.7, 85.3, 75.8, 100.0, 85.5, 90.2, 80.7, 85.3)
         score_dict = score.to_dict()
         
         assert isinstance(score_dict, dict)

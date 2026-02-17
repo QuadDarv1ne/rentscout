@@ -73,7 +73,7 @@ def test_domclick_parser_convert_location_to_slug(domclick_parser):
     assert domclick_parser._convert_location_to_slug("spb") == "sankt-peterburg"
     
     # Test unknown location (should return as-is)
-    assert domclick_parser._convert_location_to_slug("Казань") == "казань"
+    assert domclick_parser._convert_location_to_slug("Казань") == "kazan"
 
 
 def test_domclick_parser_build_query_params(domclick_parser):

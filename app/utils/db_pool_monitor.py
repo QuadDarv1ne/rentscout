@@ -30,15 +30,18 @@ class DatabasePoolMonitor:
     
     def _setup_event_listeners(self):
         """Setup SQLAlchemy event listeners for pool monitoring."""
+        # Use sync_engine for event listeners
+        sync_engine = engine.sync_engine
+        
         # Listen for connection checkout
-        @event.listens_for(engine, "checkout")
+        @event.listens_for(sync_engine, "checkout")
         def checkout_listener(dbapi_connection, connection_record, connection_proxy):
             self.checkout_count += 1
             connection_record.info['checkout_time'] = time.time()
             logger.debug(f"Connection checked out from pool. Total checkouts: {self.checkout_count}")
         
         # Listen for connection checkin
-        @event.listens_for(engine, "checkin")
+        @event.listens_for(sync_engine, "checkin")
         def checkin_listener(dbapi_connection, connection_record):
             self.checkin_count += 1
             checkout_time = connection_record.info.get('checkout_time')
@@ -48,19 +51,19 @@ class DatabasePoolMonitor:
                 logger.debug(f"Connection checked in to pool. Checkout duration: {duration:.3f}s")
         
         # Listen for connection creation
-        @event.listens_for(engine, "connect")
+        @event.listens_for(sync_engine, "connect")
         def connect_listener(dbapi_connection, connection_record):
             self.connect_count += 1
             logger.debug(f"New database connection created. Total connections: {self.connect_count}")
         
         # Listen for connection closure
-        @event.listens_for(engine, "close")
+        @event.listens_for(sync_engine, "close")
         def close_listener(dbapi_connection, connection_record):
             self.disconnect_count += 1
             logger.debug(f"Database connection closed. Total disconnections: {self.disconnect_count}")
         
         # Listen for connection errors
-        @event.listens_for(engine, "handle_error")
+        @event.listens_for(sync_engine, "handle_error")
         def error_listener(exception_context):
             self.connection_errors += 1
             logger.warning(f"Database connection error occurred. Total errors: {self.connection_errors}")

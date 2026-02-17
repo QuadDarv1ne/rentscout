@@ -600,7 +600,7 @@ class PricePredictorML:
         
         change = (second_half_avg - first_half_avg) / first_half_avg
         
-        if change > 0.03:  # 3% порог вместо 2%
+        if change > 0.025:  # 2.5% порог
             return "increasing"
         elif change < -0.03:
             return "decreasing"

@@ -24,8 +24,6 @@ engine = create_async_engine(
     pool_recycle=3600,  # Recycle connections after 1 hour
     poolclass=AsyncAdaptedQueuePool,  # More efficient pool implementation
     pool_reset_on_return="rollback",  # Reset connections on return to pool
-    # Enable connection pool events for monitoring
-    events=True,
 )
 
 # Create session factory

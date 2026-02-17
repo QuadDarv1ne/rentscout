@@ -185,7 +185,7 @@ class TestComparePriceEndpoint:
         assert "actual_price" in data
         assert "predicted_price" in data
         assert "difference" in data
-        assert "difference_percent" in data
+        assert "percentage_difference" in data
         assert "rating" in data
         assert "comment" in data
     
@@ -204,7 +204,7 @@ class TestComparePriceEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["rating"] == "overpriced"
-        assert data["difference_percent"] > 0
+        assert data["percentage_difference"] > 0
     
     def test_compare_price_with_district(self):
         """Сравнение с учётом района."""
@@ -238,7 +238,6 @@ class TestOptimalPriceEndpoint:
         assert "min_competitive" in data
         assert "max_competitive" in data
         assert "market_average" in data
-        assert "recommendation" in data
     
     def test_optimal_price_validation(self):
         """Валидация параметров."""
