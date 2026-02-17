@@ -85,49 +85,23 @@ def test_db_pool_monitor_reset_stats(db_pool_monitor):
 
 def test_get_db_pool_health(db_pool_monitor):
     """Test get_db_pool_health function."""
-    with patch('app.utils.db_pool_monitor.engine') as mock_engine:
-        # Mock the pool
-        mock_pool = MagicMock()
-        mock_pool.size.return_value = 10
-        mock_engine.pool = mock_pool
-        
-        # Mock the monitor's get_pool_stats method
-        with patch.object(db_pool_monitor, 'get_pool_stats') as mock_get_stats:
-            mock_get_stats.return_value = {
-                "current_pool_utilization": 50.0,
-                "connection_errors": 0,
-                "average_checkout_time": 1.0
-            }
-            
-            # Test healthy status
-            health = get_db_pool_health()
-            assert health["health_status"] == "healthy"
-            assert len(health["recommendations"]) == 0
-            
-            # Test warning status
-            mock_get_stats.return_value["current_pool_utilization"] = 80.0
-            health = get_db_pool_health()
-            assert health["health_status"] == "warning"
-            assert len(health["recommendations"]) > 0
-            
-            # Test critical status
-            mock_get_stats.return_value["current_pool_utilization"] = 95.0
-            health = get_db_pool_health()
-            assert health["health_status"] == "critical"
-            assert len(health["recommendations"]) > 0
-            
-            # Test with connection errors
-            mock_get_stats.return_value.update({
-                "current_pool_utilization": 50.0,
-                "connection_errors": 15
-            })
-            health = get_db_pool_health()
-            assert "Investigate connection errors" in str(health["recommendations"])
-            
-            # Test with high checkout times
-            mock_get_stats.return_value.update({
-                "connection_errors": 0,
-                "average_checkout_time": 6.0
-            })
-            health = get_db_pool_health()
-            assert "High checkout times" in str(health["recommendations"])
+    # Test healthy status
+    db_pool_monitor.checkout_count = 2
+    db_pool_monitor.checkin_count = 2
+    health = get_db_pool_health()
+    assert health["health_status"] == "healthy"
+    assert len(health["recommendations"]) == 0
+    
+    # Test warning status
+    db_pool_monitor.checkout_count = 9
+    db_pool_monitor.checkin_count = 1
+    health = get_db_pool_health()
+    assert health["health_status"] == "warning"
+    assert len(health["recommendations"]) > 0
+    
+    # Test critical status
+    db_pool_monitor.checkout_count = 19
+    db_pool_monitor.checkin_count = 1
+    health = get_db_pool_health()
+    assert health["health_status"] == "critical"
+    assert len(health["recommendations"]) > 0

@@ -20,24 +20,32 @@ async def db_engine():
     """Create test database engine."""
     from app.db.models.property import Base
     
-    # Use in-memory SQLite for tests
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        echo=False,
-        future=True,
-    )
+    # Use single test database file
+    import os
+    db_path = os.path.join(os.path.dirname(__file__), "test_database.db")
     
-    # Create tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    
-    yield engine
-    
-    # Drop tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    
-    await engine.dispose()
+    try:
+        engine = create_async_engine(
+            f"sqlite+aiosqlite:///{db_path}",
+            echo=False,
+            future=True,
+        )
+        
+        # Create tables
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        
+        yield engine
+        
+        # Drop tables
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+        
+        await engine.dispose()
+    finally:
+        # Clean up database file
+        if os.path.exists(db_path):
+            os.unlink(db_path)
 
 
 @pytest_asyncio.fixture

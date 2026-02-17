@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, UniqueConstraint, Index, Text
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import JSON
 
 from app.db.models.property import Base
 from app.utils.logger import logger
@@ -45,13 +45,13 @@ class UserBookmark(Base):
     property_price = Column(Integer)
     property_city = Column(String(255), index=True)
     property_link = Column(Text)
-    property_data = Column(JSONB, nullable=True)  # Полные данные объявления при добавлении
+    property_data = Column(JSON, nullable=True)  # Полные данные объявления при добавлении
     
     bookmark_type = Column(String(50), default=BookmarkType.FAVORITE.value, index=True)
     collection_name = Column(String(255), nullable=True, index=True)
     
     notes = Column(Text, nullable=True)  # Пользовательские заметки
-    tags = Column(JSONB, default=list)  # Теги для категоризации
+    tags = Column(JSON, default=list)  # Теги для категоризации
     
     rating = Column(Integer, nullable=True)  # Оценка пользователя (1-5)
     is_active = Column(Boolean, default=True, index=True)
@@ -87,9 +87,9 @@ class BookmarkStats(Base):
     total_viewed = Column(Integer, default=0)
     total_compared = Column(Integer, default=0)
     
-    favorite_cities = Column(JSONB, default=dict)  # {city: count}
-    favorite_sources = Column(JSONB, default=dict)  # {source: count}
-    favorite_price_range = Column(JSONB, nullable=True)  # {min: X, max: Y, avg: Z}
+    favorite_cities = Column(JSON, default=dict)  # {city: count}
+    favorite_sources = Column(JSON, default=dict)  # {source: count}
+    favorite_price_range = Column(JSON, nullable=True)  # {min: X, max: Y, avg: Z}
     
     collections_count = Column(Integer, default=0)
     tags_count = Column(Integer, default=0)
