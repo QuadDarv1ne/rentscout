@@ -1,5 +1,5 @@
 # Multi-stage build для оптимизации размера образа
-FROM python:3.9-slim as builder
+FROM python:3.14-slim as builder
 
 # Метаданные образа
 LABEL maintainer="QuadDarv1ne <your.email@example.com>"
@@ -29,7 +29,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # Production stage
-FROM python:3.9-slim
+FROM python:3.14-slim
 
 # Переменные окружения
 ENV PYTHONUNBUFFERED=1 \
