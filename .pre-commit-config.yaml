@@ -69,5 +69,5 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-        args: ['app/tests/', '-v', '--tb=short', '-x']
+        args: ['tests/', '-v', '--tb=short', '-x']
         stages: [commit]

@@ -27,7 +27,7 @@ class Settings(BaseSettings):
 
     # Network settings
     REDIS_URL: str = Field(
-        default="redis://:redis_password@redis:6379/0",
+        default="redis://:SecureP@ssw0rd!Redis123@redis:6379/0",
         description="URL для подключения к Redis"
     )
     ELASTICSEARCH_URL: str = Field(
@@ -43,7 +43,7 @@ class Settings(BaseSettings):
         description="Порт Elasticsearch"
     )
     DATABASE_URL: str = Field(
-        default="postgresql+asyncpg://postgres:postgres@localhost:5432/rentscout",
+        default="postgresql+asyncpg://postgres:SecureP@ssw0rd!Db123@localhost:5432/rentscout",
         description="URL для подключения к PostgreSQL"
     )
     
@@ -78,6 +78,13 @@ class Settings(BaseSettings):
     
     # Cache settings
     CACHE_TTL: int = Field(default=300, ge=0, le=86400, description="TTL кэша в секундах")
+
+    # HTTPS/SSL settings
+    HTTPS_ENABLED: bool = Field(default=False, description="Включить HTTPS")
+    SSL_CERT_FILE: Optional[str] = Field(default=None, description="Путь к SSL сертификату")
+    SSL_KEY_FILE: Optional[str] = Field(default=None, description="Путь к SSL ключу")
+    SSL_KEY_PASSWORD: Optional[str] = Field(default=None, description="Пароль для SSL ключа")
+    HSTS_ENABLED: bool = Field(default=True, description="Включить HSTS заголовок")
     
     @field_validator("DATABASE_URL")
     @classmethod

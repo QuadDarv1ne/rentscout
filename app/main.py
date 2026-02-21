@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Dict, Any
 from pathlib import Path
 
-from app.api.endpoints import health, properties, tasks, properties_db, advanced_search, notifications, bookmarks, ml_predictions, quality_metrics, advanced_metrics, batch_operations, error_handling, cache_optimization, system_inspection, ml_cache_ttl, distributed_tracing, auto_scaling, advanced_analytics, performance_profiling, db_pool_monitoring
+from app.api.endpoints import health, properties, tasks, properties_db, advanced_search, notifications, bookmarks, ml_predictions, quality_metrics, advanced_metrics, batch_operations, error_handling, cache_optimization, system_inspection, ml_cache_ttl, distributed_tracing, auto_scaling, advanced_analytics, performance_profiling, db_pool_monitoring, auth
 from app.core.config import settings
 from app.services.advanced_cache import advanced_cache_manager
 from app.services.search import SearchService
@@ -17,6 +17,7 @@ from app.utils.logger import logger
 from app.utils.metrics import MetricsMiddleware
 from app.utils.correlation_middleware import CorrelationIDMiddleware
 from app.utils.ip_ratelimiter import RateLimitMiddleware
+from app.middleware.security import HTTPSRedirectMiddleware, SecurityHeadersMiddleware, CORSMiddlewareConfig
 from app.utils.advanced_metrics import SystemMetricsCollector
 from app.db.models.session import init_db, close_db
 from app.utils.app_cache import app_cache
@@ -34,6 +35,10 @@ app_state: Dict[str, Any] = {
 }
 
 tags_metadata = [
+    {
+        "name": "authentication",
+        "description": "Аутентификация и управление пользователями. Включает регистрацию, вход, обновление токенов и управление профилем.",
+    },
     {
         "name": "properties",
         "description": "Онлайн-поиск объявлений через парсеры с фильтрацией и кэшированием.",
@@ -205,25 +210,28 @@ app = FastAPI(
 # Добавление middleware для correlation IDs (добавляем первым)
 app.add_middleware(CorrelationIDMiddleware)
 
+# Добавление middleware для HTTPS redirects и security headers
+app.add_middleware(HTTPSRedirectMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
+
 # Добавление middleware для rate limiting по IP
 app.add_middleware(RateLimitMiddleware)
 
 # Добавление middleware для сбора метрик
 app.add_middleware(MetricsMiddleware)
 
-# Добавление CORS middleware
+# Добавление CORS middleware с безопасной конфигурацией
+cors_config = CORSMiddlewareConfig.get_cors_config()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # В production следует указать конкретные origins
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    **cors_config
 )
 
 # Монтируем статические файлы
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 # Подключение маршрутов
+app.include_router(auth.router, prefix="/api", tags=["authentication"])
 app.include_router(properties.router, prefix="/api", tags=["properties"])
 app.include_router(advanced_search.router, prefix="/api", tags=["advanced-search"])
 app.include_router(properties_db.router, prefix="/api/db", tags=["properties-db"])

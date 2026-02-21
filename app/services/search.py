@@ -6,6 +6,7 @@ from typing import List, Dict, Any
 
 from app.db.crud import save_properties
 from app.db.repositories.property import bulk_create_properties
+from app.db.batch_insert import bulk_upsert_with_deduplication
 from app.models.schemas import Property, PropertyCreate
 from app.parsers.avito.parser import AvitoParser
 from app.parsers.cian.parser import CianParser
@@ -16,6 +17,8 @@ from app.parsers.base_parser import BaseParser
 from app.utils.parser_errors import ErrorClassifier, ErrorSeverity
 from app.utils.metrics import metrics_collector
 from app.utils.performance_profiling import profile_function
+from app.utils.circuit_breaker import ParserCircuitBreaker
+from app.utils.bloom_filter import DuplicateFilter
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -27,11 +30,19 @@ class SearchService:
     def __init__(self) -> None:
         """Инициализация сервиса поиска."""
         self.parsers: List[BaseParser] = [AvitoParser(), CianParser(), DomofondParser(), YandexRealtyParser(), DomclickParser()]
+        self.duplicate_filter = DuplicateFilter(
+            expected_items=100000,
+            false_positive_rate=0.001,  # 0.1% FP rate
+            use_exact_check=True,
+            exact_check_threshold=5000
+        )
+        logger.info("SearchService initialized with circuit breaker and bloom filter")
 
     @profile_function
     async def search(self, city: str, property_type: str = "Квартира") -> List[Property]:
         """
         Поиск недвижимости с использованием параллельного выполнения парсеров.
+        Использует circuit breaker для защиты от сбоев и bloom filter для дедупликации.
 
         Args:
             city: Город для поиска
@@ -41,20 +52,25 @@ class SearchService:
             Список найденных объектов недвижимости
         """
         start_time = time.time()
-        
+
         # Выполняем парсеры параллельно с индивидуальными таймаутами
         individual_timeout = getattr(settings, 'PARSER_TIMEOUT', 15.0)
         overall_timeout = getattr(settings, 'SEARCH_TIMEOUT', 45.0)
-        
+
         # Convert to float as settings are integers
         individual_timeout = float(individual_timeout)
         overall_timeout = float(overall_timeout)
-        
+
+        # Используем circuit breaker для каждого парсера
         parser_tasks = [
             asyncio.wait_for(
-                self._parse_with_parser(parser, city, property_type),
-                timeout=individual_timeout  # Individual parser timeout
-            ) 
+                ParserCircuitBreaker.call_parser(
+                    parser.__class__.__name__,
+                    self._parse_with_parser,
+                    parser, city, property_type
+                ),
+                timeout=individual_timeout
+            )
             for parser in self.parsers
         ]
 
@@ -70,46 +86,37 @@ class SearchService:
                 if isinstance(result, asyncio.TimeoutError):
                     parser_name = self.parsers[i].__class__.__name__
                     logger.warning(f"Parser {parser_name} timed out for {city}")
-                    parser_results.append(Exception(f"Parser {parser_name} timed out"))
+                    parser_results.append([])  # Пустой результат вместо ошибки
+                elif isinstance(result, Exception):
+                    parser_name = self.parsers[i].__class__.__name__
+                    logger.warning(f"Parser {parser_name} failed: {result}")
+                    parser_results.append([])
                 else:
                     parser_results.append(result)
         except asyncio.TimeoutError:
             logger.warning(f"Overall search timeout exceeded for {city} (timeout: {overall_timeout}s)")
-            # Return partial results or empty list
             parser_results = []
 
-        # Собираем результаты, логируя ошибки с учетом их типа
+        # Собираем результаты
         all_properties = []
         for i, result in enumerate(parser_results):
             if isinstance(result, Exception):
                 parser_name = self.parsers[i].__class__.__name__
-                # Классифицируем ошибку для более точного логирования
                 classification = ErrorClassifier.classify(result)
-                severity = classification.get("severity", ErrorSeverity.INFO)
-                
-                # Логируем в зависимости от уровня серьезности
-                if severity == ErrorSeverity.CRITICAL or severity == ErrorSeverity.ERROR:
-                    logger.error(f"Critical error in {parser_name}: {result}", exc_info=True)
-                elif severity == ErrorSeverity.WARNING:
-                    logger.warning(f"Warning in {parser_name}: {result}")
-                else:
-                    logger.info(f"Minor issue in {parser_name}: {result}")
-                    
-                # Записываем метрики для ошибок парсеров
+                logger.warning(f"Error in {parser_name} ({classification['type']}): {result}")
                 metrics_collector.record_parser_error(parser_name, classification.get("type", "Unknown"))
-            else:
+            elif result:  # Не пустой список
                 all_properties.extend(result)
 
-        # Удаляем дубликаты, сохраняя порядок
-        seen = set()
+        # Используем bloom filter для дедупликации
         unique_properties = []
         duplicates_count = 0
-        
+
         for prop in all_properties:
             # Создаем уникальный ключ из источника и внешнего ID
-            key = (prop.source, prop.external_id)
-            if key not in seen:
-                seen.add(key)
+            key = f"{prop.source}:{prop.external_id}"
+
+            if not self.duplicate_filter.is_duplicate(key):
                 unique_properties.append(prop)
             else:
                 duplicates_count += 1
@@ -117,35 +124,20 @@ class SearchService:
         # Сохраняем свойства в базу данных с помощью bulk операции для лучшей производительности
         if unique_properties:
             try:
-                # Преобразуем Property в PropertyCreate для сохранения
-                properties_to_save = [
-                    PropertyCreate(
-                        source=prop.source,
-                        external_id=prop.external_id,
-                        title=prop.title,
-                        description=prop.description,
-                        link=prop.link,
-                        price=prop.price,
-                        rooms=prop.rooms,
-                        area=prop.area,
-                        city=prop.city,
-                        district=prop.district,
-                        address=prop.address,
-                        latitude=prop.latitude,
-                        longitude=prop.longitude,
-                        location=prop.location,
-                        photos=prop.photos
-                    ) for prop in unique_properties
-                ]
+                # Используем оптимизированный batch insert с deduplication
+                stats = await bulk_upsert_with_deduplication(
+                    db=None,  # TODO: Передать db session когда будет доступен
+                    properties=unique_properties
+                )
                 
-                # Используем bulk операцию для лучшей производительности
-                # Note: We would need to pass the db session here, but for now we'll use the existing save_properties function
-                await save_properties(unique_properties)
+                logger.info(
+                    f"Database upsert completed: {stats['inserted']} inserted, "
+                    f"{stats['updated']} updated, {stats['duplicates_removed']} DB duplicates removed"
+                )
                 
-                logger.info(f"Saved {len(unique_properties)} unique properties to database")
                 for prop in unique_properties:
-                    # PropertyCreate is a Pydantic model, use attribute access
                     metrics_collector.record_property_processed(prop.source, "saved")
+                    
             except Exception as e:
                 logger.error(f"Error saving properties to database: {e}", exc_info=True)
                 metrics_collector.record_error("database_save")
@@ -155,9 +147,12 @@ class SearchService:
         metrics_collector.record_search_operation(city, len(unique_properties), duration)
         metrics_collector.record_duplicates_removed(duplicates_count)
 
-        logger.info(f"Search completed for {city}: found {len(all_properties)} properties, "
-                   f"{len(unique_properties)} unique, {duplicates_count} duplicates removed")
-        
+        logger.info(
+            f"Search completed for {city}: found {len(all_properties)} properties, "
+            f"{len(unique_properties)} unique, {duplicates_count} duplicates removed "
+            f"(bloom filter: {self.duplicate_filter.get_stats()})"
+        )
+
         return unique_properties
 
     @profile_function

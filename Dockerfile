@@ -43,9 +43,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Создание непривилегированного пользователя
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
-# Создание непривилегированного пользователя
-RUN groupadd -r appuser && useradd -r -g appuser appuser
-
 # Установка рабочей директории
 WORKDIR /app
 

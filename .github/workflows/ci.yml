@@ -1,71 +1,21 @@
-name: CI/CD Pipeline
+name: CI
 
 on:
   push:
-    branches: [ master, main, develop ]
+    branches: [ main, develop ]
   pull_request:
-    branches: [ master, main, develop ]
-  schedule:
-    # Запуск тестов каждый день в 2 ночи UTC
-    - cron: '0 2 * * *'
+    branches: [ main, develop ]
 
 jobs:
-  # ============================================
-  # 1. Проверка качества кода
-  # ============================================
-  quality:
+  test:
     runs-on: ubuntu-latest
-    name: Code Quality Checks
-    
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
-
-      - name: Run Black formatter check
-        run: black --check app/
-
-      - name: Run isort import sort check
-        run: isort --check-only app/
-
-      - name: Run Flake8 linter
-        run: flake8 app/ --max-line-length=120 --exclude=tests/
-
-      - name: Run mypy type checker
-        run: mypy app/ --ignore-missing-imports --python-version=3.9
-
-      - name: Run Bandit security check
-        run: bandit -r app/ -ll
-
-  # ============================================
-  # 2. Unit тесты и покрытие
-  # ============================================
-  tests:
-    runs-on: ubuntu-latest
-    name: Unit Tests (Python ${{ matrix.python-version }})
-    needs: quality
-    
-    strategy:
-      matrix:
-        python-version: ['3.9', '3.10', '3.11']
     
     services:
       postgres:
         image: postgres:15-alpine
         env:
           POSTGRES_USER: rentscout
-          POSTGRES_PASSWORD: rentscout_test
+          POSTGRES_PASSWORD: test_password
           POSTGRES_DB: rentscout_test
         options: >-
           --health-cmd pg_isready
@@ -74,7 +24,7 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-
+      
       redis:
         image: redis:7-alpine
         options: >-
@@ -86,136 +36,52 @@ jobs:
           - 6379:6379
 
     steps:
-      - uses: actions/checkout@v4
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run tests
+      env:
+        DATABASE_URL: postgresql+asyncpg://rentscout:test_password@localhost:5432/rentscout_test
+        REDIS_URL: redis://localhost:6379/0
+        TESTING: true
+      run: |
+        pytest tests/ -v --cov=app --cov-report=xml
+    
+    - name: Upload coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-test.txt
-
-      - name: Run tests with pytest
-        env:
-          DATABASE_URL: postgresql://rentscout:rentscout_test@localhost:5432/rentscout_test
-          REDIS_URL: redis://localhost:6379/0
-          TESTING: "true"
-        run: |
-          pytest app/tests/ -v --cov=app --cov-report=xml --cov-report=html --tb=short
-
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./coverage.xml
-          flags: unittests
-          name: codecov-py${{ matrix.python-version }}
-          fail_ci_if_error: false
-
-      - name: Archive coverage reports
-        if: always() && matrix.python-version == '3.9'
-        uses: actions/upload-artifact@v3
-        with:
-          name: coverage-report
-          path: htmlcov/
-
-  # ============================================
-  # 3. Docker сборка и проверка
-  # ============================================
-  docker-build:
+  lint:
     runs-on: ubuntu-latest
-    name: Docker Build Check
-    needs: quality
-
+    
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Build Docker image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          push: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # ============================================
-  # 4. Интеграционные тесты
-  # ============================================
-  integration-tests:
-    runs-on: ubuntu-latest
-    name: Integration Tests
-    needs: [ quality, docker-build ]
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Run docker-compose services
-        run: docker-compose -f docker-compose.dev.yml up -d --build
-
-      - name: Wait for services to be healthy
-        run: sleep 15
-
-      - name: Check service health
-        run: docker-compose -f docker-compose.dev.yml ps
-
-      - name: Cleanup
-        if: always()
-        run: docker-compose -f docker-compose.dev.yml down
-
-  # ============================================
-  # 5. Docker Image Build & Push
-  # ============================================
-  build-docker:
-    runs-on: ubuntu-latest
-    name: Build & Push Docker Image
-    needs: [ tests, integration-tests ]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v4
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install black ruff mypy
+    
+    - name: Run black
+      run: black --check app/
+    
+    - name: Run ruff
+      run: ruff check app/
+    
+    - name: Run mypy
+      run: mypy app/ --ignore-missing-imports

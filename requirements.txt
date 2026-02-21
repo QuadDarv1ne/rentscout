@@ -26,4 +26,11 @@ psycopg2-binary
 email-validator
 jinja2
 
+# Security
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+
+# Performance
+bitarray>=2.0.0
+
 

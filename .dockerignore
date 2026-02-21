@@ -1,111 +1,54 @@
-# Docker ignore для оптимизации build context
 # Git
-.git/
+.git
 .gitignore
-.gitattributes
+.github
 
 # Python
-__pycache__/
+__pycache__
 *.py[cod]
 *$py.class
 *.so
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# Virtual environments
 venv/
-.venv/
 env/
 ENV/
-env.bak/
-venv.bak/
+.venv
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.egg-info
 
 # IDE
-.vscode/
-.idea/
+.vscode
+.idea
 *.swp
 *.swo
-*~
-.DS_Store
+
+# Logs
+*.log
+logs/
 
 # Tests
-.pytest_cache/
+tests/
 .coverage
 htmlcov/
-.tox/
-.mypy_cache/
-.dmypy.json
-dmypy.json
+coverage.xml
 
 # Documentation
 docs/
 *.md
 !README.md
 
-# CI/CD
-.github/
-.gitlab-ci.yml
-.travis.yml
-
 # Docker
 docker-compose*.yml
 Dockerfile*
-!Dockerfile
-.dockerignore
-
-# Logs
-logs/
-*.log
-
-# Data
-data/
-*.db
-*.sqlite
 
 # Environment
 .env
 .env.*
 !.env.example
 
-# Temporary files
-tmp/
-temp/
-*.tmp
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Archives
-*.zip
-*.tar.gz
-*.rar
-
-# Scripts
-scripts/
-Makefile
-
-# Alembic (migrations run separately)
-alembic.ini
-alembic/versions/*.py
-
-# Configuration
-setup.cfg
-pyproject.toml
-requirements-dev.txt
-requirements-test.txt
+# Data
+data/
+*.db
+*.sqlite
