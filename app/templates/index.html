@@ -46,31 +46,64 @@
     <!-- Hero Section -->
     <section class="hero py-5">
         <div class="container text-center">
-            <h1 class="display-4 fw-bold mb-3">Найдите идеальное жильё для аренды</h1>
-            <p class="lead mb-4 text-muted">Агрегируем объявления с Avito, Cian и других популярных площадок</p>
+            <div class="hero-badge mb-3">
+                <span class="badge bg-gradient-primary px-3 py-2">
+                    <i class="bi bi-lightning-charge-fill me-1"></i>Быстрый и умный поиск
+                </span>
+            </div>
+            <h1 class="display-3 fw-bold mb-3 hero-title">Найдите идеальное жильё для аренды</h1>
+            <p class="lead mb-4 hero-subtitle">Агрегируем объявления с Avito, Cian и других популярных площадок</p>
+            
+            <!-- API Status Badge -->
+            <div class="api-status-badge mb-4" id="apiStatusBadge">
+                <span class="badge bg-secondary px-3 py-2">
+                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                    Проверка статуса API...
+                </span>
+            </div>
             
             <div class="row g-4 justify-content-center mb-5">
                 <div class="col-md-3 col-sm-6">
-                    <div class="card shadow-sm border-0 h-100">
-                        <div class="card-body text-center">
-                            <h2 class="display-5 text-primary fw-bold stat-number">15</h2>
-                            <p class="text-muted mb-0">Фильтров</p>
+                    <div class="card glass-card shadow-lg border-0 h-100">
+                        <div class="card-body text-center p-4">
+                            <div class="stat-icon mb-3">
+                                <i class="bi bi-funnel-fill text-primary"></i>
+                            </div>
+                            <h2 class="display-5 text-primary fw-bold stat-number" data-target="15">0</h2>
+                            <p class="text-muted mb-0 fw-semibold">Фильтров</p>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-3 col-sm-6">
-                    <div class="card shadow-sm border-0 h-100">
-                        <div class="card-body text-center">
-                            <h2 class="display-5 text-primary fw-bold stat-number">5</h2>
-                            <p class="text-muted mb-0">Источников</p>
+                    <div class="card glass-card shadow-lg border-0 h-100">
+                        <div class="card-body text-center p-4">
+                            <div class="stat-icon mb-3">
+                                <i class="bi bi-globe text-success"></i>
+                            </div>
+                            <h2 class="display-5 text-success fw-bold stat-number" data-target="5">0</h2>
+                            <p class="text-muted mb-0 fw-semibold">Источников</p>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-3 col-sm-6">
-                    <div class="card shadow-sm border-0 h-100">
-                        <div class="card-body text-center">
-                            <h2 class="display-5 text-primary fw-bold">24/7</h2>
-                            <p class="text-muted mb-0">Доступность</p>
+                    <div class="card glass-card shadow-lg border-0 h-100">
+                        <div class="card-body text-center p-4">
+                            <div class="stat-icon mb-3">
+                                <i class="bi bi-clock-fill text-warning"></i>
+                            </div>
+                            <h2 class="display-5 text-warning fw-bold">24/7</h2>
+                            <p class="text-muted mb-0 fw-semibold">Доступность</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <div class="card glass-card shadow-lg border-0 h-100">
+                        <div class="card-body text-center p-4">
+                            <div class="stat-icon mb-3">
+                                <i class="bi bi-house-fill text-info"></i>
+                            </div>
+                            <h2 class="display-5 text-info fw-bold stat-number" id="totalProperties">0</h2>
+                            <p class="text-muted mb-0 fw-semibold">Объявлений</p>
                         </div>
                     </div>
                 </div>
@@ -79,72 +112,105 @@
     </section>
 
     <!-- Quick Search -->
-    <section class="py-5 bg-light">
+    <section class="py-5 search-section">
         <div class="container">
-            <h2 class="text-center mb-4">Быстрый поиск</h2>
-            <form id="quickSearchForm">
-                <div class="row g-3 justify-content-center">
-                    <div class="col-md-4">
-                        <label for="city" class="form-label"><i class="bi bi-geo-alt text-primary"></i> Город</label>
-                        <input type="text" class="form-control form-control-lg" id="city" name="city" placeholder="Например: Москва">
+            <h2 class="text-center mb-4 section-title">
+                <i class="bi bi-search me-2"></i>Быстрый поиск
+            </h2>
+            <div class="search-card glass-card shadow-lg p-4">
+                <form id="quickSearchForm">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="city" class="form-label fw-semibold">
+                                <i class="bi bi-geo-alt text-primary"></i> Город
+                            </label>
+                            <input type="text" class="form-control form-control-lg" id="city" name="city" 
+                                   placeholder="Например: Москва" list="cityList">
+                            <datalist id="cityList">
+                                <option value="Москва">
+                                <option value="Санкт-Петербург">
+                                <option value="Казань">
+                                <option value="Екатеринбург">
+                                <option value="Новосибирск">
+                            </datalist>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="property_type" class="form-label fw-semibold">
+                                <i class="bi bi-house text-primary"></i> Тип жилья
+                            </label>
+                            <select class="form-select form-select-lg" id="property_type" name="property_type">
+                                <option value="">Любой</option>
+                                <option value="apartment">Квартира</option>
+                                <option value="room">Комната</option>
+                                <option value="house">Дом</option>
+                                <option value="studio">Студия</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="max_price" class="form-label fw-semibold">
+                                <i class="bi bi-currency-dollar text-primary"></i> Макс. цена
+                            </label>
+                            <input type="number" class="form-control form-control-lg" id="max_price" 
+                                   name="max_price" placeholder="50000">
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary btn-lg w-100 btn-gradient">
+                                <i class="bi bi-search me-2"></i>Найти жильё
+                            </button>
+                        </div>
                     </div>
-                    <div class="col-md-4">
-                        <label for="property_type" class="form-label"><i class="bi bi-house text-primary"></i> Тип жилья</label>
-                        <select class="form-select form-select-lg" id="property_type" name="property_type">
-                            <option value="">Любой</option>
-                            <option value="apartment">Квартира</option>
-                            <option value="room">Комната</option>
-                            <option value="house">Дом</option>
-                            <option value="studio">Студия</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary btn-lg w-100">
-                            <i class="bi bi-search me-2"></i>Найти
-                        </button>
-                    </div>
-                </div>
-            </form>
+                </form>
+            </div>
         </div>
     </section>
 
     <!-- Features -->
-    <section class="py-5">
+    <section class="py-5 features-section">
         <div class="container">
-            <h2 class="text-center mb-5">Возможности</h2>
+            <h2 class="text-center mb-5 section-title">
+                <i class="bi bi-stars me-2"></i>Возможности
+            </h2>
             <div class="row g-4">
                 <div class="col-md-6 col-lg-3">
-                    <div class="card h-100 text-center border-0 shadow-sm hover-card">
+                    <div class="card glass-card h-100 text-center border-0 shadow-lg hover-card feature-card">
                         <div class="card-body p-4">
-                            <div class="fs-1 mb-3">🔍</div>
-                            <h5 class="card-title">Умный поиск</h5>
+                            <div class="feature-icon mb-3">
+                                <i class="bi bi-search text-primary"></i>
+                            </div>
+                            <h5 class="card-title fw-bold">Умный поиск</h5>
                             <p class="card-text text-muted">Расширенные фильтры для точного подбора</p>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-6 col-lg-3">
-                    <div class="card h-100 text-center border-0 shadow-sm hover-card">
+                    <div class="card glass-card h-100 text-center border-0 shadow-lg hover-card feature-card">
                         <div class="card-body p-4">
-                            <div class="fs-1 mb-3">⚡</div>
-                            <h5 class="card-title">Быстрая работа</h5>
+                            <div class="feature-icon mb-3">
+                                <i class="bi bi-lightning-charge text-warning"></i>
+                            </div>
+                            <h5 class="card-title fw-bold">Быстрая работа</h5>
                             <p class="card-text text-muted">Результаты за миллисекунды благодаря кешированию</p>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-6 col-lg-3">
-                    <div class="card h-100 text-center border-0 shadow-sm hover-card">
+                    <div class="card glass-card h-100 text-center border-0 shadow-lg hover-card feature-card">
                         <div class="card-body p-4">
-                            <div class="fs-1 mb-3">🔄</div>
-                            <h5 class="card-title">Актуальность</h5>
+                            <div class="feature-icon mb-3">
+                                <i class="bi bi-arrow-repeat text-success"></i>
+                            </div>
+                            <h5 class="card-title fw-bold">Актуальность</h5>
                             <p class="card-text text-muted">Обновление данных в реальном времени</p>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-6 col-lg-3">
-                    <div class="card h-100 text-center border-0 shadow-sm hover-card">
+                    <div class="card glass-card h-100 text-center border-0 shadow-lg hover-card feature-card">
                         <div class="card-body p-4">
-                            <div class="fs-1 mb-3">📊</div>
-                            <h5 class="card-title">Аналитика</h5>
+                            <div class="feature-icon mb-3">
+                                <i class="bi bi-graph-up text-info"></i>
+                            </div>
+                            <h5 class="card-title fw-bold">Аналитика</h5>
                             <p class="card-text text-muted">Статистика и метрики по объявлениям</p>
                         </div>
                     </div>
