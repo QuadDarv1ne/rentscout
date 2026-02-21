@@ -200,6 +200,11 @@ class BatchPropertyInserter:
         location = prop.location or {}
         prop_dict = prop.model_dump()
         
+        # Вычисляем price_per_sqm если есть площадь
+        price_per_sqm = None
+        if prop_dict.get('area') and prop_dict.get('area') > 0:
+            price_per_sqm = prop_dict['price'] / prop_dict['area']
+        
         return {
             'source': prop_dict['source'],
             'external_id': prop_dict['external_id'],
@@ -207,6 +212,7 @@ class BatchPropertyInserter:
             'description': prop_dict.get('description'),
             'link': prop_dict.get('link'),
             'price': prop_dict['price'],
+            'price_per_sqm': price_per_sqm,
             'rooms': prop_dict.get('rooms'),
             'area': prop_dict.get('area'),
             'floor': prop_dict.get('floor'),

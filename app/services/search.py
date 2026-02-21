@@ -54,12 +54,8 @@ class SearchService:
         start_time = time.time()
 
         # Выполняем парсеры параллельно с индивидуальными таймаутами
-        individual_timeout = getattr(settings, 'PARSER_TIMEOUT', 15.0)
-        overall_timeout = getattr(settings, 'SEARCH_TIMEOUT', 45.0)
-
-        # Convert to float as settings are integers
-        individual_timeout = float(individual_timeout)
-        overall_timeout = float(overall_timeout)
+        individual_timeout = float(getattr(settings, 'PARSER_TIMEOUT', 15.0))
+        overall_timeout = float(getattr(settings, 'SEARCH_TIMEOUT', 45.0))
 
         # Используем circuit breaker для каждого парсера
         parser_tasks = [
@@ -86,7 +82,7 @@ class SearchService:
                 if isinstance(result, asyncio.TimeoutError):
                     parser_name = self.parsers[i].__class__.__name__
                     logger.warning(f"Parser {parser_name} timed out for {city}")
-                    parser_results.append([])  # Пустой результат вместо ошибки
+                    parser_results.append([])
                 elif isinstance(result, Exception):
                     parser_name = self.parsers[i].__class__.__name__
                     logger.warning(f"Parser {parser_name} failed: {result}")
@@ -105,7 +101,7 @@ class SearchService:
                 classification = ErrorClassifier.classify(result)
                 logger.warning(f"Error in {parser_name} ({classification['type']}): {result}")
                 metrics_collector.record_parser_error(parser_name, classification.get("type", "Unknown"))
-            elif result:  # Не пустой список
+            elif result:
                 all_properties.extend(result)
 
         # Используем bloom filter для дедупликации
@@ -113,26 +109,23 @@ class SearchService:
         duplicates_count = 0
 
         for prop in all_properties:
-            # Создаем уникальный ключ из источника и внешнего ID
             key = f"{prop.source}:{prop.external_id}"
-
             if not self.duplicate_filter.is_duplicate(key):
                 unique_properties.append(prop)
             else:
                 duplicates_count += 1
 
-        # Сохраняем свойства в базу данных с помощью bulk операции для лучшей производительности
+        # Сохраняем свойства в базу данных с помощью bulk операции
         if unique_properties:
             try:
-                # Используем оптимизированный batch insert с deduplication
                 stats = await bulk_upsert_with_deduplication(
-                    db=None,  # TODO: Передать db session когда будет доступен
+                    db=None,
                     properties=unique_properties
                 )
                 
                 logger.info(
-                    f"Database upsert completed: {stats['inserted']} inserted, "
-                    f"{stats['updated']} updated, {stats['duplicates_removed']} DB duplicates removed"
+                    f"Database upsert: {stats['inserted']} inserted, "
+                    f"{stats['updated']} updated, {stats['duplicates_removed']} DB duplicates"
                 )
                 
                 for prop in unique_properties:
@@ -148,9 +141,9 @@ class SearchService:
         metrics_collector.record_duplicates_removed(duplicates_count)
 
         logger.info(
-            f"Search completed for {city}: found {len(all_properties)} properties, "
-            f"{len(unique_properties)} unique, {duplicates_count} duplicates removed "
-            f"(bloom filter: {self.duplicate_filter.get_stats()})"
+            f"Search completed for {city}: {len(all_properties)} total, "
+            f"{len(unique_properties)} unique, {duplicates_count} duplicates, "
+            f"{duration:.2f}s"
         )
 
         return unique_properties

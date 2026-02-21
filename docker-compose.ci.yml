@@ -1,0 +1,79 @@
+# =============================================================================
+# Docker Compose для CI/CD
+# =============================================================================
+# Конфигурация для запуска в CI environment (GitHub Actions, GitLab CI).
+#
+# Использование:
+#   docker-compose -f docker-compose.ci.yml up -d
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database (Test)
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: rentscout-postgres-ci
+    environment:
+      - POSTGRES_USER=rentscout
+      - POSTGRES_PASSWORD=test_password
+      - POSTGRES_DB=rentscout_test
+    ports:
+      - "5432:5432"
+    volumes:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rentscout"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  # ---------------------------------------------------------------------------
+  # Redis Cache (Test)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: rentscout-redis-ci
+    command: redis-server
+    ports:
+      - "6379:6379"
+    volumes:
+      - /data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  # ---------------------------------------------------------------------------
+  # FastAPI Application (Test)
+  # ---------------------------------------------------------------------------
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rentscout-api-ci
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+asyncpg://rentscout:test_password@postgres:5432/rentscout_test
+      - TESTING=true
+      - DEBUG=false
+      - LOG_LEVEL=WARNING
+      - SENTRY_DSN=
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - rentscout-ci-network
+    volumes:
+      - ./tests:/app/tests
+      - ./app:/app/app
+
+networks:
+  rentscout-ci-network:
+    driver: bridge

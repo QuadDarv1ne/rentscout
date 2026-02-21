@@ -18,6 +18,7 @@ from app.utils.metrics import MetricsMiddleware
 from app.utils.correlation_middleware import CorrelationIDMiddleware
 from app.utils.ip_ratelimiter import RateLimitMiddleware
 from app.middleware.security import HTTPSRedirectMiddleware, SecurityHeadersMiddleware, CORSMiddlewareConfig
+from app.middleware.compression import GZipMiddleware
 from app.utils.advanced_metrics import SystemMetricsCollector
 from app.db.models.session import init_db, close_db
 from app.utils.app_cache import app_cache
@@ -213,6 +214,9 @@ app = FastAPI(
 
 # Добавление middleware для correlation IDs (добавляем первым)
 app.add_middleware(CorrelationIDMiddleware)
+
+# Добавление response compression для больших ответов
+app.add_middleware(GZipMiddleware, minimum_size=1000, compression_level=6)
 
 # Добавление middleware для HTTPS redirects и security headers
 app.add_middleware(HTTPSRedirectMiddleware)

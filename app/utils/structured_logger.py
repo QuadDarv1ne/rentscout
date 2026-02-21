@@ -86,10 +86,11 @@ class ContextualFormatter(logging.Formatter):
         reset = "\033[0m"
 
         # Базовое форматирование
+        from datetime import timezone
         level_color = colors.get(record.levelname, "")
         formatted = (
             f"{level_color}[{record.levelname}]{reset} "
-            f"{datetime.now(datetime.UTC).strftime('%H:%M:%S')} "
+            f"{datetime.now(timezone.utc).strftime('%H:%M:%S')} "
             f"{record.name}:{record.lineno} - "
             f"{record.getMessage()}"
         )

@@ -2,7 +2,7 @@
 API эндпоинты для аутентификации и управления пользователями.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import List, Optional
@@ -71,8 +71,8 @@ def create_user_in_db(user_data: UserCreate) -> UserInDB:
         email=user_data.email,
         hashed_password=get_password_hash(user_data.password),
         role=user_data.role,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
         is_active=True,
         is_verified=False,
     )
@@ -413,7 +413,7 @@ async def update_me(
             )
         user.hashed_password = get_password_hash(user_data.password)
     
-    user.updated_at = datetime.utcnow()
+    user.updated_at = datetime.now(timezone.utc)
     _mock_users_db[user.id] = user
     
     return {
@@ -577,7 +577,7 @@ async def update_user_role(
         )
     
     user.role = role
-    user.updated_at = datetime.utcnow()
+    user.updated_at = datetime.now(timezone.utc)
     _mock_users_db[user_id] = user
     
     logger.info(f"Роль пользователя изменена: {user.username} -> {role}")

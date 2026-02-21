@@ -83,8 +83,7 @@ class User(UserInDB):
     """Публичная модель пользователя."""
     hashed_password: str = Field(exclude=True)
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 # =============================================================================

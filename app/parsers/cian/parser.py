@@ -45,11 +45,14 @@ class CianParser(BaseParser):
         await rate_limiter.acquire("cian")
         
         try:
-            async with httpx.AsyncClient(timeout=settings.REQUEST_TIMEOUT) as client:
+            # Используем оптимизированный HTTP клиент из пула
+            from app.utils.http_pool import OptimizedHTTPClient
+            
+            async with OptimizedHTTPClient(name="cian") as client:
                 response = await client.get(url, params=query_params)
-                response.raise_for_status()  # Raise an exception for bad status codes
                 results = self._parse_html(response.text)
                 return await self.postprocess_results(results)
+                
         except asyncio.TimeoutError as e:
             parser_error = ParserTimeoutError(f"Timeout while fetching {url}: {e}")
             ParserErrorHandler.log_error(parser_error, context="CianParser.parse")
