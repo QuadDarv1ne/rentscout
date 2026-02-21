@@ -30,7 +30,7 @@ class ParseRequest(BaseModel):
 class BatchParseRequest(BaseModel):
     """Запрос на пакетный парсинг."""
     
-    cities: List[str] = Field(..., min_items=1, max_items=20, description="Список городов (макс 20)")
+    cities: List[str] = Field(..., min_length=1, max_length=20, description="Список городов (макс 20)")
     property_type: str = Field("Квартира", description="Тип недвижимости")
 
 

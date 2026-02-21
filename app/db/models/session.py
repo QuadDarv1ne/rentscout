@@ -44,10 +44,15 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         async def read_items(db: AsyncSession = Depends(get_db)):
             ...
     """
+    import time
+    start_time = time.perf_counter()
+    
     async with AsyncSessionLocal() as session:
         try:
-            # Log session acquisition for performance monitoring
-            logger.debug(f"Acquired database session from pool")
+            acquire_time = time.perf_counter() - start_time
+            if acquire_time > 1.0:
+                logger.warning(f"Slow DB session acquisition: {acquire_time:.2f}s")
+            
             yield session
             await session.commit()
         except Exception:
@@ -55,7 +60,9 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             raise
         finally:
             await session.close()
-            logger.debug(f"Released database session to pool")
+            total_time = time.perf_counter() - start_time
+            if total_time > 5.0:
+                logger.warning(f"Long DB session duration: {total_time:.2f}s")
 
 async def init_db():
     """Initialize database connection with pool statistics."""

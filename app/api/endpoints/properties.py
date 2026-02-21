@@ -28,7 +28,11 @@ router = APIRouter()
 async def _search_properties(city: str, property_type: str) -> List[PropertyCreate]:
     """Вспомогательная функция поиска с поддержкой повторных попыток."""
     search_service = OptimizedSearchService()
-    results, is_cached, stats = await search_service.search_cached(city, property_type)
+    results, is_cached, stats = await search_service.search_cached(
+        query="",
+        city=city,
+        filters={"property_type": property_type}
+    )
     return results
 
 
@@ -46,7 +50,7 @@ async def _search_properties(city: str, property_type: str) -> List[PropertyCrea
 )
 @cached(expire=300, prefix="properties_search")
 async def get_properties(
-    city: str = Query(..., min_length=2),
+    city: str = Query(default="Москва", min_length=2),
     property_type: str = Query("Квартира"),
     min_price: Optional[float] = Query(None, ge=0),
     max_price: Optional[float] = Query(None, ge=0),

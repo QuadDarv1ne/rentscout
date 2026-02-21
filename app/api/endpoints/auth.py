@@ -30,6 +30,7 @@ from app.dependencies.auth import (
     TokenData,
 )
 from app.utils.logger import logger
+from app.utils.auth_ratelimiter import auth_rate_limiter
 
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -92,22 +93,36 @@ def create_user_in_db(user_data: UserCreate) -> UserInDB:
     status_code=status.HTTP_201_CREATED,
     summary="Регистрация нового пользователя",
 )
-async def register(user_data: UserCreate) -> User:
+async def register(request: Request, user_data: UserCreate) -> User:
     """
     Регистрирует нового пользователя.
-    
+
     ### Требования к паролю:
     - Минимум 8 символов
     - Хотя бы одна заглавная буква
     - Хотя бы одна строчная буква
     - Хотя бы одна цифра
     - Хотя бы один специальный символ
-    
+
     ### Роли:
     - `user` - обычный пользователь (по умолчанию)
     - `admin` - администратор (только через приглашение)
     - `moderator` - модератор
     """
+    # Rate limiting для регистрации
+    client_ip = request.client.host if request.client else "unknown"
+    is_allowed, rate_info = await auth_rate_limiter.check_register_attempt(client_ip)
+
+    if not is_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": rate_info.get("error", "Превышен лимит попыток регистрации"),
+                "retry_after": rate_info.get("retry_after", 60),
+            },
+            headers={"Retry-After": str(rate_info.get("retry_after", 60))},
+        )
+
     # Проверка сложности пароля
     is_valid, problems = validate_password_strength(user_data.password)
     if not is_valid:
@@ -152,36 +167,63 @@ async def register(user_data: UserCreate) -> User:
     response_model=TokenPair,
     summary="Вход в систему",
 )
-async def login(form_data: OAuth2PasswordRequestForm = Depends()) -> TokenPair:
+async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()) -> TokenPair:
     """
     Аутентификация пользователя и получение токенов.
-    
+
     ### OAuth2 Password Flow:
     - username: Имя пользователя или email
     - password: Пароль
     - grant_type: password (по умолчанию)
     - scope: (опционально)
-    
+
     ### Возвращает:
     - `access_token`: JWT токен для доступа к API (24 часа)
     - `refresh_token`: Токен для обновления access токена (7 дней)
     - `token_type`: bearer
     - `expires_in`: Время жизни access токена в секундах
     """
+    # Rate limiting для login (защита от brute-force)
+    client_ip = request.client.host if request.client else "unknown"
+    is_allowed, rate_info = await auth_rate_limiter.check_login_attempt(
+        client_ip,
+        username=form_data.username
+    )
+
+    if not is_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": rate_info.get("error", "Превышен лимит попыток входа"),
+                "retry_after": rate_info.get("retry_after", 60),
+                "banned": rate_info.get("banned", False),
+            },
+            headers={"Retry-After": str(rate_info.get("retry_after", 60))},
+        )
+
     # Поиск пользователя по username или email
     user = get_user_by_username(form_data.username)
     if not user:
         user = get_user_by_email(form_data.username)
-    
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Неверное имя пользователя или пароль",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     # Проверка пароля
     if not verify_password(form_data.password, user.hashed_password):
+        # Логируем неудачную попытку (для мониторинга атак)
+        logger.warning(
+            f"Неудачная попытка входа",
+            extra_data={
+                "ip": client_ip,
+                "username": form_data.username,
+                "reason": "invalid_password",
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Неверное имя пользователя или пароль",
@@ -212,28 +254,42 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()) -> TokenPair:
     response_model=TokenPair,
     summary="Обновление токенов",
 )
-async def refresh_tokens(refresh_token: str) -> TokenPair:
+async def refresh_tokens(request: Request, refresh_token: str) -> TokenPair:
     """
     Обновляет пару токенов используя refresh токен.
-    
+
     ### Использование:
     1. Отправьте refresh_token полученный при логине
     2. Получите новую пару токенов
     3. Старые токены становятся невалидными
-    
+
     ### Когда использовать:
     - Когда access токен истёк
     - Перед истечением access токена (проактивно)
     """
+    # Rate limiting для refresh
+    client_ip = request.client.host if request.client else "unknown"
+    is_allowed, rate_info = await auth_rate_limiter.check_refresh_attempt(client_ip)
+
+    if not is_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": rate_info.get("error", "Превышен лимит попыток обновления токена"),
+                "retry_after": rate_info.get("retry_after", 60),
+            },
+            headers={"Retry-After": str(rate_info.get("retry_after", 60))},
+        )
+
     new_tokens = refresh_access_token(refresh_token)
-    
+
     if not new_tokens:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Неверный или истёкший refresh токен",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     return new_tokens
 
 

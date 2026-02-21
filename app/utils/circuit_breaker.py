@@ -363,3 +363,20 @@ __all__ = [
     # Декораторы
     "circuit_breaker",
 ]
+
+# Factory function для обратной совместимости
+async def get_circuit_breaker(
+    service_name: str,
+    config: Optional[CircuitBreakerConfig] = None
+) -> CircuitBreaker:
+    """
+    Получить или создать circuit breaker для сервиса.
+    
+    Args:
+        service_name: Имя сервиса
+        config: Опциональная конфигурация
+        
+    Returns:
+        CircuitBreaker instance
+    """
+    return await CircuitBreaker.get_breaker(service_name, config)

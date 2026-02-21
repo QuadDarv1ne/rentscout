@@ -109,47 +109,46 @@ class AvitoParser(BaseParser):
         return processed
 
     def _parse_html(self, html: str) -> list[PropertyCreate]:
-        soup = BeautifulSoup(html, "lxml")
+        from lxml import html as lxml_html
+        
+        tree = lxml_html.fromstring(html)
         properties = []
 
-        for item in soup.select("[data-marker='item']"):
+        for item in tree.xpath("//*[@data-marker='item']"):
             try:
-                # Extract basic information
-                title_elem = item.select_one("[itemprop='name']")
-                price_elem = item.select_one("[itemprop='price']")
-                link_elem = item.select_one("a[data-marker='item-title']")
+                # Extract basic information using XPath (faster than CSS selectors)
+                title_elem = item.xpath(".//*[@itemprop='name']")
+                price_elem = item.xpath(".//*[@itemprop='price']")
+                link_elem = item.xpath(".//a[@data-marker='item-title']")
 
-                if not all([title_elem, price_elem, link_elem]):
+                if not (title_elem and price_elem and link_elem):
                     continue
 
                 # Parse title for rooms and area information
-                title = title_elem.text.strip()
+                title = title_elem[0].text_content().strip()
                 rooms = self._extract_rooms_from_title(title)
                 area = self._extract_area_from_title(title)
 
-                # Extract photos
-                photos = []
-                img_elements = item.select("img")
-                for img in img_elements:
-                    if img.get("src"):
-                        photos.append(img["src"])
+                # Extract photos (limit to 5 for performance)
+                photos = [img.get("src") for img in item.xpath(".//img[@src]")[:5]]
 
                 # Extract additional information
                 location = self._extract_location(item)
                 description = self._extract_description(item)
 
                 # Extract link
-                link = self.BASE_URL + link_elem["href"] if link_elem.get("href") else None
+                href = link_elem[0].get("href")
+                link = self.BASE_URL + href if href else None
 
                 props = {
                     "source": "avito",
-                    "external_id": item["data-item-id"],
+                    "external_id": item.get("data-item-id"),
                     "title": title,
-                    "price": float(price_elem["content"]),
+                    "price": float(price_elem[0].get("content")),
                     "link": link,
                     "rooms": rooms,
                     "area": area,
-                    "photos": photos[:5],  # Limit to 5 photos
+                    "photos": photos,
                     "location": location,
                     "description": description,
                 }

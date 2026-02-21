@@ -229,6 +229,62 @@ class AdvancedCacheManager:
             logger.error(f"Error setting value in cache: {e}")
             return False
 
+    async def mget(self, keys: List[str]) -> List[Optional[Any]]:
+        """Batch получение значений из кеша."""
+        if not self.redis_client or not keys:
+            return [None] * len(keys)
+
+        try:
+            values = await self.redis_client.mget(keys)
+            results = []
+            for value in values:
+                if value:
+                    self.hits += 1
+                    metrics_collector.record_cache_hit()
+                    if value.startswith(b'COMPRESSED:'):
+                        compressed_data = value[11:]
+                        decompressed_data = zlib.decompress(compressed_data)
+                        results.append(pickle.loads(decompressed_data))
+                    else:
+                        results.append(pickle.loads(value))
+                else:
+                    self.misses += 1
+                    metrics_collector.record_cache_miss()
+                    results.append(None)
+            return results
+        except Exception as e:
+            self.errors += 1
+            metrics_collector.record_cache_error()
+            logger.error(f"Error batch getting values from cache: {e}")
+            return [None] * len(keys)
+
+    async def mset(self, items: Dict[str, Any], expire: int = settings.CACHE_TTL, compress: bool = True) -> bool:
+        """Batch сохранение значений в кеше."""
+        if not self.redis_client or not items:
+            return False
+
+        try:
+            pipeline = self.redis_client.pipeline()
+            for key, value in items.items():
+                serialized_value = pickle.dumps(value)
+                
+                if compress and len(serialized_value) > 1024:
+                    compressed_value = zlib.compress(serialized_value)
+                    final_value = b'COMPRESSED:' + compressed_value
+                else:
+                    final_value = serialized_value
+                
+                pipeline.setex(key, expire, final_value)
+            
+            await pipeline.execute()
+            logger.debug(f"Cache MSET: {len(items)} keys (TTL: {expire}s)")
+            return True
+        except Exception as e:
+            self.errors += 1
+            metrics_collector.record_cache_error()
+            logger.error(f"Error batch setting values in cache: {e}")
+            return False
+
     async def delete(self, key: str) -> bool:
         """Удаление значения из кеша."""
         if not self.redis_client:

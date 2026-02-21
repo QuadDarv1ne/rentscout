@@ -2,6 +2,7 @@
 
 import asyncio
 import functools
+import inspect
 import random
 from typing import Callable, Optional, Type, Tuple, TypeVar, Any
 
@@ -50,7 +51,7 @@ def retry(
     """
 
     def decorator(func: Callable) -> Callable:
-        is_async = asyncio.iscoroutinefunction(func)
+        is_async = inspect.iscoroutinefunction(func)
 
         if is_async:
 

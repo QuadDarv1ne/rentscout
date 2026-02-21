@@ -89,7 +89,7 @@ class ContextualFormatter(logging.Formatter):
         level_color = colors.get(record.levelname, "")
         formatted = (
             f"{level_color}[{record.levelname}]{reset} "
-            f"{datetime.utcnow().strftime('%H:%M:%S')} "
+            f"{datetime.now(datetime.UTC).strftime('%H:%M:%S')} "
             f"{record.name}:{record.lineno} - "
             f"{record.getMessage()}"
         )

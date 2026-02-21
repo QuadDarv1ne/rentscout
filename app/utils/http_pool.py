@@ -30,8 +30,19 @@ class HTTPClientPool:
     def __init__(self):
         if not hasattr(self, '_initialized'):
             self.clients: Dict[str, httpx.AsyncClient] = {}
+            self._request_count: Dict[str, int] = {}
+            self._error_count: Dict[str, int] = {}
             self._initialized = True
             logger.info("HTTPClientPool initialized")
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Получить статистику использования пула."""
+        return {
+            "active_clients": len(self.clients),
+            "client_names": list(self.clients.keys()),
+            "request_count": dict(self._request_count),
+            "error_count": dict(self._error_count),
+        }
     
     async def get_client(
         self,
@@ -94,10 +105,15 @@ class HTTPClientPool:
     async def close_all(self) -> None:
         """Закрыть все клиенты."""
         async with self._lock:
+            stats = self.get_stats()
+            logger.info(f"Closing HTTP pool. Final stats: {stats}")
+            
             for name, client in self.clients.items():
                 await client.aclose()
                 logger.info(f"Closed HTTP client '{name}'")
             self.clients.clear()
+            self._request_count.clear()
+            self._error_count.clear()
 
 
 # Global pool instance
@@ -169,14 +185,16 @@ class OptimizedHTTPClient:
             raise RuntimeError("Client not initialized. Use async context manager.")
         
         try:
+            http_pool._request_count[self.name] = http_pool._request_count.get(self.name, 0) + 1
             response = await self._client.get(url, params=params, **kwargs)
             response.raise_for_status()
             return response
-        except httpx.HTTPStatusError as e:
-            logger.warning(f"HTTP error {e.response.status_code} for {url}")
-            raise
-        except httpx.RequestError as e:
-            logger.error(f"Request error for {url}: {e}")
+        except (httpx.HTTPStatusError, httpx.RequestError) as e:
+            http_pool._error_count[self.name] = http_pool._error_count.get(self.name, 0) + 1
+            if isinstance(e, httpx.HTTPStatusError):
+                logger.warning(f"HTTP error {e.response.status_code} for {url}")
+            else:
+                logger.error(f"Request error for {url}: {e}")
             raise
     
     @retry(
@@ -207,14 +225,16 @@ class OptimizedHTTPClient:
             raise RuntimeError("Client not initialized. Use async context manager.")
         
         try:
+            http_pool._request_count[self.name] = http_pool._request_count.get(self.name, 0) + 1
             response = await self._client.post(url, data=data, json=json, **kwargs)
             response.raise_for_status()
             return response
-        except httpx.HTTPStatusError as e:
-            logger.warning(f"HTTP error {e.response.status_code} for {url}")
-            raise
-        except httpx.RequestError as e:
-            logger.error(f"Request error for {url}: {e}")
+        except (httpx.HTTPStatusError, httpx.RequestError) as e:
+            http_pool._error_count[self.name] = http_pool._error_count.get(self.name, 0) + 1
+            if isinstance(e, httpx.HTTPStatusError):
+                logger.warning(f"HTTP error {e.response.status_code} for {url}")
+            else:
+                logger.error(f"Request error for {url}: {e}")
             raise
 
 

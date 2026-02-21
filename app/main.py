@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Dict, Any
 from pathlib import Path
 
-from app.api.endpoints import health, properties, tasks, properties_db, advanced_search, notifications, bookmarks, ml_predictions, quality_metrics, advanced_metrics, batch_operations, error_handling, cache_optimization, system_inspection, ml_cache_ttl, distributed_tracing, auto_scaling, advanced_analytics, performance_profiling, db_pool_monitoring, auth
+from app.api.router_registration import register_all_routers
 from app.core.config import settings
 from app.services.advanced_cache import advanced_cache_manager
 from app.services.search import SearchService
@@ -22,6 +22,7 @@ from app.utils.advanced_metrics import SystemMetricsCollector
 from app.db.models.session import init_db, close_db
 from app.utils.app_cache import app_cache
 from app.utils.http_pool import http_pool
+from app.utils import sentry as sentry_utils
 from app.tasks.cache_maintenance import cache_maintenance, cache_warmer
 
 # Пути к статическим файлам и шаблонам
@@ -70,6 +71,9 @@ tags_metadata = [
 async def lifespan(app: FastAPI) -> AsyncGenerator:
     """Управление жизненным циклом приложения с graceful shutdown."""
     # Startup
+    # Инициализация Sentry для мониторинга ошибок
+    sentry_utils.init_sentry()
+
     logger.info(f"{settings.APP_NAME} application started")
     app_state["is_shutting_down"] = False
     app_state["active_requests"] = 0
@@ -230,31 +234,8 @@ app.add_middleware(
 # Монтируем статические файлы
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
-# Подключение маршрутов
-app.include_router(auth.router, prefix="/api", tags=["authentication"])
-app.include_router(properties.router, prefix="/api", tags=["properties"])
-app.include_router(advanced_search.router, prefix="/api", tags=["advanced-search"])
-app.include_router(properties_db.router, prefix="/api/db", tags=["properties-db"])
-app.include_router(health.router, prefix="/api", tags=["health"])
-app.include_router(tasks.router, prefix="/api", tags=["tasks"])
-app.include_router(notifications.router, prefix="/api", tags=["notifications"])
-app.include_router(bookmarks.router, prefix="/api", tags=["bookmarks"])
-app.include_router(ml_predictions.router, prefix="/api", tags=["ml-predictions"])
-app.include_router(quality_metrics.router, prefix="/api", tags=["quality-metrics"])
-app.include_router(advanced_metrics.router, prefix="", tags=["metrics"])
-app.include_router(batch_operations.router, prefix="", tags=["batch-processing"])
-app.include_router(error_handling.router, prefix="", tags=["error-handling"])
-
-app.include_router(cache_optimization.router, prefix="", tags=["cache-optimization"])
-app.include_router(system_inspection.router, prefix="", tags=["system-inspection"])
-
-# v2.2.0 Routers - ML, Tracing, Auto-scaling, Analytics, Profiling
-app.include_router(ml_cache_ttl.router, prefix="", tags=["ml-cache-ttl"])
-app.include_router(distributed_tracing.router, prefix="", tags=["distributed-tracing"])
-app.include_router(auto_scaling.router, prefix="", tags=["auto-scaling"])
-app.include_router(advanced_analytics.router, prefix="", tags=["advanced-analytics"])
-app.include_router(performance_profiling.router, prefix="", tags=["performance-profiling"])
-app.include_router(db_pool_monitoring.router, prefix="", tags=["database-pool-monitoring"])
+# Регистрируем все роутеры через централизованный модуль
+register_all_routers(app)
 
 
 # Инициализация Prometheus инструментатора

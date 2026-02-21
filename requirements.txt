@@ -33,4 +33,6 @@ passlib[bcrypt]>=1.7.4
 # Performance
 bitarray>=2.0.0
 
+# Monitoring
+sentry-sdk[fastapi]>=2.0.0
 
