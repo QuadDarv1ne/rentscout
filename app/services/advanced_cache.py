@@ -125,7 +125,7 @@ class AdvancedCacheManager:
         }
 
     async def connect(self):
-        """Подключение к Redis с повторными попытками."""
+        """Подключение к Redis с повторными попытками и connection pooling."""
         max_retries = 1  # Быстрая проверка в dev
         retry_delay = 0.5
         
@@ -134,8 +134,11 @@ class AdvancedCacheManager:
                 self.redis_client = redis.from_url(
                     self.redis_url,
                     decode_responses=False,
-                    socket_timeout=2,
-                    socket_connect_timeout=2,
+                    socket_timeout=5,
+                    socket_connect_timeout=5,
+                    max_connections=50,  # Connection pool size
+                    retry_on_timeout=True,
+                    health_check_interval=30,
                 )
                 await self.redis_client.ping()
                 logger.info(f"✅ Successfully connected to Redis at {self.redis_url}")

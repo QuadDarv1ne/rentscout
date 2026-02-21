@@ -1,7 +1,6 @@
 """
 API endpoints for property management with PostgreSQL persistence.
 """
-import logging
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 
@@ -25,8 +24,6 @@ from app.models.schemas import (
     DeactivateResult,
 )
 from app.utils.logger import logger
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/properties", tags=["properties"])
 

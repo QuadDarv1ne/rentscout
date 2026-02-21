@@ -6,7 +6,7 @@ import time
 
 from app.dependencies.parsers import get_parsers
 from app.models.schemas import Property, PropertyCreate, PaginatedProperties
-from app.services.cache import cache
+from app.services.advanced_cache import cached
 from app.services.filter import PropertyFilter
 from app.services.search import SearchService
 from app.services.optimized_search import OptimizedSearchService
@@ -44,7 +44,7 @@ async def _search_properties(city: str, property_type: str) -> List[PropertyCrea
     summary="Онлайн-поиск объявлений (алиас /properties)",
     response_description="Пагинированный список объявлений после фильтрации",
 )
-@cache(expire=300)
+@cached(expire=300, prefix="properties_search")
 async def get_properties(
     city: str = Query(..., min_length=2),
     property_type: str = Query("Квартира"),

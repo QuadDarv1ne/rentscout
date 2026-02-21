@@ -13,7 +13,7 @@ services:
     env_file:
       - .env
     environment:
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=redis://:redis_password@redis:6379/0
       - DATABASE_URL=postgresql://rentscout:rentscout_password@postgres:5432/rentscout
     depends_on:
       postgres:
@@ -67,7 +67,7 @@ services:
     networks:
       - rentscout-network
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: ["CMD", "redis-cli", "-a", "redis_password", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -82,7 +82,7 @@ services:
     env_file:
       - .env
     environment:
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=redis://:redis_password@redis:6379/0
       - DATABASE_URL=postgresql://rentscout:rentscout_password@postgres:5432/rentscout
     depends_on:
       - redis
@@ -103,7 +103,7 @@ services:
     env_file:
       - .env
     environment:
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=redis://:redis_password@redis:6379/0
       - DATABASE_URL=postgresql://rentscout:rentscout_password@postgres:5432/rentscout
     depends_on:
       - redis

@@ -766,37 +766,89 @@ async def bulk_upsert_properties(
     properties: List[PropertyCreate]
 ) -> Dict[str, int]:
     """
-    Bulk insert or update properties.
+    Bulk insert or update properties using efficient PostgreSQL UPSERT.
     Returns dict with counts of created and updated properties.
     """
     start_time = time.time()
     
-    created = 0
-    updated = 0
-    errors = 0
+    if not properties:
+        return {"created": 0, "updated": 0, "errors": 0}
     
-    for property_data in properties:
-        try:
-            _, is_created = await update_or_create_property(db, property_data)
-            if is_created:
-                created += 1
-            else:
-                updated += 1
-        except Exception as e:
-            errors += 1
-            logger.error(f"Error upserting property {property_data.external_id}: {e}")
-    
-    await db.commit()
-    
-    # Record metrics
-    duration = time.time() - start_time
-    metrics_collector.record_db_query("BULK_UPSERT", "properties", duration)
-    metrics_collector.record_task_processed("bulk_upsert", "success" if errors == 0 else "partial")
-    
-    logger.info(f"Bulk upsert completed: {created} created, {updated} updated, {errors} errors")
-    
-    return {
-        "created": created,
-        "updated": updated,
-        "errors": errors
-    }
+    try:
+        # Convert PropertyCreate objects to dictionaries
+        properties_dicts = []
+        for prop_data in properties:
+            location = prop_data.location or {}
+            prop_dict = prop_data.model_dump()
+            
+            properties_dicts.append({
+                "source": prop_dict["source"],
+                "external_id": prop_dict["external_id"],
+                "title": prop_dict["title"],
+                "description": prop_dict.get("description"),
+                "link": prop_dict.get("link"),
+                "price": prop_dict["price"],
+                "rooms": prop_dict.get("rooms"),
+                "area": prop_dict.get("area"),
+                "city": location.get("city"),
+                "district": location.get("district"),
+                "address": location.get("address"),
+                "latitude": location.get("latitude"),
+                "longitude": location.get("longitude"),
+                "location": location,
+                "photos": prop_dict.get("photos", []),
+                "last_seen": datetime.utcnow(),
+            })
+        
+        # Use PostgreSQL's INSERT ... ON CONFLICT DO UPDATE
+        stmt = insert(Property).values(properties_dicts)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=['source', 'external_id'],
+            set_={
+                'title': stmt.excluded.title,
+                'description': stmt.excluded.description,
+                'price': stmt.excluded.price,
+                'rooms': stmt.excluded.rooms,
+                'area': stmt.excluded.area,
+                'city': stmt.excluded.city,
+                'district': stmt.excluded.district,
+                'address': stmt.excluded.address,
+                'latitude': stmt.excluded.latitude,
+                'longitude': stmt.excluded.longitude,
+                'location': stmt.excluded.location,
+                'photos': stmt.excluded.photos,
+                'last_seen': stmt.excluded.last_seen,
+                'last_updated': datetime.utcnow(),
+            }
+        )
+        
+        await db.execute(stmt)
+        await db.commit()
+        
+        # Record metrics
+        duration = time.time() - start_time
+        metrics_collector.record_db_query("BULK_UPSERT", "properties", duration)
+        metrics_collector.record_task_processed("bulk_upsert", "success")
+        
+        # Note: We can't easily distinguish created vs updated in bulk upsert
+        # Return total count as created for simplicity
+        logger.info(f"Bulk upsert completed: {len(properties)} properties processed")
+        
+        return {
+            "created": len(properties),
+            "updated": 0,
+            "errors": 0
+        }
+        
+    except Exception as e:
+        await db.rollback()
+        duration = time.time() - start_time
+        metrics_collector.record_db_query("BULK_UPSERT", "properties", duration, error=True)
+        metrics_collector.record_task_processed("bulk_upsert", "error")
+        logger.error(f"Error in bulk upsert: {e}")
+        
+        return {
+            "created": 0,
+            "updated": 0,
+            "errors": len(properties)
+        }

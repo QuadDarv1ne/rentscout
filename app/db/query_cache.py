@@ -7,7 +7,7 @@ from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
 from datetime import datetime, timedelta
 from functools import wraps
 
-from app.services.cache import cache_manager
+from app.services.advanced_cache import advanced_cache_manager
 from app.utils.logger import logger
 
 T = TypeVar('T')
@@ -92,7 +92,7 @@ class QueryCache:
 
         # Try to get from cache
         try:
-            cached_data = await cache_manager.get(cache_key)
+            cached_data = await advanced_cache_manager.get(cache_key)
             if cached_data:
                 logger.debug(f"Cache hit for {cache_key}")
                 return cached_data
@@ -108,7 +108,7 @@ class QueryCache:
 
         # Cache result
         try:
-            await cache_manager.set(cache_key, data, ttl=ttl)
+            await advanced_cache_manager.set(cache_key, data, expire=ttl)
         except Exception as e:
             logger.warning(f"Cache set error: {str(e)}")
 
@@ -126,7 +126,7 @@ class QueryCache:
             Number of keys deleted
         """
         try:
-            count = await cache_manager.delete_pattern(pattern)
+            count = await advanced_cache_manager.clear_pattern(pattern)
             logger.info(f"Invalidated {count} cache keys matching {pattern}")
             return count
         except Exception as e:

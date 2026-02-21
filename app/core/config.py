@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     
     # Network settings
     REDIS_URL: str = Field(
-        default="redis://redis:6379/0",
+        default="redis://:redis_password@redis:6379/0",
         description="URL для подключения к Redis"
     )
     ELASTICSEARCH_URL: str = Field(
