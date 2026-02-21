@@ -136,7 +136,7 @@ class AdvancedCacheManager:
                     decode_responses=False,
                     socket_timeout=5,
                     socket_connect_timeout=5,
-                    max_connections=50,  # Connection pool size
+                    max_connections=settings.REDIS_MAX_CONNECTIONS,
                     retry_on_timeout=True,
                     health_check_interval=30,
                 )

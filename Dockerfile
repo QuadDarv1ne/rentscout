@@ -10,20 +10,13 @@ LABEL version="1.5.0"
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    POETRY_VERSION=1.7.1 \
-    POETRY_NO_INTERACTION=1 \
-    POETRY_VIRTUALENVS_CREATE=false
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Установка системных зависимостей
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
-    git \
     && rm -rf /var/lib/apt/lists/*
-
-# Создание непривилегированного пользователя
-RUN groupadd -r appuser && useradd -r -g appuser appuser
 
 # Установка рабочей директории
 WORKDIR /app
@@ -40,13 +33,15 @@ FROM python:3.9-slim
 
 # Переменные окружения
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PATH="/home/appuser/.local/bin:$PATH"
+    PYTHONDONTWRITEBYTECODE=1
 
 # Установка runtime зависимостей
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Создание непривилегированного пользователя
+RUN groupadd -r appuser && useradd -r -g appuser appuser
 
 # Создание непривилегированного пользователя
 RUN groupadd -r appuser && useradd -r -g appuser appuser

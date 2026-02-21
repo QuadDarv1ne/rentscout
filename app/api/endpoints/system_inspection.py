@@ -86,8 +86,8 @@ async def system_info() -> Dict[str, Any]:
                 result = subprocess.run(['wmic', 'os', 'get', 'lastbootuptime'], 
                                       capture_output=True, text=True)
                 # Parse Windows WMIC output
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to get system info: {e}")
         
         return {
             "platform": {
@@ -312,7 +312,8 @@ async def system_diagnostics() -> Dict[str, Any]:
                 "active_connections": len(connections),
                 "status": "healthy"
             }
-        except:
+        except Exception as e:
+            logger.debug(f"Network check failed: {e}")
             results["checks"]["network"] = {
                 "status": "unavailable"
             }

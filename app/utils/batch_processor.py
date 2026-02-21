@@ -272,7 +272,7 @@ async def batch_parse_example():
     # Progress callback
     def progress(parser_name: str, current: int, total: int):
         percentage = (current / total) * 100
-        print(f"[{parser_name}] Progress: {current}/{total} ({percentage:.1f}%)")
+        logger.info(f"[{parser_name}] Progress: {current}/{total} ({percentage:.1f}%)")
         
     # Создание процессора
     config = BatchConfig(
@@ -283,7 +283,7 @@ async def batch_parse_example():
     processor = BatchProcessor(config)
     
     # Запуск обработки
-    print("Starting batch processing...")
+    logger.info("Starting batch processing...")
     results = await processor.process_multiple_parsers(
         parsers=parsers,
         locations=locations,
@@ -296,9 +296,9 @@ async def batch_parse_example():
     
     # Вывод статистики
     stats = processor.get_stats()
-    print(f"\nBatch processing completed:")
-    print(f"  Total properties found: {stats['total_properties']}")
-    print(f"  Total errors: {stats['total_errors']}")
+    logger.info(f"Batch processing completed:")
+    logger.info(f"  Total properties found: {stats['total_properties']}")
+    logger.info(f"  Total errors: {stats['total_errors']}")
     
 
 if __name__ == "__main__":

@@ -209,9 +209,8 @@ class LoadTester:
         Returns:
             Результаты тестирования
         """
-        print(f"\n🚀 Testing {endpoint}")
-        print(f"   Users: {self.config.concurrent_users}")
-        print(f"   Requests per user: {self.config.requests_per_user}")
+        logger.info(f"Testing {endpoint}")
+        logger.info(f"Users: {self.config.concurrent_users}, Requests per user: {self.config.requests_per_user}")
         
         all_metrics: List[RequestMetrics] = []
         start_time = time.time()
@@ -275,11 +274,11 @@ class LoadTester:
         Returns:
             Список результатов для каждого эндпоинта
         """
-        print(f"\n{'='*60}")
-        print(f"🔥 Load Testing Report")
-        print(f"URL: {self.config.base_url}")
-        print(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"{'='*60}")
+        logger.info("="*60)
+        logger.info("Load Testing Report")
+        logger.info(f"URL: {self.config.base_url}")
+        logger.info(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info("="*60)
         
         for endpoint in self.config.endpoints:
             result = await self.run_test(endpoint)
@@ -289,23 +288,22 @@ class LoadTester:
         
     def print_results(self):
         """Вывод результатов тестирования."""
-        print(f"\n{'='*60}")
-        print(f"📊 Load Test Results")
-        print(f"{'='*60}\n")
+        logger.info("="*60)
+        logger.info("Load Test Results")
+        logger.info("="*60)
         
         for result in self.results:
-            print(f"📍 Endpoint: {result.endpoint}")
-            print(f"   Total Requests: {result.total_requests}")
-            print(f"   Successful: {result.successful_requests} ({result.success_rate:.2f}%)")
-            print(f"   Failed: {result.failed_requests}")
-            print(f"   Duration: {result.duration_seconds:.2f}s")
-            print(f"   Throughput: {result.requests_per_second:.2f} req/s")
-            print(f"   Response Times:")
-            print(f"      Average: {result.average_response_time_ms:.2f}ms")
-            print(f"      Median: {result.median_response_time_ms:.2f}ms")
-            print(f"      P95: {result.p95_response_time_ms:.2f}ms")
-            print(f"      P99: {result.p99_response_time_ms:.2f}ms")
-            print()
+            logger.info(f"Endpoint: {result.endpoint}")
+            logger.info(f"  Total Requests: {result.total_requests}")
+            logger.info(f"  Successful: {result.successful_requests} ({result.success_rate:.2f}%)")
+            logger.info(f"  Failed: {result.failed_requests}")
+            logger.info(f"  Duration: {result.duration_seconds:.2f}s")
+            logger.info(f"  Throughput: {result.requests_per_second:.2f} req/s")
+            logger.info(f"  Response Times:")
+            logger.info(f"    Average: {result.average_response_time_ms:.2f}ms")
+            logger.info(f"    Median: {result.median_response_time_ms:.2f}ms")
+            logger.info(f"    P95: {result.p95_response_time_ms:.2f}ms")
+            logger.info(f"    P99: {result.p99_response_time_ms:.2f}ms")
             
     def export_results(self, filepath: str = "load_test_results.json"):
         """
@@ -330,7 +328,7 @@ class LoadTester:
         with open(filepath, 'w') as f:
             json.dump(export_data, f, indent=2)
             
-        print(f"\n✅ Results exported to {filepath}")
+        logger.info(f"Results exported to {filepath}")
 
 
 async def example_load_test():

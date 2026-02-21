@@ -53,7 +53,7 @@ class HTTPClientPool:
                 # Default limits optimized for web scraping
                 default_limits = httpx.Limits(
                     max_keepalive_connections=20,
-                    max_connections=100,
+                    max_connections=settings.HTTP_MAX_CONNECTIONS,
                     keepalive_expiry=30.0
                 )
                 

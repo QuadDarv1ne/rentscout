@@ -196,8 +196,8 @@ class CacheMaintenanceTask:
                     try:
                         idle_time = await self.redis_client.object("IDLETIME", key)
                         keys_with_idle.append((key, idle_time))
-                    except:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Failed to get idle time for key {key}: {e}")
                 
                 if cursor == 0:
                     break

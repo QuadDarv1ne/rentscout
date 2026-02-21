@@ -35,6 +35,13 @@ class Settings(BaseSettings):
         description="URL для подключения к PostgreSQL"
     )
     
+    # Connection Pool settings
+    DB_POOL_SIZE: int = Field(default=20, ge=5, le=100, description="Размер пула соединений БД")
+    DB_MAX_OVERFLOW: int = Field(default=30, ge=10, le=100, description="Дополнительные соединения БД")
+    DB_POOL_TIMEOUT: int = Field(default=30, ge=5, le=120, description="Timeout получения соединения БД")
+    REDIS_MAX_CONNECTIONS: int = Field(default=50, ge=10, le=200, description="Максимум соединений Redis")
+    HTTP_MAX_CONNECTIONS: int = Field(default=100, ge=20, le=500, description="Максимум HTTP соединений")
+    
     # Testing flag
     TESTING: bool = Field(default=False, description="Режим тестирования")
     

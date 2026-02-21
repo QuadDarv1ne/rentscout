@@ -18,12 +18,12 @@ engine = create_async_engine(
     echo=settings.DEBUG,
     future=True,
     pool_pre_ping=True,  # Verify connection health before using
-    pool_size=20,  # Increased number of connections to maintain
-    max_overflow=30,  # Additional connections when pool is full
-    pool_timeout=30,  # Seconds to wait before giving up on getting a connection
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    pool_timeout=settings.DB_POOL_TIMEOUT,
     pool_recycle=3600,  # Recycle connections after 1 hour
-    poolclass=AsyncAdaptedQueuePool,  # More efficient pool implementation
-    pool_reset_on_return="rollback",  # Reset connections on return to pool
+    poolclass=AsyncAdaptedQueuePool,
+    pool_reset_on_return="rollback",
 )
 
 # Create session factory

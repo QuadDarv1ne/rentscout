@@ -110,8 +110,8 @@ class OpenDataParser(OptimizedBaseParser):
                     source=src.name,
                     url=src.url,
                 ))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to parse JSON source: {e}")
         return results
 
     def _map_rss_to_properties(self, xml_text: str, src: OpenSource, location: str) -> List[PropertyCreate]:
@@ -131,8 +131,8 @@ class OpenDataParser(OptimizedBaseParser):
                     source=src.name,
                     url=link,
                 ))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to parse RSS feed: {e}")
         return results
 
     def _map_csv_to_properties(self, csv_text: str, src: OpenSource, location: str) -> List[PropertyCreate]:
