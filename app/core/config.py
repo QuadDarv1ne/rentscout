@@ -60,6 +60,14 @@ class Settings(BaseSettings):
     # Cache settings
     CACHE_TTL: int = Field(default=300, ge=0, le=86400, description="TTL кэша в секундах")
     
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def validate_database_url(cls, v: str) -> str:
+        """Валидация URL PostgreSQL."""
+        if not v.startswith(("postgresql://", "postgresql+asyncpg://")):
+            raise ValueError("DATABASE_URL должен начинаться с postgresql:// или postgresql+asyncpg://")
+        return v
+    
     @field_validator("REDIS_URL")
     @classmethod
     def validate_redis_url(cls, v: str) -> str:

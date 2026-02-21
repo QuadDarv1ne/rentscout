@@ -144,6 +144,7 @@ def _retry_sync(
     exceptions: Tuple[Type[Exception], ...],
 ) -> Any:
     """Вспомогательная функция для повторных попыток синхронной функции."""
+    import time
     last_exception: Optional[Exception] = None
 
     for attempt in range(1, max_attempts + 1):
@@ -162,9 +163,6 @@ def _retry_sync(
                     f"Attempt {attempt}/{max_attempts} failed for {func.__name__}: {e}. "
                     f"Retrying in {delay:.2f}s..."
                 )
-                asyncio.run(asyncio.sleep(delay)) if asyncio.iscoroutinefunction(func) else None
-                import time
-
                 time.sleep(delay)
             else:
                 logger.error(

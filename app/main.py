@@ -227,8 +227,6 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 app.include_router(properties.router, prefix="/api", tags=["properties"])
 app.include_router(advanced_search.router, prefix="/api", tags=["advanced-search"])
 app.include_router(properties_db.router, prefix="/api/db", tags=["properties-db"])
-# Алиас без дополнительного префикса (нужен для путей вида /properties/alerts в тестах)
-app.include_router(properties_db.router, prefix="", tags=["properties-db-legacy"])
 app.include_router(health.router, prefix="/api", tags=["health"])
 app.include_router(tasks.router, prefix="/api", tags=["tasks"])
 app.include_router(notifications.router, prefix="/api", tags=["notifications"])
