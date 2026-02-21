@@ -1,18 +1,30 @@
-from pydantic import ConfigDict, Field, field_validator, HttpUrl
+import re
+import warnings
+from pydantic import ConfigDict, Field, field_validator, ValidationInfo
 from pydantic_settings import BaseSettings
 from typing import Optional
 
 
 class Settings(BaseSettings):
     """Конфигурация приложения с валидацией переменных окружения."""
-    
+
     model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     # Application settings
     APP_NAME: str = Field(default="RentScout", description="Название приложения")
     DEBUG: bool = Field(default=False, description="Режим отладки")
     LOG_LEVEL: str = Field(default="INFO", description="Уровень логирования")
-    
+
+    # Security settings
+    SECRET_KEY: str = Field(
+        default="",
+        description="Секретный ключ для подписи токенов и сессий"
+    )
+    JWT_SECRET: str = Field(
+        default="",
+        description="Секретный ключ для JWT токенов"
+    )
+
     # Network settings
     REDIS_URL: str = Field(
         default="redis://:redis_password@redis:6379/0",
@@ -100,6 +112,127 @@ class Settings(BaseSettings):
             raise ValueError(f"LOG_LEVEL должен быть одним из: {', '.join(valid_levels)}")
         return v.upper()
 
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def validate_secret_key(cls, v: str, info: ValidationInfo) -> str:
+        """
+        Валидация секретного ключа.
+        
+        Проверяет:
+        - Длина не менее 32 символов
+        - Не является дефолтным значением
+        """
+        if not v or len(v) < 32:
+            warnings.warn(
+                "SECRET_KEY слишком короткий или отсутствует! "
+                "Используйте 'python scripts/generate_secrets.py' для генерации безопасного ключа. "
+                "В production это критическая уязвимость.",
+                UserWarning,
+                stacklevel=2
+            )
+        # Проверка на дефолтные значения
+        weak_keys = [
+            "your_very_long_random_secret_key_change_this",
+            "change_this",
+            "secret",
+            "secret_key",
+            "changeme",
+        ]
+        if v.lower() in weak_keys:
+            raise ValueError(
+                f"SECRET_KEY не должен быть дефолтным значением! "
+                f"Текущее значение '{v[:20]}...' небезопасно."
+            )
+        return v
 
+    @field_validator("JWT_SECRET")
+    @classmethod
+    def validate_jwt_secret(cls, v: str, info: ValidationInfo) -> str:
+        """
+        Валидация JWT секрета.
+        
+        Проверяет:
+        - Длина не менее 32 символов
+        - Не является дефолтным значением
+        """
+        if not v or len(v) < 32:
+            warnings.warn(
+                "JWT_SECRET слишком короткий или отсутствует! "
+                "Используйте 'python scripts/generate_secrets.py' для генерации безопасного ключа.",
+                UserWarning,
+                stacklevel=2
+            )
+        weak_secrets = [
+            "another_secret_key_for_jwt",
+            "jwt_secret",
+            "jwt",
+            "changeme",
+        ]
+        if v.lower() in weak_secrets:
+            raise ValueError(
+                f"JWT_SECRET не должен быть дефолтным значением! "
+                f"Текущее значение '{v[:20]}...' небезопасно."
+            )
+        return v
+
+    def validate_password_in_url(self, url: str, url_name: str) -> None:
+        """
+        Проверяет сложность пароля в URL подключения.
+        
+        Args:
+            url: URL для проверки (postgresql://user:password@host:port/db)
+            url_name: Название URL для сообщения об ошибке
+        """
+        # Извлекаем пароль из URL
+        # Формат: scheme://user:password@host:port/db
+        try:
+            # Для PostgreSQL
+            if "://" in url:
+                auth_part = url.split("://")[1].split("@")[0]
+                if ":" in auth_part:
+                    password = auth_part.split(":")[-1]
+                    self._check_password_strength(password, url_name)
+        except (IndexError, AttributeError):
+            pass  # Не удалось извлечь пароль, пропускаем проверку
+
+    def _check_password_strength(self, password: str, field_name: str) -> None:
+        """
+        Проверяет сложность пароля.
+        
+        Args:
+            password: Пароль для проверки
+            field_name: Название поля для сообщения
+        """
+        if len(password) < 16:
+            warnings.warn(
+                f"Пароль в {field_name} слишком короткий ({len(password)} символов). "
+                "Рекомендуется минимум 16 символов. "
+                "Используйте 'python scripts/generate_secrets.py' для генерации.",
+                UserWarning,
+                stacklevel=2
+            )
+        
+        # Проверка на слабые пароли
+        weak_passwords = [
+            "password", "postgres", "redis_password", "admin", "root",
+            "your_password", "your_secure_password", "changeme",
+        ]
+        if password.lower() in weak_passwords:
+            raise ValueError(
+                f"Пароль в {field_name} является дефолтным или слишком слабым! "
+                f"Используйте 'python scripts/generate_secrets.py' для генерации безопасного пароля."
+            )
+
+    def model_post_init(self, __context) -> None:
+        """
+        Пост-обработка после инициализации модели.
+        Проверяет безопасность паролей и секретов.
+        """
+        # Проверяем пароли в URL
+        self.validate_password_in_url(self.DATABASE_URL, "DATABASE_URL")
+        self.validate_password_in_url(self.REDIS_URL, "REDIS_URL")
+
+
+# Глобальный экземпляр настроек
 settings = Settings()
 
