@@ -1,150 +1,321 @@
-import pickle
+"""
+Tests for advanced caching system.
+"""
 
-import asyncio
 import pytest
+import asyncio
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.services.cache import CacheManager, cache, get_cache_key
+from app.core.cache import (
+    CacheEntry,
+    LRUCache,
+    CacheManager,
+    cache_manager,
+    REDIS_AVAILABLE,
+)
 
 
-@pytest.fixture
-def cache_manager():
-    """Фикстура для менеджера кэша."""
-    return CacheManager()
+class TestCacheEntry:
+    """Tests for CacheEntry."""
 
+    def test_create_entry(self):
+        """Test creating cache entry."""
+        entry = CacheEntry(
+            value="test",
+            created_at=time.time(),
+            expires_at=time.time() + 60
+        )
+        assert entry.value == "test"
+        assert entry.hits == 0
+        assert not entry.is_expired()
 
-@pytest.mark.asyncio
-async def test_cache_manager_connect_disconnect(cache_manager):
-    """Тест подключения и отключения от Redis."""
-    with patch('app.services.cache.redis.from_url') as mock_redis:
-        mock_client = AsyncMock()
-        mock_redis.return_value = mock_client
+    def test_entry_expired(self):
+        """Test expired entry."""
+        entry = CacheEntry(
+            value="test",
+            created_at=time.time() - 120,
+            expires_at=time.time() - 60
+        )
+        assert entry.is_expired()
 
-        # Тест подключения
-        await cache_manager.connect()
-        mock_redis.assert_called_once()
-        mock_client.ping.assert_called_once()
+    def test_entry_touch(self):
+        """Test touching entry."""
+        entry = CacheEntry(
+            value="test",
+            created_at=time.time(),
+            expires_at=time.time() + 60
+        )
+        assert entry.hits == 0
+        entry.touch()
+        assert entry.hits == 1
 
-        # Тест отключения
-        await cache_manager.disconnect()
-        mock_client.close.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_cache_manager_get_set(cache_manager):
-    """Тест получения и установки значений в кэш."""
-    with patch('app.services.cache.redis.from_url') as mock_redis:
-        mock_client = AsyncMock()
-        mock_redis.return_value = mock_client
-
-        await cache_manager.connect()
-
-        # Тест установки значения
-        mock_client.setex.return_value = True
-        result = await cache_manager.set("test_key", "test_value", 300)
-        assert result is True
-        mock_client.setex.assert_called_once()
-
-        # Тест получения значения
-        # Сериализуем значение так же, как это делает cache_manager
-        serialized_value = pickle.dumps("test_value")
-        mock_client.get.return_value = serialized_value
-        result = await cache_manager.get("test_key")
-        assert result == "test_value"
-
-
-@pytest.mark.asyncio
-async def test_cache_manager_delete(cache_manager):
-    """Тест удаления значения из кэша."""
-    with patch('app.services.cache.redis.from_url') as mock_redis:
-        mock_client = AsyncMock()
-        mock_redis.return_value = mock_client
-
-        await cache_manager.connect()
-
-        # Тест удаления значения
-        mock_client.delete.return_value = 1
-        result = await cache_manager.delete("test_key")
-        assert result is True
+    def test_entry_ttl(self):
+        """Test entry TTL."""
+        entry = CacheEntry(
+            value="test",
+            created_at=time.time(),
+            expires_at=time.time() + 60
+        )
+        ttl = entry.ttl()
+        assert 59 <= ttl <= 60
 
 
 @pytest.mark.asyncio
-async def test_cache_manager_clear_pattern(cache_manager):
-    """Тест очистки кэша по паттерну."""
-    with patch('app.services.cache.redis.from_url') as mock_redis:
-        mock_client = AsyncMock()
-        mock_redis.return_value = mock_client
+class TestLRUCache:
+    """Tests for LRU cache."""
 
-        await cache_manager.connect()
+    async def test_set_get(self):
+        """Test basic set/get."""
+        cache = LRUCache(max_size=10)
+        await cache.set("key1", "value1", ttl=60)
+        result = await cache.get("key1")
+        assert result == "value1"
 
-        # Тест очистки по паттерну
-        mock_client.keys.return_value = ["key1", "key2"]
-        mock_client.delete.return_value = 2
-        result = await cache_manager.clear_pattern("test:*")
-        assert result == 2
+    async def test_get_missing(self):
+        """Test getting missing key."""
+        cache = LRUCache(max_size=10)
+        result = await cache.get("nonexistent")
+        assert result is None
 
+    async def test_expired_entry(self):
+        """Test expired entry."""
+        cache = LRUCache(max_size=10)
+        await cache.set("key1", "value1", ttl=0.01)
+        await asyncio.sleep(0.02)
+        result = await cache.get("key1")
+        assert result is None
 
-def test_get_cache_key():
-    """Тест генерации ключа кэша."""
-    key1 = get_cache_key("test_func", (1, 2), {"a": 3})
-    key2 = get_cache_key("test_func", (1, 2), {"a": 3})
-    key3 = get_cache_key("test_func", (2, 1), {"a": 3})
+    async def test_lru_eviction(self):
+        """Test LRU eviction."""
+        cache = LRUCache(max_size=3)
+        await cache.set("key1", "value1", ttl=60)
+        await cache.set("key2", "value2", ttl=60)
+        await cache.set("key3", "value3", ttl=60)
+        await cache.set("key4", "value4", ttl=60)  # Should evict key1
+        
+        result1 = await cache.get("key1")
+        result4 = await cache.get("key4")
+        assert result1 is None  # Evicted
+        assert result4 == "value4"
 
-    # Одинаковые параметры должны давать одинаковый ключ
-    assert key1 == key2
+    async def test_delete(self):
+        """Test delete."""
+        cache = LRUCache(max_size=10)
+        await cache.set("key1", "value1", ttl=60)
+        deleted = await cache.delete("key1")
+        assert deleted is True
+        result = await cache.get("key1")
+        assert result is None
 
-    # Разные параметры должны давать разные ключи
-    assert key1 != key3
+    async def test_clear(self):
+        """Test clear."""
+        cache = LRUCache(max_size=10)
+        await cache.set("key1", "value1", ttl=60)
+        await cache.set("key2", "value2", ttl=60)
+        await cache.clear()
+        keys = await cache.keys()
+        assert len(keys) == 0
+
+    async def test_stats(self):
+        """Test statistics."""
+        cache = LRUCache(max_size=10)
+        await cache.set("key1", "value1", ttl=60)
+        await cache.get("key1")  # Hit
+        await cache.get("key1")  # Hit
+        await cache.get("nonexistent")  # Miss
+        
+        stats = cache.stats()
+        assert stats["size"] == 1
+        assert stats["hits"] == 2
+        assert stats["misses"] == 1
+        assert stats["hit_rate"] == 2/3
 
 
 @pytest.mark.asyncio
-async def test_cache_decorator():
-    """Тест декоратора кэширования."""
+class TestCacheManager:
+    """Tests for cache manager."""
 
-    # Создаем тестовую функцию с декоратором кэша
-    @cache(expire=60)
-    async def test_function(x, y):
-        return x + y
+    async def test_basic_set_get(self):
+        """Test basic set/get."""
+        manager = CacheManager()
+        await manager.initialize()
+        
+        await manager.set("key1", "value1", ttl=60)
+        result = await manager.get("key1")
+        assert result == "value1"
+        
+        await manager.shutdown()
 
-    # Патчим cache_manager напрямую в модуле
-    with patch('app.services.cache.cache_manager') as mock_cache_manager:
-        # Настраиваем mock так, чтобы get возвращал None (кэш промах)
-        mock_cache_manager.get = AsyncMock(return_value=None)
-        mock_cache_manager.set = AsyncMock(return_value=True)
+    async def test_cache_miss(self):
+        """Test cache miss."""
+        manager = CacheManager()
+        await manager.initialize()
+        
+        result = await manager.get("nonexistent")
+        assert result is None
+        
+        await manager.shutdown()
 
-        # Вызываем функцию
-        result = await test_function(2, 3)
+    async def test_delete(self):
+        """Test delete."""
+        manager = CacheManager()
+        await manager.initialize()
+        
+        await manager.set("key1", "value1", ttl=60)
+        await manager.delete("key1")
+        result = await manager.get("key1")
+        assert result is None
+        
+        await manager.shutdown()
 
-        # Проверяем результат
-        assert result == 5
+    async def test_clear(self):
+        """Test clear."""
+        manager = CacheManager()
+        await manager.initialize()
+        
+        await manager.set("key1", "value1", ttl=60)
+        await manager.set("key2", "value2", ttl=60)
+        await manager.clear()
+        
+        result1 = await manager.get("key1")
+        result2 = await manager.get("key2")
+        assert result1 is None
+        assert result2 is None
+        
+        await manager.shutdown()
 
-        # Проверяем, что методы кэша были вызваны
-        mock_cache_manager.get.assert_called_once()
-        mock_cache_manager.set.assert_called_once()
+    async def test_cached_decorator(self):
+        """Test cached decorator."""
+        manager = CacheManager()
+        await manager.initialize()
+        
+        call_count = 0
+        
+        @manager.cached(ttl=60, key_prefix="test")
+        async def get_data(value: int):
+            nonlocal call_count
+            call_count += 1
+            return value * 2
+        
+        # First call - cache miss
+        result1 = await get_data(5)
+        assert result1 == 10
+        assert call_count == 1
+        
+        # Second call - cache hit
+        result2 = await get_data(5)
+        assert result2 == 10
+        assert call_count == 1  # Not called again
+        
+        # Different args - cache miss
+        result3 = await get_data(10)
+        assert result3 == 20
+        assert call_count == 2
+        
+        await manager.shutdown()
+
+    async def test_warm_cache(self):
+        """Test cache warming."""
+        manager = CacheManager()
+        await manager.initialize()
+        
+        keys = ["key1", "key2", "key3"]
+        
+        async def loader(key):
+            return f"value_{key}"
+        
+        stats = await manager.warm_cache(keys, loader, ttl=60)
+        
+        assert stats["loaded"] == 3
+        assert stats["errors"] == 0
+        
+        # Verify values are cached
+        for key in keys:
+            result = await manager.get(key)
+            assert result == f"value_{key}"
+        
+        await manager.shutdown()
+
+    async def test_stats(self):
+        """Test statistics."""
+        manager = CacheManager()
+        await manager.initialize()
+        
+        await manager.set("key1", "value1", ttl=60)
+        await manager.get("key1")  # Hit
+        await manager.get("nonexistent")  # Miss
+        
+        stats = manager.stats()
+        assert "l1_hits" in stats
+        assert "l2_hits" in stats
+        assert "misses" in stats
+        assert "hit_rate" in stats
+        
+        await manager.shutdown()
+
+    async def test_make_key(self):
+        """Test key generation."""
+        manager = CacheManager()
+        
+        key1 = manager._make_key("prefix", "arg1", "arg2")
+        key2 = manager._make_key("prefix", "arg1", "arg2")
+        key3 = manager._make_key("prefix", "arg1", "arg3")
+        
+        assert key1 == key2
+        assert key1 != key3
+
+    async def test_make_key_long(self):
+        """Test key generation for long arguments."""
+        manager = CacheManager()
+        
+        long_arg = "x" * 300
+        key = manager._make_key("prefix", long_arg)
+        
+        # Should be hashed and short
+        assert len(key) < 200
+        assert "prefix:" in key
 
 
-@pytest.mark.asyncio
-async def test_cache_decorator_cache_hit():
-    """Тест попадания в кэш."""
+class TestCacheManagerWithoutRedis:
+    """Tests for cache manager without Redis."""
 
-    # Создаем тестовую функцию с декоратором кэша
-    @cache(expire=60)
-    async def test_function(x, y):
-        return x + y
+    @pytest.mark.asyncio
+    async def test_no_redis_fallback(self):
+        """Test fallback to L1 cache without Redis."""
+        manager = CacheManager(redis_url=None)
+        await manager.initialize()
+        
+        # Should work with L1 only
+        await manager.set("key1", "value1", ttl=60)
+        result = await manager.get("key1")
+        assert result == "value1"
+        
+        await manager.shutdown()
 
-    # Патчим cache_manager напрямую в модуле
-    with patch('app.services.cache.cache_manager') as mock_cache_manager:
-        # Настраиваем mock так, чтобы get возвращал закэшированное значение
-        mock_cache_manager.get = AsyncMock(return_value=5)
+    @pytest.mark.asyncio
+    async def test_redis_not_available(self):
+        """Test when Redis is not available."""
+        if not REDIS_AVAILABLE:
+            manager = CacheManager(redis_url="redis://localhost:6379")
+            await manager.initialize()
+            
+            # Should work with L1 only
+            await manager.set("key1", "value1", ttl=60)
+            result = await manager.get("key1")
+            assert result == "value1"
+            
+            await manager.shutdown()
 
-        # Вызываем функцию
-        result = await test_function(2, 3)
 
-        # Проверяем результат
-        assert result == 5
+class TestGlobalCacheManager:
+    """Tests for global cache manager instance."""
 
-        # Проверяем, что метод получения из кэша был вызван
-        mock_cache_manager.get.assert_called_once()
+    def test_global_instance_exists(self):
+        """Test global instance exists."""
+        assert cache_manager is not None
+        assert isinstance(cache_manager, CacheManager)
 
-        # Проверяем, что установка в кэш не была вызвана (так как было попадание)
-        mock_cache_manager.set.assert_not_called()
+    def test_global_instance_default_ttl(self):
+        """Test global instance default TTL."""
+        assert cache_manager.default_ttl == 300

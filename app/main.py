@@ -19,6 +19,10 @@ from app.utils.correlation_middleware import CorrelationIDMiddleware
 from app.utils.ip_ratelimiter import RateLimitMiddleware
 from app.middleware.security import HTTPSRedirectMiddleware, SecurityHeadersMiddleware, CORSMiddlewareConfig
 from app.middleware.compression import GZipMiddleware
+from app.middleware.exception_handler import setup_exception_handlers
+from app.core.cache import cache_manager
+from app.core.monitoring import monitoring_system
+from app.core.security_enhanced import security_manager
 from app.utils.advanced_metrics import SystemMetricsCollector
 from app.db.models.session import init_db, close_db
 from app.utils.app_cache import app_cache
@@ -78,7 +82,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     logger.info(f"{settings.APP_NAME} application started")
     app_state["is_shutting_down"] = False
     app_state["active_requests"] = 0
-    
+
     # Инициализация PostgreSQL (опционально, в production используем Alembic)
     if settings.DEBUG:
         try:
@@ -88,17 +92,25 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
             # В dev режиме это нормально
             logger.debug(f"PostgreSQL unavailable: {type(e).__name__}")
             logger.info("ℹ️  PostgreSQL unavailable - running in-memory mode (use Docker: 'docker-compose -f docker-compose.dev.yml up postgres')")
-    
+
     # Подключаемся к Redis
     await advanced_cache_manager.connect()
-    
+
     # Инициализация нового app-level кеша
     await app_cache.initialize()
     logger.info("✅ Multi-level cache initialized")
     
+    # Инициализация advanced cache manager
+    await cache_manager.initialize()
+    logger.info("✅ Advanced cache manager initialized")
+    
+    # Инициализация monitoring system
+    await monitoring_system.start(check_interval_seconds=60)
+    logger.info("✅ Monitoring system started")
+
     # Запуск автоматической очистки кеша
     await cache_maintenance.start()
-    
+
     # Cache warming для популярных городов (асинхронно, не блокируем старт)
     if advanced_cache_manager.redis_client:
         search_service = SearchService()
@@ -109,41 +121,45 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
             )
         )
         logger.info("🔥 Cache warming started for popular cities")
-        
+
         # Запуск дополнительного cache warming
         asyncio.create_task(cache_warmer.warm_cache())
-    
+
     yield
-    
+
     # Shutdown
     logger.info(f"{settings.APP_NAME} starting graceful shutdown")
     app_state["is_shutting_down"] = True
+
+    # Остановка monitoring
+    await monitoring_system.stop()
     
     # Остановка cache maintenance
     await cache_maintenance.stop()
-    
+
     # Логируем статистику кеша перед выключением
     cache_stats = await advanced_cache_manager.get_stats()
     logger.info(f"Final advanced cache statistics: {cache_stats}")
-    
+
     app_cache_stats = app_cache.get_stats()
     logger.info(f"Final app cache statistics: {app_cache_stats}")
-    
+
     # Отключаемся от Redis
     await advanced_cache_manager.disconnect()
     await app_cache.close()
-    
+    await cache_manager.shutdown()
+
     # Закрываем HTTP connection pool
     await http_pool.close_all()
     logger.info("✅ HTTP connection pool closed")
-    
+
     # Закрываем PostgreSQL соединения
     await close_db()
-    
+
     # Ждем завершения активных запросов (максимум 30 секунд)
     max_wait_time = 30
     start_time = asyncio.get_event_loop().time()
-    
+
     while app_state["active_requests"] > 0:
         elapsed = asyncio.get_event_loop().time() - start_time
         if elapsed > max_wait_time:
@@ -152,13 +168,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
                 f"{app_state['active_requests']} requests still active."
             )
             break
-        
+
         logger.info(
             f"Waiting for {app_state['active_requests']} active requests to complete... "
             f"({elapsed:.1f}s/{max_wait_time}s)"
         )
         await asyncio.sleep(1)
-    
+
     logger.info(f"{settings.APP_NAME} application shut down successfully")
 
 
@@ -241,6 +257,16 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 # Регистрируем все роутеры через централизованный модуль
 register_all_routers(app)
 
+# Регистрируем глобальные обработчики исключений
+setup_exception_handlers(app)
+
+# Подключаем GraphQL API
+try:
+    from app.api.graphql import graphql_app
+    app.include_router(graphql_app, prefix="/graphql")
+    logger.info("✅ GraphQL API enabled at /graphql")
+except ImportError as e:
+    logger.warning(f"GraphQL not available: {e}. Install with: pip install strawberry-graphql")
 
 # Инициализация Prometheus инструментатора
 Instrumentator().instrument(app).expose(app)
@@ -266,6 +292,12 @@ async def search_page(request: Request):
 async def health_page(request: Request):
     """Страница статуса системы"""
     return templates.TemplateResponse("health.html", {"request": request})
+
+
+@app.get("/docs-custom", response_class=HTMLResponse, tags=["pages"], include_in_schema=False)
+async def custom_docs(request: Request):
+    """Кастомизированная Swagger UI документация"""
+    return templates.TemplateResponse("swagger-custom.html", {"request": request})
 
 
 # API endpoint (корневой для API)

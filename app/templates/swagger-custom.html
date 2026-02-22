@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RentScout API Documentation</title>
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #1e40af;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --error-color: #ef4444;
+            --bg-color: #f8fafc;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 20px 40px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header p {
+            margin: 8px 0 0 0;
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .header-links {
+            margin-top: 16px;
+            display: flex;
+            gap: 16px;
+        }
+
+        .header-links a {
+            color: white;
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.2);
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        .header-links a:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .quick-start {
+            background: white;
+            margin: 20px 40px;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .quick-start h2 {
+            margin: 0 0 16px 0;
+            color: var(--primary-color);
+            font-size: 18px;
+        }
+
+        .quick-start-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+        }
+
+        .quick-start-card {
+            background: var(--bg-color);
+            padding: 16px;
+            border-radius: 6px;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .quick-start-card h3 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .quick-start-card code {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+
+        .quick-start-card pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 12px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 12px;
+            margin: 8px 0;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 12px;
+        }
+
+        .status-operational {
+            background: var(--success-color);
+            color: white;
+        }
+
+        #swagger-ui {
+            max-width: 1460px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Custom Swagger styles */
+        .swagger-ui .topbar {
+            display: none;
+        }
+
+        .swagger-ui .info .title {
+            color: var(--primary-color);
+        }
+
+        .swagger-ui .scheme-container {
+            background: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin: 20px 0;
+            padding: 20px;
+        }
+
+        .swagger-ui .btn.authorize {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        .swagger-ui .btn.authorize svg {
+            fill: var(--primary-color);
+        }
+
+        .swagger-ui .opblock-tag {
+            font-size: 16px;
+            font-weight: 600;
+            padding: 12px 20px;
+        }
+
+        .swagger-ui .opblock.opblock-get {
+            border-color: var(--success-color);
+        }
+
+        .swagger-ui .opblock.opblock-post {
+            border-color: var(--primary-color);
+        }
+
+        .swagger-ui .opblock.opblock-put {
+            border-color: var(--warning-color);
+        }
+
+        .swagger-ui .opblock.opblock-delete {
+            border-color: var(--error-color);
+        }
+
+        .swagger-ui .opblock-summary-method {
+            font-weight: 700;
+            border-radius: 4px;
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+
+        .swagger-ui .opblock-summary-method.get {
+            background: var(--success-color);
+        }
+
+        .swagger-ui .opblock-summary-method.post {
+            background: var(--primary-color);
+        }
+
+        .swagger-ui .opblock-summary-method.put {
+            background: var(--warning-color);
+        }
+
+        .swagger-ui .opblock-summary-method.delete {
+            background: var(--error-color);
+        }
+
+        .swagger-ui .try-out__btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+        }
+
+        .swagger-ui .execute {
+            background: var(--success-color);
+            color: white;
+            border: none;
+        }
+
+        .swagger-ui .response-col_status {
+            font-weight: 600;
+        }
+
+        .swagger-ui .response-col_status.response-2xx {
+            color: var(--success-color);
+        }
+
+        .swagger-ui .response-col_status.response-4xx {
+            color: var(--warning-color);
+        }
+
+        .swagger-ui .response-col_status.response-5xx {
+            color: var(--error-color);
+        }
+
+        /* Loading state */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 16px;
+            color: #666;
+        }
+
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #ddd;
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>
+            🏠 RentScout API
+            <span class="status-badge status-operational">Operational</span>
+        </h1>
+        <p>Высокопроизводительный сервис агрегации объявлений об аренде недвижимости</p>
+        
+        <div class="header-links">
+            <a href="/docs" target="_self">📖 Swagger UI</a>
+            <a href="/redoc" target="_self">📚 ReDoc</a>
+            <a href="/openapi.json" target="_blank">⬇️ OpenAPI JSON</a>
+            <a href="/api/health" target="_blank">❤️ Health Check</a>
+            <a href="/metrics" target="_blank">📊 Metrics</a>
+            <a href="https://github.com/QuadDarv1ne/rentscout" target="_blank">🐙 GitHub</a>
+        </div>
+    </div>
+
+    <div class="quick-start">
+        <h2>⚡ Быстрый старт</h2>
+        <div class="quick-start-grid">
+            <div class="quick-start-card">
+                <h3>🔍 Поиск недвижимости</h3>
+                <pre>GET /api/properties?city=Москва&min_price=30000&max_price=100000</pre>
+            </div>
+            <div class="quick-start-card">
+                <h3>📊 Статистика</h3>
+                <pre>GET /api/db/properties/statistics?city=Москва&days=30</pre>
+            </div>
+            <div class="quick-start-card">
+                <h3>🤖 ML Предсказания</h3>
+                <pre>POST /api/ml/predict
+{"area": 54, "rooms": 2, "city": "Москва"}</pre>
+            </div>
+            <div class="quick-start-card">
+                <h3>📈 Health Check</h3>
+                <pre>GET /api/health/detailed</pre>
+            </div>
+        </div>
+    </div>
+
+    <div id="swagger-ui">
+        <div class="loading">Загрузка документации</div>
+    </div>
+
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
+    <script>
+        window.onload = async function() {
+            // Fetch OpenAPI spec
+            const response = await fetch('/openapi.json');
+            const spec = await response.json();
+
+            // Initialize Swagger UI
+            const ui = SwaggerUIBundle({
+                spec: spec,
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIStandalonePreset
+                ],
+                plugins: [
+                    SwaggerUIBundle.plugins.DownloadUrl
+                ],
+                layout: "StandaloneLayout",
+                validatorUrl: null,
+                displayRequestDuration: true,
+                filter: true,
+                showExtensions: true,
+                showCommonExtensions: true,
+                defaultModelsExpandDepth: 2,
+                defaultModelExpandDepth: 2,
+                docExpansion: 'list',
+                tagsSorter: 'alpha',
+                operationsSorter: 'alpha',
+                requestInterceptor: function(req) {
+                    // Add custom headers if needed
+                    req.headers['X-Source'] = 'Swagger UI';
+                    return req;
+                },
+                responseInterceptor: function(response) {
+                    // Log response time
+                    console.log('Response time:', response.time, 'ms');
+                    return response;
+                }
+            });
+
+            window.ui = ui;
+        };
+    </script>
+</body>
+</html>

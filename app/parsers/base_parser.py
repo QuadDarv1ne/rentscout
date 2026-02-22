@@ -2,21 +2,25 @@ from abc import ABC, abstractmethod
 
 import functools
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Type
 
 from app.models.schemas import PropertyCreate
 from app.utils.metrics import metrics_collector
 from app.utils.parser_errors import ErrorClassifier
+from app.schemas.parser_params import ParserParams, BaseParserParams
 
 
 class BaseParser(ABC):
     """Абстрактный базовый класс для всех парсеров."""
 
+    # Класс схемы параметров для переопределения в подклассах
+    params_schema: Type[BaseParserParams] = ParserParams
+
     def __init__(self):
         self.name = self.__class__.__name__
 
     @abstractmethod
-    async def parse(self, location: str, params: Dict[str, Any] = None) -> List[PropertyCreate]:
+    async def parse(self, location: str, params: Optional[Dict[str, Any]] = None) -> List[PropertyCreate]:
         """
         Абстрактный метод для парсинга данных.
 
@@ -29,10 +33,9 @@ class BaseParser(ABC):
         """
         pass
 
-    @abstractmethod
     async def validate_params(self, params: Dict[str, Any]) -> bool:
         """
-        Абстрактный метод для валидации параметров.
+        Валидация параметров с использованием Pydantic схемы.
 
         Args:
             params: Параметры для валидации
@@ -40,7 +43,26 @@ class BaseParser(ABC):
         Returns:
             True если параметры валидны, иначе False
         """
-        pass
+        try:
+            self.params_schema(**params)
+            return True
+        except Exception:
+            return False
+
+    def get_validated_params(self, params: Dict[str, Any]) -> ParserParams:
+        """
+        Получает и валидирует параметры, возвращая типизированный объект.
+
+        Args:
+            params: Словарь параметров
+
+        Returns:
+            Валидированный объект параметров
+
+        Raises:
+            ValidationError: При невалидных параметрах
+        """
+        return self.params_schema(**params)
 
     async def preprocess_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
