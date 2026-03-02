@@ -28,48 +28,67 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     # Startup
     sentry_utils.init_sentry()
 
-    logger.info(f"{settings.APP_NAME} application started")
+    logger.info(f"{settings.APP_NAME} application startup initiated")
     app_state["is_shutting_down"] = False
     app_state["active_requests"] = 0
 
-    # Инициализация PostgreSQL (опционально, в production используем Alembic)
+    # Инициализация PostgreSQL
     if settings.DEBUG:
         try:
             await init_db()
             logger.info("✅ PostgreSQL database initialized")
         except Exception as e:
-            logger.debug(f"PostgreSQL unavailable: {type(e).__name__}")
-            logger.info("ℹ️  PostgreSQL unavailable - running in-memory mode")
+            logger.warning(f"PostgreSQL unavailable: {e}")
+            logger.info("ℹ️  Running in-memory mode")
 
     # Подключаемся к Redis
-    await advanced_cache_manager.connect()
+    try:
+        await advanced_cache_manager.connect()
+    except Exception as e:
+        logger.warning(f"Redis connection failed: {e}")
 
     # Инициализация кешей
-    await app_cache.initialize()
-    logger.info("✅ Multi-level cache initialized")
+    try:
+        await app_cache.initialize()
+        logger.info("✅ Multi-level cache initialized")
+    except Exception as e:
+        logger.warning(f"App cache initialization failed: {e}")
 
-    await cache_manager.initialize()
-    logger.info("✅ Advanced cache manager initialized")
+    try:
+        await cache_manager.initialize()
+        logger.info("✅ Advanced cache manager initialized")
+    except Exception as e:
+        logger.warning(f"Cache manager initialization failed: {e}")
 
     # Запуск monitoring system
-    await monitoring_system.start(check_interval_seconds=60)
-    logger.info("✅ Monitoring system started")
+    try:
+        await monitoring_system.start(check_interval_seconds=60)
+        logger.info("✅ Monitoring system started")
+    except Exception as e:
+        logger.warning(f"Monitoring system startup failed: {e}")
 
     # Запуск cache maintenance
-    await cache_maintenance.start()
+    try:
+        await cache_maintenance.start()
+    except Exception as e:
+        logger.warning(f"Cache maintenance startup failed: {e}")
 
     # Cache warming
-    if advanced_cache_manager.redis_client:
-        search_service = SearchService()
-        asyncio.create_task(
-            advanced_cache_manager.warm_cache(
-                search_service.search,
-                cities=["Москва", "Санкт-Петербург"]
+    if hasattr(advanced_cache_manager, 'redis_client') and advanced_cache_manager.redis_client:
+        try:
+            search_service = SearchService()
+            asyncio.create_task(
+                advanced_cache_manager.warm_cache(
+                    search_service.search,
+                    cities=["Москва", "Санкт-Петербург"]
+                )
             )
-        )
-        logger.info("🔥 Cache warming started for popular cities")
-        asyncio.create_task(cache_warmer.warm_cache())
+            logger.info("🔥 Cache warming started for popular cities")
+            asyncio.create_task(cache_warmer.warm_cache())
+        except Exception as e:
+            logger.warning(f"Cache warming failed: {e}")
 
+    logger.info(f"{settings.APP_NAME} application startup complete")
     yield
 
     # Shutdown
@@ -81,23 +100,46 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     await cache_maintenance.stop()
 
     # Логирование статистики
-    cache_stats = await advanced_cache_manager.get_stats()
-    logger.info(f"Final advanced cache statistics: {cache_stats}")
+    try:
+        cache_stats = await advanced_cache_manager.get_stats()
+        logger.info(f"Final advanced cache statistics: {cache_stats}")
+    except Exception:
+        pass
 
-    app_cache_stats = app_cache.get_stats()
-    logger.info(f"Final app cache statistics: {app_cache_stats}")
+    try:
+        app_cache_stats = app_cache.get_stats()
+        logger.info(f"Final app cache statistics: {app_cache_stats}")
+    except Exception:
+        pass
 
     # Отключение от Redis
-    await advanced_cache_manager.disconnect()
-    await app_cache.close()
-    await cache_manager.shutdown()
+    try:
+        await advanced_cache_manager.disconnect()
+    except Exception:
+        pass
+
+    try:
+        await app_cache.close()
+    except Exception:
+        pass
+
+    try:
+        await cache_manager.shutdown()
+    except Exception:
+        pass
 
     # Закрытие HTTP pool
-    await http_pool.close_all()
-    logger.info("✅ HTTP connection pool closed")
+    try:
+        await http_pool.close_all()
+        logger.info("✅ HTTP connection pool closed")
+    except Exception:
+        pass
 
     # Закрытие PostgreSQL
-    await close_db()
+    try:
+        await close_db()
+    except Exception:
+        pass
 
     # Graceful shutdown для активных запросов
     await _wait_for_active_requests()

@@ -67,11 +67,12 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def init_db():
     """Initialize database connection with pool statistics."""
     try:
+        from sqlalchemy import text
         # Test connection
         async with engine.connect() as conn:
-            await conn.execute("SELECT 1")
+            await conn.execute(text("SELECT 1"))
         logger.info("Database connection established")
-        
+
         # Log pool configuration
         pool = engine.pool
         logger.info(f"Database pool configured: size={pool.size()}, max_overflow={pool.overflow()}")

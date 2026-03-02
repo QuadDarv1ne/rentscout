@@ -451,14 +451,27 @@ class CacheManager:
         """Get cache statistics."""
         total = self._l1_hits + self._l2_hits + self._misses
         hit_rate = (self._l1_hits + self._l2_hits) / total if total > 0 else 0
-        
+
+        l1_stats = self.l1_cache.stats()
+        l2_stats = None
+        if self.l2_cache:
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    task = asyncio.create_task(self.l2_cache.stats())
+                    l2_stats = task
+                else:
+                    l2_stats = asyncio.run(self.l2_cache.stats())
+            except RuntimeError:
+                pass
+
         return {
             "l1_hits": self._l1_hits,
             "l2_hits": self._l2_hits,
             "misses": self._misses,
             "hit_rate": hit_rate,
-            "l1_stats": self.l1_cache.stats(),
-            "l2_stats": asyncio.create_task(self.l2_cache.stats()) if self.l2_cache else None
+            "l1_stats": l1_stats,
+            "l2_stats": l2_stats
         }
 
 
