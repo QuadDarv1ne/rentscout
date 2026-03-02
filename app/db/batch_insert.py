@@ -285,27 +285,29 @@ async def _batch_insert_with_copy(
 ) -> int:
     """
     Массовая вставка используя COPY команду.
-    
+
     COPY намного быстрее INSERT для больших объёмов данных,
     но требует прямого подключения к asyncpg и не поддерживает
     ON CONFLICT.
-    
+
     Args:
         db: Database session
         properties: Список свойств
-        
+
     Returns:
         Количество вставленных записей
     """
-    from app.db.models.session import get_async_connection
-    
-    async with get_async_connection() as connection:
+    # Получаем raw connection из SQLAlchemy
+    async with db.connection() as connection:
+        raw_connection = await connection.get_raw_connection()
+        asyncpg_conn = raw_connection._connection
+
         # Подготавливаем данные для COPY
         records = []
         for prop in properties:
             location = prop.location or {}
             prop_dict = prop.model_dump()
-            
+
             records.append((
                 prop_dict['source'],
                 prop_dict['external_id'],
@@ -327,10 +329,10 @@ async def _batch_insert_with_copy(
                 datetime.utcnow(),
                 datetime.utcnow(),
             ))
-        
+
         # Используем COPY для быстрой вставки
         try:
-            await connection.copy_records_to_table(
+            await asyncpg_conn.copy_records_to_table(
                 'properties',
                 records=records,
                 columns=[
@@ -340,10 +342,10 @@ async def _batch_insert_with_copy(
                     'location', 'photos', 'first_seen', 'last_seen'
                 ]
             )
-            
+
             logger.info(f"COPY inserted {len(records)} properties")
             return len(records)
-        
+
         except Exception as e:
             logger.error(f"COPY failed, falling back to batch insert: {e}")
             # Fallback к стандартному batch insert
