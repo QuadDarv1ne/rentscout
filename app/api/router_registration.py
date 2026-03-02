@@ -12,6 +12,7 @@ from app.api.endpoints import (
     advanced_search,
     properties_db,
     health,
+    health_extended,
     tasks,
     notifications,
     bookmarks,
@@ -28,6 +29,8 @@ from app.api.endpoints import (
     advanced_analytics,
     performance_profiling,
     db_pool_monitoring,
+    export,
+    parser_monitoring,
 )
 
 
@@ -50,6 +53,7 @@ def register_all_routers(app: FastAPI) -> None:
 
     # Health & Monitoring
     app.include_router(health.router, prefix="/api", tags=["health"])
+    app.include_router(health_extended.router, prefix="/api", tags=["health"])
 
     # Background Tasks
     app.include_router(tasks.router, prefix="/api", tags=["tasks"])
@@ -64,6 +68,7 @@ def register_all_routers(app: FastAPI) -> None:
 
     # Metrics & Monitoring (без префикса для Prometheus совместимости)
     app.include_router(advanced_metrics.router, prefix="", tags=["metrics"])
+    app.include_router(parser_monitoring.router, prefix="/api", tags=["parser-monitoring"])
 
     # Batch Operations
     app.include_router(batch_operations.router, prefix="", tags=["batch-processing"])
@@ -94,6 +99,9 @@ def register_all_routers(app: FastAPI) -> None:
 
     # Database Pool Monitoring
     app.include_router(db_pool_monitoring.router, prefix="", tags=["database-pool-monitoring"])
+
+    # Export
+    app.include_router(export.router, prefix="/api", tags=["export"])
 
 
 def get_router_summary() -> dict[str, list[str]]:
