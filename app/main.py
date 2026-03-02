@@ -15,7 +15,6 @@ from app.core.cache import cache_manager
 from app.core.config import settings
 from app.core.lifespan import lifespan
 from app.core.monitoring import monitoring_system
-from app.db.models.session import close_db, init_db
 from app.middleware.compression import GZipMiddleware
 from app.middleware.exception_handler import setup_exception_handlers
 from app.middleware.security import (
