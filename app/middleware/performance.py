@@ -71,11 +71,11 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
                 )
             
             # Record metrics
-            metrics_collector.observe_request_duration(
-                duration_ms / 1000,  # Convert to seconds
+            metrics_collector.record_request(
                 method=request.method,
                 endpoint=request.url.path,
-                status=response.status_code,
+                status_code=response.status_code,
+                duration=duration_ms / 1000,  # Convert to seconds
             )
             
             return response
