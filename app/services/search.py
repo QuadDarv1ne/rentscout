@@ -1,20 +1,17 @@
 import asyncio
 import logging
-import hashlib
 import time
 from typing import List, Dict, Any
 
-from app.db.crud import save_properties
-from app.db.repositories.property import bulk_create_properties
 from app.db.batch_insert import bulk_upsert_with_deduplication
-from app.models.schemas import Property, PropertyCreate
+from app.models.schemas import Property
 from app.parsers.avito.parser import AvitoParser
 from app.parsers.cian.parser import CianParser
 from app.parsers.domofond.parser import DomofondParser
 from app.parsers.yandex_realty.parser import YandexRealtyParser
 from app.parsers.domclick.parser import DomclickParser
 from app.parsers.base_parser import BaseParser
-from app.utils.parser_errors import ErrorClassifier, ErrorSeverity
+from app.utils.parser_errors import ErrorClassifier
 from app.utils.metrics import metrics_collector
 from app.utils.performance_profiling import profile_function
 from app.utils.circuit_breaker import ParserCircuitBreaker
