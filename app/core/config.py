@@ -1,8 +1,8 @@
-import re
 import warnings
+from typing import List, Optional
+
 from pydantic import ConfigDict, Field, field_validator, ValidationInfo
 from pydantic_settings import BaseSettings
-from typing import Optional
 
 
 class Settings(BaseSettings):
@@ -27,11 +27,11 @@ class Settings(BaseSettings):
 
     # Network settings
     REDIS_URL: str = Field(
-        default="redis://:SecureP@ssw0rd!Redis123@redis:6379/0",
+        default="",
         description="URL для подключения к Redis"
     )
     ELASTICSEARCH_URL: str = Field(
-        default="http://elasticsearch:9200",
+        default="http://localhost:9200",
         description="URL для подключения к Elasticsearch"
     )
     ELASTICSEARCH_HOST: str = Field(
@@ -43,7 +43,7 @@ class Settings(BaseSettings):
         description="Порт Elasticsearch"
     )
     DATABASE_URL: str = Field(
-        default="postgresql+asyncpg://postgres:SecureP@ssw0rd!Db123@localhost:5432/rentscout",
+        default="",
         description="URL для подключения к PostgreSQL"
     )
     
@@ -90,14 +90,18 @@ class Settings(BaseSettings):
     @classmethod
     def validate_database_url(cls, v: str) -> str:
         """Валидация URL PostgreSQL."""
+        if not v:
+            raise ValueError("DATABASE_URL не установлен. Проверьте .env файл")
         if not v.startswith(("postgresql://", "postgresql+asyncpg://")):
             raise ValueError("DATABASE_URL должен начинаться с postgresql:// или postgresql+asyncpg://")
         return v
-    
+
     @field_validator("REDIS_URL")
     @classmethod
     def validate_redis_url(cls, v: str) -> str:
         """Валидация URL Redis."""
+        if not v:
+            raise ValueError("REDIS_URL не установлен. Проверьте .env файл")
         if not v.startswith(("redis://", "rediss://")):
             raise ValueError("REDIS_URL должен начинаться с redis:// или rediss://")
         return v
@@ -124,7 +128,7 @@ class Settings(BaseSettings):
     def validate_secret_key(cls, v: str, info: ValidationInfo) -> str:
         """
         Валидация секретного ключа.
-        
+
         Проверяет:
         - Длина не менее 32 символов
         - Не является дефолтным значением
@@ -135,10 +139,9 @@ class Settings(BaseSettings):
                 "Используйте 'python scripts/generate_secrets.py' для генерации безопасного ключа. "
                 "В production это критическая уязвимость.",
                 UserWarning,
-                stacklevel=2
+                stacklevel=2,
             )
-        # Проверка на дефолтные значения
-        weak_keys = [
+        weak_keys: List[str] = [
             "your_very_long_random_secret_key_change_this",
             "change_this",
             "secret",
@@ -157,7 +160,7 @@ class Settings(BaseSettings):
     def validate_jwt_secret(cls, v: str, info: ValidationInfo) -> str:
         """
         Валидация JWT секрета.
-        
+
         Проверяет:
         - Длина не менее 32 символов
         - Не является дефолтным значением
@@ -167,9 +170,9 @@ class Settings(BaseSettings):
                 "JWT_SECRET слишком короткий или отсутствует! "
                 "Используйте 'python scripts/generate_secrets.py' для генерации безопасного ключа.",
                 UserWarning,
-                stacklevel=2
+                stacklevel=2,
             )
-        weak_secrets = [
+        weak_secrets: List[str] = [
             "another_secret_key_for_jwt",
             "jwt_secret",
             "jwt",
@@ -185,22 +188,23 @@ class Settings(BaseSettings):
     def validate_password_in_url(self, url: str, url_name: str) -> None:
         """
         Проверяет сложность пароля в URL подключения.
-        
+
         Args:
             url: URL для проверки (postgresql://user:password@host:port/db)
             url_name: Название URL для сообщения об ошибке
         """
-        # Извлекаем пароль из URL
-        # Формат: scheme://user:password@host:port/db
+        if not url:
+            return
+
         try:
-            # Для PostgreSQL
             if "://" in url:
                 auth_part = url.split("://")[1].split("@")[0]
                 if ":" in auth_part:
-                    password = auth_part.split(":")[-1]
-                    self._check_password_strength(password, url_name)
+                    password: str = auth_part.split(":")[-1]
+                    if password:
+                        self._check_password_strength(password, url_name)
         except (IndexError, AttributeError):
-            pass  # Не удалось извлечь пароль, пропускаем проверку
+            pass
 
     def _check_password_strength(self, password: str, field_name: str) -> None:
         """

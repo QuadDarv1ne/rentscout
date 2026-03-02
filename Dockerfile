@@ -1,11 +1,6 @@
 # Multi-stage build для оптимизации размера образа
 FROM python:3.9-slim as builder
 
-# Метаданные образа
-LABEL maintainer="QuadDarv1ne <your.email@example.com>"
-LABEL description="RentScout - Property Rental Aggregation API"
-LABEL version="1.5.0"
-
 # Установка переменных окружения
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -14,8 +9,8 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Установка системных зависимостей
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    curl \
+    gcc \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Установка рабочей директории
@@ -25,7 +20,7 @@ WORKDIR /app
 COPY requirements.txt ./
 
 # Установка Python зависимостей
-RUN pip install --no-cache-dir --upgrade pip && \
+RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # Production stage
@@ -38,7 +33,10 @@ ENV PYTHONUNBUFFERED=1 \
 # Установка runtime зависимостей
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get autoremove -y \
+    && apt-get clean
 
 # Создание непривилегированного пользователя
 RUN groupadd -r appuser && useradd -r -g appuser appuser
@@ -68,4 +66,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 EXPOSE 8000
 
 # Запуск приложения
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
