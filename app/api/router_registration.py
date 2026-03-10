@@ -33,6 +33,7 @@ from app.api.endpoints import (
     parser_monitoring,
     parser_health,
     cache_management,
+    async_tasks,
 )
 
 
@@ -110,6 +111,9 @@ def register_all_routers(app: FastAPI) -> None:
 
     # Cache Management
     app.include_router(cache_management.router, tags=["cache-management"])
+
+    # Async Tasks
+    app.include_router(async_tasks.router, tags=["async-tasks"])
 
 
 def get_router_summary() -> dict[str, list[str]]:

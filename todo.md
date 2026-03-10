@@ -23,13 +23,13 @@
 | 10 | Enhanced ML Features | ✅ | `app/ml/enhanced_features.py` (20+ фич) |
 | 11 | Materialized Views | ✅ | 4 MV + repository |
 | 12 | Query Cache | ✅ | `app/utils/query_cache.py`, endpoints |
+| 13 | Test Coverage | ✅ | 42 новых теста |
 
-**Статистика итерации 4:**
-- Новых файлов: 1
-- Обновлённых файлов: 2
-- Новых endpoints: 5 (/cache/stats, /cache/clear, /cache/invalidate, /cache/keys, /cache/warm)
+**Статистика итерации 5:**
+- Новых тестов: 42
+- Файлов тестов: 3
 
-**Commit:** `de1ab5b` — feat: query cache and cache management endpoints
+**Commit:** `89b2c87` — test: add tests for query cache, cache management, and materialized views
 
 ---
 

@@ -1,362 +1,389 @@
 """
-Batch processing API endpoints.
+Batch operations for efficient bulk processing.
 
-Provides endpoints for managing batch parsing operations,
-monitoring progress, and retrieving batch results.
+Provides endpoints for:
+- Bulk property operations
+- Batch updates
+- Mass delete
+- Bulk upsert
 """
+import asyncio
+from typing import List, Dict, Any, Optional
+from fastapi import APIRouter, Depends, HTTPException, Body, Query
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, update, delete
 
-from fastapi import APIRouter, Query, HTTPException, BackgroundTasks
-from typing import Dict, Any, Optional, List
-from datetime import datetime
-import uuid
-
-from app.parsers.batch_processing import (
-    BatchProcessor,
-    BatchConfig,
-    ParserBatchManager,
-    StreamingBatchProcessor,
-    batch_processor,
-    parser_batch_manager
-)
+from app.db.session import get_db
+from app.db.models.property import Property
 from app.utils.logger import logger
 
-router = APIRouter(prefix="/api/batch", tags=["batch-processing"])
+router = APIRouter(prefix="/batch", tags=["Batch Operations"])
 
 
-# Store active batch jobs for tracking
-_active_batches: Dict[str, Any] = {}
+class BulkPropertyUpdate(BaseModel):
+    """Bulk update request."""
+    ids: List[int] = Field(..., description="Property IDs to update")
+    updates: Dict[str, Any] = Field(..., description="Fields to update")
 
 
-@router.get("/health")
-async def batch_health() -> Dict[str, str]:
+class BulkDeleteRequest(BaseModel):
+    """Bulk delete request."""
+    ids: List[int] = Field(..., description="Property IDs to delete")
+    soft_delete: bool = Field(default=True, description="If True, set is_active=False instead of deleting")
+
+
+class BulkUpsertRequest(BaseModel):
+    """Bulk upsert request."""
+    properties: List[Dict[str, Any]] = Field(..., description="Properties to upsert")
+
+
+class BatchOperationResponse(BaseModel):
+    """Response for batch operations."""
+    success: bool = Field(..., description="Operation success status")
+    processed: int = Field(..., description="Number of items processed")
+    failed: int = Field(..., description="Number of items failed")
+    errors: List[str] = Field(default_factory=list, description="Error messages")
+
+
+@router.post("/update", response_model=BatchOperationResponse)
+async def bulk_update_properties(
+    request: BulkPropertyUpdate,
+    db: AsyncSession = Depends(get_db)
+):
     """
-    Check batch processing system health.
-    
-    Returns:
-        - status: System health status
-        - processor_version: Current processor version
-    """
-    return {
-        "status": "operational",
-        "processor_version": "2.0.0",
-        "timestamp": datetime.now().isoformat()
-    }
+    Update multiple properties in a single operation.
 
-
-@router.get("/info")
-async def get_batch_info() -> Dict[str, Any]:
-    """
-    Get batch processing system information.
-    
-    Returns:
-        - config: Current batch processing configuration
-        - active_batches: Count of active batch operations
-        - completed_batches: Count of completed operations
-    """
-    return {
-        "configuration": {
-            "batch_size": batch_processor.config.batch_size,
-            "max_concurrent_batches": batch_processor.config.max_concurrent_batches,
-            "max_retries": batch_processor.config.max_retries,
-            "timeout_seconds": batch_processor.config.timeout_seconds,
-        },
-        "active_batches": len([b for b in _active_batches.values() if b['status'] == 'in_progress']),
-        "total_batches": len(_active_batches),
-        "timestamp": datetime.now().isoformat()
-    }
-
-
-@router.post("/configure")
-async def configure_batch_processing(
-    batch_size: int = Query(50, ge=1, le=1000),
-    max_concurrent: int = Query(5, ge=1, le=20),
-    max_retries: int = Query(3, ge=0, le=10),
-    timeout_seconds: int = Query(30, ge=5, le=300)
-) -> Dict[str, Any]:
-    """
-    Configure batch processing parameters.
-    
     Args:
-        batch_size: Items per batch (1-1000)
-        max_concurrent: Max concurrent batches (1-20)
-        max_retries: Max retries per item (0-10)
-        timeout_seconds: Timeout per item (5-300s)
-    
+        request: Bulk update request with IDs and fields to update
+        db: Database session
+
     Returns:
-        New configuration
+        Operation result with counts
     """
     try:
-        batch_processor.config = BatchConfig(
-            batch_size=batch_size,
-            max_concurrent_batches=max_concurrent,
-            max_retries=max_retries,
-            timeout_seconds=timeout_seconds
+        if not request.ids:
+            return BatchOperationResponse(success=True, processed=0, failed=0)
+
+        # Build update query
+        stmt = (
+            update(Property)
+            .where(Property.id.in_(request.ids))
+            .values(**request.updates)
         )
-        
-        logger.info(
-            f"Batch processing configured: "
-            f"batch_size={batch_size}, "
-            f"max_concurrent={max_concurrent}, "
-            f"max_retries={max_retries}, "
-            f"timeout={timeout_seconds}s"
+
+        result = await db.execute(stmt)
+        await db.commit()
+
+        processed = result.rowcount
+
+        logger.info(f"Bulk updated {processed} properties")
+
+        return BatchOperationResponse(
+            success=True,
+            processed=processed,
+            failed=len(request.ids) - processed,
         )
-        
-        return {
-            "status": "configured",
-            "configuration": {
-                "batch_size": batch_size,
-                "max_concurrent_batches": max_concurrent,
-                "max_retries": max_retries,
-                "timeout_seconds": timeout_seconds,
-            },
-            "timestamp": datetime.now().isoformat()
-        }
+
     except Exception as e:
-        logger.error(f"Failed to configure batch processing: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        await db.rollback()
+        logger.error(f"Bulk update error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/summary")
-async def get_batch_summary() -> Dict[str, Any]:
+@router.post("/delete", response_model=BatchOperationResponse)
+async def bulk_delete_properties(
+    request: BulkDeleteRequest,
+    db: AsyncSession = Depends(get_db)
+):
     """
-    Get summary statistics of batch processing.
-    
+    Delete multiple properties in a single operation.
+
+    Args:
+        request: Bulk delete request
+        db: Database session
+
     Returns:
-        - total_items_processed: Total items across all batches
-        - success_rate: Overall success percentage
-        - average_batch_duration: Average batch processing time
-        - throughput: Items processed per second
+        Operation result with counts
     """
     try:
-        summary = parser_batch_manager.get_summary()
-        return {
-            "summary": summary,
-            "timestamp": datetime.now().isoformat()
-        }
+        if not request.ids:
+            return BatchOperationResponse(success=True, processed=0, failed=0)
+
+        if request.soft_delete:
+            # Soft delete: set is_active=False
+            stmt = (
+                update(Property)
+                .where(Property.id.in_(request.ids))
+                .values(is_active=False)
+            )
+        else:
+            # Hard delete
+            stmt = delete(Property).where(Property.id.in_(request.ids))
+
+        result = await db.execute(stmt)
+        await db.commit()
+
+        processed = result.rowcount
+
+        logger.info(f"Bulk {'soft deleted' if request.soft_delete else 'deleted'} {processed} properties")
+
+        return BatchOperationResponse(
+            success=True,
+            processed=processed,
+            failed=len(request.ids) - processed,
+        )
+
     except Exception as e:
-        logger.error(f"Failed to get batch summary: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get batch summary")
+        await db.rollback()
+        logger.error(f"Bulk delete error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/status/{batch_id}")
-async def get_batch_status(batch_id: str) -> Dict[str, Any]:
+@router.post("/upsert", response_model=BatchOperationResponse)
+async def bulk_upsert_properties(
+    request: BulkUpsertRequest,
+    db: AsyncSession = Depends(get_db)
+):
     """
-    Get status of a specific batch.
-    
+    Bulk insert or update properties.
+
+    Uses PostgreSQL's ON CONFLICT clause for efficient upsert.
+
     Args:
-        batch_id: Batch identifier
-    
+        request: Bulk upsert request
+        db: Database session
+
     Returns:
-        Batch status and statistics
-    """
-    if batch_id not in _active_batches:
-        raise HTTPException(status_code=404, detail=f"Batch '{batch_id}' not found")
-    
-    batch_info = _active_batches[batch_id]
-    return {
-        "batch_id": batch_id,
-        "status": batch_info['status'],
-        "items_processed": batch_info.get('items_processed', 0),
-        "items_successful": batch_info.get('items_successful', 0),
-        "items_failed": batch_info.get('items_failed', 0),
-        "progress_percent": batch_info.get('progress', 0),
-        "duration_seconds": batch_info.get('duration', 0),
-        "created_at": batch_info.get('created_at'),
-        "completed_at": batch_info.get('completed_at'),
-    }
-
-
-@router.get("/batches")
-async def list_batches(
-    source: Optional[str] = None,
-    status: Optional[str] = None,
-    limit: int = Query(20, ge=1, le=100)
-) -> Dict[str, Any]:
-    """
-    List batch operations with optional filtering.
-    
-    Args:
-        source: Filter by source (optional)
-        status: Filter by status - 'in_progress', 'completed', 'failed' (optional)
-        limit: Max number of results (1-100)
-    
-    Returns:
-        List of batch operations
-    """
-    batches = list(_active_batches.values())
-    
-    if source:
-        batches = [b for b in batches if b.get('source') == source]
-    
-    if status:
-        batches = [b for b in batches if b.get('status') == status]
-    
-    # Sort by created_at descending
-    batches.sort(key=lambda b: b.get('created_at', ''), reverse=True)
-    
-    return {
-        "total": len(batches),
-        "batches": batches[:limit],
-        "timestamp": datetime.now().isoformat()
-    }
-
-
-@router.post("/reset-stats")
-async def reset_batch_statistics() -> Dict[str, str]:
-    """
-    Reset batch processing statistics.
-    
-    ⚠️ Warning: This will clear all batch history!
+        Operation result with counts
     """
     try:
-        _active_batches.clear()
-        logger.warning("Batch processing statistics reset")
-        return {
-            "status": "success",
-            "message": "Batch statistics have been reset",
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        logger.error(f"Failed to reset batch statistics: {e}")
-        raise HTTPException(status_code=500, detail="Failed to reset statistics")
+        if not request.properties:
+            return BatchOperationResponse(success=True, processed=0, failed=0)
 
+        from sqlalchemy.dialects.postgresql import insert
 
-@router.get("/recommendations")
-async def get_batch_recommendations() -> Dict[str, Any]:
-    """
-    Get recommendations for optimal batch configuration.
-    
-    Based on system performance and batch history,
-    suggests optimal batch processing parameters.
-    
-    Returns:
-        - recommendations: List of configuration suggestions
-        - reasoning: Why each recommendation is made
-    """
-    summary = parser_batch_manager.get_summary()
-    recommendations = []
-    reasoning = []
-    
-    if summary.get('overall_success_rate', 100) < 85:
-        recommendations.append({
-            'parameter': 'max_retries',
-            'suggested_value': 5,
-            'current_value': batch_processor.config.max_retries
-        })
-        reasoning.append(
-            "Success rate below 85%. "
-            "Increase max_retries to handle transient failures."
-        )
-    
-    if summary.get('total_items_processed', 0) > 1000:
-        avg_duration = summary.get('avg_batch_duration', 0)
-        if avg_duration > 10:
-            recommendations.append({
-                'parameter': 'batch_size',
-                'suggested_value': batch_processor.config.batch_size // 2,
-                'current_value': batch_processor.config.batch_size,
-                'reason': 'Reduce batch size for faster processing'
+        # Prepare data for bulk insert
+        properties_data = []
+        for prop in request.properties:
+            # Extract location fields
+            location = prop.get("location", {})
+            
+            properties_data.append({
+                "source": prop.get("source"),
+                "external_id": prop.get("external_id"),
+                "title": prop.get("title"),
+                "description": prop.get("description"),
+                "link": prop.get("link"),
+                "price": prop.get("price"),
+                "rooms": prop.get("rooms"),
+                "area": prop.get("area"),
+                "city": location.get("city"),
+                "district": location.get("district"),
+                "address": location.get("address"),
+                "latitude": location.get("latitude"),
+                "longitude": location.get("longitude"),
+                "location": location,
+                "photos": prop.get("photos", []),
             })
-            reasoning.append("Batch duration is high. Smaller batches may be faster.")
-    
-    if batch_processor.config.timeout_seconds < 60:
-        recommendations.append({
-            'parameter': 'timeout_seconds',
-            'suggested_value': 60,
-            'current_value': batch_processor.config.timeout_seconds
-        })
-        reasoning.append("Consider increasing timeout for more reliable parsing.")
-    
-    return {
-        "recommendations": recommendations,
-        "reasoning": reasoning,
-        "based_on_summary": summary,
-        "timestamp": datetime.now().isoformat()
-    }
 
-
-@router.post("/benchmark")
-async def run_benchmark(
-    batch_sizes: List[int] = Query([25, 50, 100]),
-    background_tasks: BackgroundTasks = None
-) -> Dict[str, Any]:
-    """
-    Run batch processing benchmark.
-    
-    Tests different batch sizes to find optimal configuration.
-    
-    Args:
-        batch_sizes: List of batch sizes to test (default: [25, 50, 100])
-    
-    Returns:
-        Benchmark ID for monitoring progress
-    """
-    benchmark_id = str(uuid.uuid4())
-    
-    _active_batches[benchmark_id] = {
-        'type': 'benchmark',
-        'status': 'in_progress',
-        'batch_sizes': batch_sizes,
-        'created_at': datetime.now().isoformat(),
-        'results': []
-    }
-    
-    if background_tasks:
-        background_tasks.add_task(
-            _run_benchmark_background,
-            benchmark_id,
-            batch_sizes
+        # Build upsert statement
+        stmt = insert(Property).values(properties_data)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=['source', 'external_id'],
+            set_={
+                "title": stmt.excluded.title,
+                "price": stmt.excluded.price,
+                "rooms": stmt.excluded.rooms,
+                "area": stmt.excluded.area,
+                "last_seen": stmt.excluded.last_seen,
+            }
         )
-    
-    return {
-        "benchmark_id": benchmark_id,
-        "status": "started",
-        "batch_sizes": batch_sizes,
-        "check_status_at": f"/api/batch/status/{benchmark_id}",
-        "timestamp": datetime.now().isoformat()
-    }
 
+        result = await db.execute(stmt)
+        await db.commit()
 
-async def _run_benchmark_background(benchmark_id: str, batch_sizes: List[int]):
-    """Run benchmark in background."""
-    try:
-        logger.info(f"Starting benchmark {benchmark_id} with sizes: {batch_sizes}")
-        # Benchmark logic would go here
-        _active_batches[benchmark_id]['status'] = 'completed'
+        processed = result.rowcount if result.rowcount else len(properties_data)
+
+        logger.info(f"Bulk upserted {processed} properties")
+
+        return BatchOperationResponse(
+            success=True,
+            processed=processed,
+            failed=0,
+        )
+
     except Exception as e:
-        logger.error(f"Benchmark failed: {e}")
-        _active_batches[benchmark_id]['status'] = 'failed'
-        _active_batches[benchmark_id]['error'] = str(e)
+        await db.rollback()
+        logger.error(f"Bulk upsert error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/performance")
-async def get_performance_metrics() -> Dict[str, Any]:
+@router.post("/activate", response_model=BatchOperationResponse)
+async def bulk_activate_properties(
+    ids: List[int] = Body(..., embed=True, description="Property IDs to activate"),
+    db: AsyncSession = Depends(get_db)
+):
     """
-    Get detailed performance metrics for batch operations.
-    
+    Activate multiple properties.
+
+    Args:
+        ids: List of property IDs
+        db: Database session
+
     Returns:
-        - average_processing_time: Time per item
-        - throughput: Items per second
-        - success_rate: Percentage of successful items
-        - memory_efficiency: Items per MB
+        Operation result
     """
-    summary = parser_batch_manager.get_summary()
-    
-    items_processed = summary.get('total_items_processed', 0)
-    duration = summary.get('total_duration_seconds', 0)
-    
-    return {
-        "metrics": {
-            "items_processed": items_processed,
-            "total_duration_seconds": summary.get('total_duration_seconds', 0),
-            "average_processing_time_ms": (
-                (duration * 1000 / items_processed) if items_processed > 0 else 0
-            ),
-            "throughput_items_per_second": (
-                (items_processed / duration) if duration > 0 else 0
-            ),
-            "success_rate_percent": summary.get('overall_success_rate', 0),
-            "batches_count": summary.get('total_batches', 0),
-        },
-        "timestamp": datetime.now().isoformat()
-    }
+    try:
+        if not ids:
+            return BatchOperationResponse(success=True, processed=0, failed=0)
+
+        stmt = (
+            update(Property)
+            .where(Property.id.in_(ids))
+            .values(is_active=True)
+        )
+
+        result = await db.execute(stmt)
+        await db.commit()
+
+        processed = result.rowcount
+
+        logger.info(f"Bulk activated {processed} properties")
+
+        return BatchOperationResponse(
+            success=True,
+            processed=processed,
+            failed=len(ids) - processed,
+        )
+
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Bulk activate error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/deactivate", response_model=BatchOperationResponse)
+async def bulk_deactivate_properties(
+    ids: List[int] = Body(..., embed=True, description="Property IDs to deactivate"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Deactivate multiple properties.
+
+    Args:
+        ids: List of property IDs
+        db: Database session
+
+    Returns:
+        Operation result
+    """
+    try:
+        if not ids:
+            return BatchOperationResponse(success=True, processed=0, failed=0)
+
+        stmt = (
+            update(Property)
+            .where(Property.id.in_(ids))
+            .values(is_active=False)
+        )
+
+        result = await db.execute(stmt)
+        await db.commit()
+
+        processed = result.rowcount
+
+        logger.info(f"Bulk deactivated {processed} properties")
+
+        return BatchOperationResponse(
+            success=True,
+            processed=processed,
+            failed=len(ids) - processed,
+        )
+
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Bulk deactivate error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/stats")
+async def get_batch_stats(
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get statistics for batch operations.
+
+    Returns counts of properties by status.
+    """
+    try:
+        from sqlalchemy import func
+
+        result = await db.execute(
+            select(
+                func.count(Property.id).label("total"),
+                func.sum(func.case((Property.is_active == True, 1), else_=0)).label("active"),
+                func.sum(func.case((Property.is_active == False, 1), else_=0)).label("inactive"),
+                func.sum(func.case((Property.is_verified == True, 1), else_=0)).label("verified"),
+            )
+        )
+
+        row = result.one()
+
+        return {
+            "total": row.total or 0,
+            "active": row.active or 0,
+            "inactive": row.inactive or 0,
+            "verified": row.verified or 0,
+        }
+
+    except Exception as e:
+        logger.error(f"Batch stats error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/verify", response_model=BatchOperationResponse)
+async def bulk_verify_properties(
+    ids: List[int] = Body(..., embed=True, description="Property IDs to verify"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Verify multiple properties.
+
+    Args:
+        ids: List of property IDs
+        db: Database session
+
+    Returns:
+        Operation result
+    """
+    try:
+        if not ids:
+            return BatchOperationResponse(success=True, processed=0, failed=0)
+
+        stmt = (
+            update(Property)
+            .where(Property.id.in_(ids))
+            .values(is_verified=True)
+        )
+
+        result = await db.execute(stmt)
+        await db.commit()
+
+        processed = result.rowcount
+
+        logger.info(f"Bulk verified {processed} properties")
+
+        return BatchOperationResponse(
+            success=True,
+            processed=processed,
+            failed=len(ids) - processed,
+        )
+
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Bulk verify error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+__all__ = ["router"]
