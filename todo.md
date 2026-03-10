@@ -22,13 +22,14 @@
 | 9 | Database Backups | ✅ | `scripts/backup.sh`, Celery task |
 | 10 | Enhanced ML Features | ✅ | `app/ml/enhanced_features.py` (20+ фич) |
 | 11 | Materialized Views | ✅ | 4 MV + repository |
+| 12 | Query Cache | ✅ | `app/utils/query_cache.py`, endpoints |
 
-**Статистика итерации 3:**
-- Новых файлов: 3
-- Новых строк кода: ~800
-- Migration: `2026_03_10_materialized_views`
+**Статистика итерации 4:**
+- Новых файлов: 1
+- Обновлённых файлов: 2
+- Новых endpoints: 5 (/cache/stats, /cache/clear, /cache/invalidate, /cache/keys, /cache/warm)
 
-**Commit:** `083fef7` — feat: ML enhancements and materialized views for performance
+**Commit:** `de1ab5b` — feat: query cache and cache management endpoints
 
 ---
 
