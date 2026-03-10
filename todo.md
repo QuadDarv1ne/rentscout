@@ -24,12 +24,14 @@
 | 11 | Materialized Views | ✅ | 4 MV + repository |
 | 12 | Query Cache | ✅ | `app/utils/query_cache.py`, endpoints |
 | 13 | Test Coverage | ✅ | 42 новых теста |
+| 14 | Batch Operations | ✅ | bulk CRUD endpoints |
+| 15 | Async Task Processing | ✅ | task submission, status, cancel |
 
-**Статистика итерации 5:**
-- Новых тестов: 42
-- Файлов тестов: 3
+**Статистика итерации 6:**
+- Новых endpoints: 11 (batch + tasks)
+- Новых файлов: 1
 
-**Commit:** `89b2c87` — test: add tests for query cache, cache management, and materialized views
+**Commit:** `27612fb` — feat: batch operations and async task processing
 
 ---
 
