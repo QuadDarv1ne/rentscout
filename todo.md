@@ -7,7 +7,7 @@
 
 ## ✅ Выполнено (10 марта 2026 г.)
 
-### Критические улучшения — все завершены
+### Все критические и важные улучшения — завершены
 
 | # | Улучшение | Статус | Файлы |
 |---|-----------|--------|-------|
@@ -16,15 +16,18 @@
 | 3 | Circuit Breaker для парсеров | ✅ | 5 парсеров обновлено |
 | 4 | Adaptive Rate Limiter | ✅ | `app/utils/adaptive_ratelimit.py` |
 | 5 | PostgreSQL тесты | ✅ | `app/tests/conftest.py`, `docker-compose.test.yml` |
+| 6 | N+1 Query Optimization | ✅ | `app/db/optimized_crud.py`, relationships |
+| 7 | Parser Health Checks | ✅ | `app/api/endpoints/parser_health.py` |
+| 8 | Load Testing (Locust) | ✅ | `tests/load/locustfile.py` |
+| 9 | Database Backups | ✅ | `scripts/backup.sh`, Celery task |
 
-**Статистика:**
+**Статистика итерации 2:**
 - Новых файлов: 4
-- Обновлённых файлов: 10
-- Новых строк кода: ~1300
-- Новых тестов: 60+
-- Удалено устаревших: 1 (ci.yml)
+- Обновлённых файлов: 5
+- Новых строк кода: ~1500
+- Новых endpoints: 3 (/api/health/parsers, /api/health/parsers/{name}, /api/health/status)
 
-**Commit:** `d6033ed` — feat: critical security and resilience improvements
+**Commit:** `2b560d8` — feat: performance optimization and monitoring improvements
 
 ---
 
