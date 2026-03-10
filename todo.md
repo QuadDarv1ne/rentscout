@@ -5,6 +5,29 @@
 
 ---
 
+## ✅ Выполнено (10 марта 2026 г.)
+
+### Критические улучшения — все завершены
+
+| # | Улучшение | Статус | Файлы |
+|---|-----------|--------|-------|
+| 1 | Генератор секретов | ✅ | `scripts/generate_secrets.py` |
+| 2 | Миграции БД в CI | ✅ | `.github/workflows/ci-cd.yml` |
+| 3 | Circuit Breaker для парсеров | ✅ | 5 парсеров обновлено |
+| 4 | Adaptive Rate Limiter | ✅ | `app/utils/adaptive_ratelimit.py` |
+| 5 | PostgreSQL тесты | ✅ | `app/tests/conftest.py`, `docker-compose.test.yml` |
+
+**Статистика:**
+- Новых файлов: 4
+- Обновлённых файлов: 10
+- Новых строк кода: ~1300
+- Новых тестов: 60+
+- Удалено устаревших: 1 (ci.yml)
+
+**Commit:** `d6033ed` — feat: critical security and resilience improvements
+
+---
+
 ## 🔴 Критические (High Priority)
 
 ### 1. Отсутствуют миграции БД в CI

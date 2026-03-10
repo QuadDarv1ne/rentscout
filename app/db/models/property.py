@@ -2,10 +2,10 @@
 SQLAlchemy models for property data persistence.
 """
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
-from sqlalchemy import Column, String, Float, Integer, DateTime, Boolean, JSON, Index, UniqueConstraint, Text
-from sqlalchemy.orm import declarative_base
+from sqlalchemy import Column, String, Float, Integer, DateTime, Boolean, JSON, Index, UniqueConstraint, Text, ForeignKey
+from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
 
 Base = declarative_base()
@@ -96,7 +96,20 @@ class Property(Base):
         Index('ix_source_first_seen', 'source', 'first_seen'),  # For source and first seen queries
         Index('ix_floor_total_floors', 'floor', 'total_floors'),  # For floor-related queries
     )
-    
+
+    # Relationships for eager loading (prevents N+1 queries)
+    price_history = relationship(
+        "PropertyPriceHistory",
+        back_populates="property",
+        lazy="selectin",  # Eager load with selectinload
+        order_by="desc(PropertyPriceHistory.changed_at)"
+    )
+    views = relationship(
+        "PropertyView",
+        back_populates="property",
+        lazy="selectin"
+    )
+
     def __repr__(self):
         return f"<Property(id={self.id}, source={self.source}, external_id={self.external_id}, title={self.title[:30]}...)>"
 
@@ -137,53 +150,59 @@ class Property(Base):
 
 class PropertyPriceHistory(Base):
     """Track price changes over time."""
-    
+
     __tablename__ = "property_price_history"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    property_id = Column(Integer, nullable=False, index=True)
-    
+    property_id = Column(Integer, nullable=False, index=True, ForeignKey("properties.id"))
+
     # Price data
     old_price = Column(Float)
     new_price = Column(Float, nullable=False)
     price_change = Column(Float)  # Calculated: new_price - old_price
     price_change_percent = Column(Float)  # Calculated percentage
-    
+
     # Timestamp
     changed_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)  # Indexed
-    
+
+    # Relationship
+    property = relationship("Property", back_populates="price_history")
+
     __table_args__ = (
         Index('ix_property_changed', 'property_id', 'changed_at'),
         Index('ix_changed_at', 'changed_at'),  # For time-based queries
         Index('ix_price_change', 'price_change'),  # For price change analysis
     )
-    
+
     def __repr__(self):
         return f"<PropertyPriceHistory(property_id={self.property_id}, old={self.old_price}, new={self.new_price})>"
 
 
 class PropertyView(Base):
     """Track property views for analytics."""
-    
+
     __tablename__ = "property_views"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    property_id = Column(Integer, nullable=False, index=True)
-    
+    property_id = Column(Integer, nullable=False, index=True, ForeignKey("properties.id"))
+
     # View metadata
     ip_address = Column(String(45))  # IPv4 or IPv6
     user_agent = Column(String(500))
     referer = Column(String(1000))
-    
+
     # Timestamp
     viewed_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)  # Indexed
-    
+
+    # Relationship
+    property = relationship("Property", back_populates="views")
+
     __table_args__ = (
         Index('ix_property_viewed', 'property_id', 'viewed_at'),
         Index('ix_ip_viewed', 'ip_address', 'viewed_at'),
         Index('ix_viewed_at', 'viewed_at'),  # For time-based analytics
     )
-    
+
     def __repr__(self):
         return f"<PropertyView(property_id={self.property_id}, viewed_at={self.viewed_at})>"
 

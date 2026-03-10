@@ -31,6 +31,7 @@ from app.api.endpoints import (
     db_pool_monitoring,
     export,
     parser_monitoring,
+    parser_health,
 )
 
 
@@ -103,6 +104,9 @@ def register_all_routers(app: FastAPI) -> None:
     # Export
     app.include_router(export.router, prefix="/api", tags=["export"])
 
+    # Parser Health
+    app.include_router(parser_health.router, prefix="/api/health", tags=["health", "parsers"])
+
 
 def get_router_summary() -> dict[str, list[str]]:
     """
@@ -115,7 +119,7 @@ def get_router_summary() -> dict[str, list[str]]:
         "authentication": ["/api/auth"],
         "properties": ["/api/properties", "/api/advanced-search"],
         "database": ["/api/db/properties"],
-        "health": ["/api/health"],
+        "health": ["/api/health", "/api/health/parsers"],
         "tasks": ["/api/tasks"],
         "notifications": ["/api/notifications"],
         "bookmarks": ["/api/bookmarks"],
@@ -130,6 +134,7 @@ def get_router_summary() -> dict[str, list[str]]:
         "analytics": ["/analytics"],
         "profiling": ["/profiling"],
         "db-pool": ["/db-pool"],
+        "parsers": ["/api/health/parsers"],
     }
 
 

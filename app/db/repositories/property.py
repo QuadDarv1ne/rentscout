@@ -317,14 +317,24 @@ async def search_properties(
     limit: int = 100,
     offset: int = 0
 ) -> List[Property]:
-    """Search properties with filters."""
+    """
+    Search properties with filters - optimized version.
+
+    Uses selectinload для предотвращения N+1 запросов при загрузке связанных данных.
+    """
     start_time = time.time()
-    
-    query = select(Property)
-    
+
+    # Import optimized query builder
+    from sqlalchemy.orm import selectinload
+
+    # Build query with eager loading
+    query = select(Property).options(
+        selectinload(Property.price_history)  # Prevent N+1 for price history
+    )
+
     # Build filters
     filters = [Property.is_active == is_active] if is_active is not None else []
-    
+
     if city:
         filters.append(Property.city == city)
     if source:
@@ -343,9 +353,9 @@ async def search_properties(
         filters.append(Property.area >= min_area)
     if max_area is not None:
         filters.append(Property.area <= max_area)
-    
+
     query = query.where(and_(*filters))
-    
+
     # Apply sorting
     if sort_order == "desc":
         if sort_by == "price":
@@ -365,16 +375,16 @@ async def search_properties(
             query = query.order_by(Property.rooms)
         else:  # default to created_at
             query = query.order_by(Property.created_at)
-    
+
     # Apply pagination
     query = query.limit(limit).offset(offset)
-    
+
     result = await db.execute(query)
-    
+
     # Record metrics
     duration = time.time() - start_time
     metrics_collector.record_db_query("SELECT", "properties", duration)
-    
+
     return list(result.scalars().all())
 
 

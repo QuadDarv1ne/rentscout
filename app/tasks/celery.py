@@ -64,6 +64,11 @@ celery_app.conf.beat_schedule = {
             ],
         ),
     },
+    # Автоматический бэкап БД каждый день в 4:00
+    "database-backup": {
+        "task": "app.tasks.celery.database_backup_task",
+        "schedule": crontab(hour=4, minute=0),
+    },
 }
 
 
@@ -347,18 +352,96 @@ def get_task_status(task_id: str) -> Dict[str, Any]:
 def cancel_task(task_id: str) -> Dict[str, Any]:
     """
     Отменить задачу.
-    
+
     Args:
         task_id: ID задачи
-        
+
     Returns:
         Результат отмены
     """
     celery_app.control.revoke(task_id, terminate=True)
-    
+
     logger.info(f"Task {task_id} cancelled")
-    
+
     return {
         "task_id": task_id,
         "status": "cancelled",
     }
+
+
+# =============================================================================
+# Database Backup Tasks
+# =============================================================================
+
+@celery_app.task(name="app.tasks.celery.database_backup_task")
+def database_backup_task() -> Dict[str, Any]:
+    """
+    Фоновая задача для автоматического бэкапа PostgreSQL.
+
+    Запускается по расписанию (каждый день в 4:00 UTC).
+    Создает бэкап, проверяет его и удаляет старые бэкапы.
+
+    Returns:
+        Словарь с результатами выполнения
+    """
+    import subprocess
+    import os
+    from pathlib import Path
+
+    logger.info("Starting database backup task...")
+
+    try:
+        # Путь к скрипту бэкапа
+        script_path = Path(__file__).parent.parent.parent / "scripts" / "backup.sh"
+
+        if not script_path.exists():
+            logger.error(f"Backup script not found: {script_path}")
+            return {
+                "status": "error",
+                "message": f"Backup script not found: {script_path}",
+            }
+
+        # Запускаем скрипт бэкапа
+        result = subprocess.run(
+            ["bash", str(script_path), "backup"],
+            capture_output=True,
+            text=True,
+            timeout=300,  # 5 минут таймаут
+        )
+
+        if result.returncode == 0:
+            logger.info(f"Database backup completed: {result.stdout}")
+
+            # После успешного бэкапа - очистка старых
+            cleanup_result = subprocess.run(
+                ["bash", str(script_path), "cleanup"],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+
+            return {
+                "status": "success",
+                "backup_output": result.stdout,
+                "cleanup_output": cleanup_result.stdout if cleanup_result.returncode == 0 else None,
+            }
+        else:
+            logger.error(f"Database backup failed: {result.stderr}")
+            return {
+                "status": "error",
+                "message": result.stderr,
+            }
+
+    except subprocess.TimeoutExpired:
+        logger.error("Database backup timed out")
+        return {
+            "status": "error",
+            "message": "Backup timed out after 5 minutes",
+        }
+
+    except Exception as e:
+        logger.error(f"Database backup failed with exception: {e}")
+        return {
+            "status": "error",
+            "message": str(e),
+        }
