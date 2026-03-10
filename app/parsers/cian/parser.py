@@ -19,6 +19,7 @@ from app.utils.parser_errors import (
 )
 from app.utils.retry import retry
 from app.utils.ratelimiter import rate_limiter
+from app.utils.circuit_breaker import get_circuit_breaker, CircuitBreakerOpen
 
 logger = logging.getLogger(__name__)
 
@@ -34,32 +35,43 @@ class CianParser(BaseParser):
     @retry(max_attempts=3, initial_delay=1.0, max_delay=10.0)
     @metrics_collector_decorator
     async def parse(self, location: str, params: Dict[str, Any] = None) -> List[PropertyCreate]:
+        # Проверяем circuit breaker перед попыткой
+        circuit_breaker = get_circuit_breaker("cian")
+
+        try:
+            return await circuit_breaker.call_async(self._parse_internal, location, params)
+        except CircuitBreakerOpen as e:
+            logger.warning(f"Cian parser circuit is open: {e}")
+            raise NetworkError(f"Cian service temporarily unavailable: {e}")
+
+    async def _parse_internal(self, location: str, params: Dict[str, Any]) -> List[PropertyCreate]:
+        """Внутренний метод парсинга."""
         # Preprocess params
         processed_params = await self.preprocess_params(params)
-        
+
         # Build URL with params
         url = f"{self.BASE_URL}/cat.php"
         query_params = self._build_query_params(location, processed_params)
-        
+
         # Apply rate limiting
         await rate_limiter.acquire("cian")
-        
+
         try:
             # Используем оптимизированный HTTP клиент из пула
             from app.utils.http_pool import OptimizedHTTPClient
-            
+
             async with OptimizedHTTPClient(name="cian") as client:
                 response = await client.get(url, params=query_params)
                 results = self._parse_html(response.text)
                 return await self.postprocess_results(results)
-                
+
         except asyncio.TimeoutError as e:
             parser_error = ParserTimeoutError(f"Timeout while fetching {url}: {e}")
-            ParserErrorHandler.log_error(parser_error, context="CianParser.parse")
+            ParserErrorHandler.log_error(parser_error, context="CianParser._parse_internal")
             raise parser_error
         except httpx.TimeoutException as e:
             parser_error = ParserTimeoutError(f"HTTP timeout: {e}")
-            ParserErrorHandler.log_error(parser_error, context="CianParser.parse")
+            ParserErrorHandler.log_error(parser_error, context="CianParser._parse_internal")
             raise parser_error
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error occurred while fetching {url}: {e}")
@@ -69,15 +81,15 @@ class CianParser(BaseParser):
                 parser_error = NetworkError(f"Service unavailable ({e.response.status_code})")
             else:
                 parser_error = NetworkError(f"HTTP error {e.response.status_code}: {e}")
-            ParserErrorHandler.log_error(parser_error, context="CianParser.parse")
+            ParserErrorHandler.log_error(parser_error, context="CianParser._parse_internal")
             raise parser_error
         except httpx.RequestError as e:
             parser_error = ParserErrorHandler.convert_to_parser_exception(e)
-            ParserErrorHandler.log_error(parser_error, context="CianParser.parse")
+            ParserErrorHandler.log_error(parser_error, context="CianParser._parse_internal")
             raise parser_error
         except Exception as e:
             parser_error = ParserErrorHandler.convert_to_parser_exception(e)
-            ParserErrorHandler.log_error(parser_error, context="CianParser.parse")
+            ParserErrorHandler.log_error(parser_error, context="CianParser._parse_internal")
             raise parser_error
             
     async def validate_params(self, params: Dict[str, Any]) -> bool:

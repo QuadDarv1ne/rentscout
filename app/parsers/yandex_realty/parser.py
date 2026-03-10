@@ -19,31 +19,43 @@ from app.utils.parser_errors import (
 )
 from app.utils.retry import retry
 from app.utils.ratelimiter import rate_limiter
+from app.utils.circuit_breaker import get_circuit_breaker, CircuitBreakerOpen
 
 logger = logging.getLogger(__name__)
 
 
 class YandexRealtyParser(BaseParser):
     BASE_URL = "https://realty.yandex.ru"
-    
+
     def __init__(self):
         super().__init__()
         self.name = "YandexRealtyParser"
-        
+
     @cached_parser(expire=600, source="yandex_realty")  # Кеш на 10 минут
     @retry(max_attempts=3, initial_delay=1.0, max_delay=10.0)
     @metrics_collector_decorator
     async def parse(self, location: str, params: Dict[str, Any] = None) -> List[PropertyCreate]:
+        # Проверяем circuit breaker перед попыткой
+        circuit_breaker = get_circuit_breaker("yandex_realty")
+
+        try:
+            return await circuit_breaker.call_async(self._parse_internal, location, params)
+        except CircuitBreakerOpen as e:
+            logger.warning(f"YandexRealty parser circuit is open: {e}")
+            raise NetworkError(f"YandexRealty service temporarily unavailable: {e}")
+
+    async def _parse_internal(self, location: str, params: Dict[str, Any]) -> List[PropertyCreate]:
+        """Внутренний метод парсинга."""
         # Preprocess params
         processed_params = await self.preprocess_params(params)
-        
+
         # Build URL with params
         url = f"{self.BASE_URL}/search/"
         query_params = self._build_query_params(location, processed_params)
-        
+
         # Apply rate limiting
         await rate_limiter.acquire("yandex_realty")
-        
+
         try:
             async with httpx.AsyncClient(timeout=settings.REQUEST_TIMEOUT) as client:
                 response = await client.get(url, params=query_params)
@@ -52,11 +64,11 @@ class YandexRealtyParser(BaseParser):
                 return await self.postprocess_results(results)
         except asyncio.TimeoutError as e:
             parser_error = ParserTimeoutError(f"Timeout while fetching {url}: {e}")
-            ParserErrorHandler.log_error(parser_error, context="YandexRealtyParser.parse")
+            ParserErrorHandler.log_error(parser_error, context="YandexRealtyParser._parse_internal")
             raise parser_error
         except httpx.TimeoutException as e:
             parser_error = ParserTimeoutError(f"HTTP timeout: {e}")
-            ParserErrorHandler.log_error(parser_error, context="YandexRealtyParser.parse")
+            ParserErrorHandler.log_error(parser_error, context="YandexRealtyParser._parse_internal")
             raise parser_error
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error occurred while fetching {url}: {e}")
@@ -66,15 +78,15 @@ class YandexRealtyParser(BaseParser):
                 parser_error = NetworkError(f"Service unavailable ({e.response.status_code})")
             else:
                 parser_error = NetworkError(f"HTTP error {e.response.status_code}: {e}")
-            ParserErrorHandler.log_error(parser_error, context="YandexRealtyParser.parse")
+            ParserErrorHandler.log_error(parser_error, context="YandexRealtyParser._parse_internal")
             raise parser_error
         except httpx.RequestError as e:
             parser_error = ParserErrorHandler.convert_to_parser_exception(e)
-            ParserErrorHandler.log_error(parser_error, context="YandexRealtyParser.parse")
+            ParserErrorHandler.log_error(parser_error, context="YandexRealtyParser._parse_internal")
             raise parser_error
         except Exception as e:
             parser_error = ParserErrorHandler.convert_to_parser_exception(e)
-            ParserErrorHandler.log_error(parser_error, context="YandexRealtyParser.parse")
+            ParserErrorHandler.log_error(parser_error, context="YandexRealtyParser._parse_internal")
             raise parser_error
             
     async def validate_params(self, params: Dict[str, Any]) -> bool:

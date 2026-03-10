@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  # PostgreSQL для тестов
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: rentscout-postgres-test
+    environment:
+      - POSTGRES_USER=rentscout
+      - POSTGRES_PASSWORD=test_password_secure_123
+      - POSTGRES_DB=rentscout_test
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-test-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rentscout"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Redis для тестов
+  redis-test:
+    image: redis:7-alpine
+    container_name: rentscout-redis-test
+    command: redis-server --appendonly no
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres-test-data:

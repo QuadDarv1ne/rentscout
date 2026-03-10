@@ -133,23 +133,23 @@ class CircuitBreaker:
     ) -> Any:
         """
         Вызвать функцию с защитой circuit breaker.
-        
+
         Args:
             func: Асинхронная функция для вызова
             *args, **kwargs: Аргументы функции
-            
+
         Returns:
             Результат функции
-            
+
         Raises:
             CircuitBreakerOpen: Если breaker в состоянии OPEN
         """
         self.stats.total_calls += 1
-        
+
         # Проверка состояния
         if self.state == CircuitState.OPEN:
             time_until_retry = self._time_until_retry()
-            
+
             if time_until_retry > 0:
                 self.stats.rejected_calls += 1
                 logger.warning(
@@ -157,20 +157,32 @@ class CircuitBreaker:
                     f"Rejecting call. Retry in {time_until_retry:.1f}s"
                 )
                 raise CircuitBreakerOpen(self.service_name, time_until_retry)
-            
+
             # Переход в HALF_OPEN
             self._transition_to(CircuitState.HALF_OPEN)
             self._half_open_calls = 0
-        
+
         # Выполнение вызова
         try:
             result = await func(*args, **kwargs)
             await self._on_success()
             return result
-            
+
         except self.config.expected_exceptions as e:
             await self._on_failure()
             raise
+
+    async def call_async(
+        self,
+        func: Callable[..., Awaitable[Any]],
+        *args,
+        **kwargs
+    ) -> Any:
+        """
+        Асинхронный вызов функции с защитой circuit breaker.
+        Алиас для call() для обратной совместимости.
+        """
+        return await self.call(func, *args, **kwargs)
     
     async def _on_success(self) -> None:
         """Обработка успешного вызова."""
