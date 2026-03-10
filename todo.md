@@ -7,7 +7,7 @@
 
 ## ✅ Выполнено (10 марта 2026 г.)
 
-### Все критические и важные улучшения — завершены
+### Все улучшения — завершены
 
 | # | Улучшение | Статус | Файлы |
 |---|-----------|--------|-------|
@@ -20,14 +20,15 @@
 | 7 | Parser Health Checks | ✅ | `app/api/endpoints/parser_health.py` |
 | 8 | Load Testing (Locust) | ✅ | `tests/load/locustfile.py` |
 | 9 | Database Backups | ✅ | `scripts/backup.sh`, Celery task |
+| 10 | Enhanced ML Features | ✅ | `app/ml/enhanced_features.py` (20+ фич) |
+| 11 | Materialized Views | ✅ | 4 MV + repository |
 
-**Статистика итерации 2:**
-- Новых файлов: 4
-- Обновлённых файлов: 5
-- Новых строк кода: ~1500
-- Новых endpoints: 3 (/api/health/parsers, /api/health/parsers/{name}, /api/health/status)
+**Статистика итерации 3:**
+- Новых файлов: 3
+- Новых строк кода: ~800
+- Migration: `2026_03_10_materialized_views`
 
-**Commit:** `2b560d8` — feat: performance optimization and monitoring improvements
+**Commit:** `083fef7` — feat: ML enhancements and materialized views for performance
 
 ---
 

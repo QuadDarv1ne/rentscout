@@ -32,6 +32,7 @@ from app.api.endpoints import (
     export,
     parser_monitoring,
     parser_health,
+    cache_management,
 )
 
 
@@ -106,6 +107,9 @@ def register_all_routers(app: FastAPI) -> None:
 
     # Parser Health
     app.include_router(parser_health.router, prefix="/api/health", tags=["health", "parsers"])
+
+    # Cache Management
+    app.include_router(cache_management.router, tags=["cache-management"])
 
 
 def get_router_summary() -> dict[str, list[str]]:
