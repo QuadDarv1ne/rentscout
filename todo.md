@@ -26,12 +26,14 @@
 | 13 | Test Coverage | ✅ | 42 новых теста |
 | 14 | Batch Operations | ✅ | bulk CRUD endpoints |
 | 15 | Async Task Processing | ✅ | task submission, status, cancel |
+| 16 | Standardized Exceptions | ✅ | 15 exception classes, 40+ тестов |
 
-**Статистика итерации 6:**
-- Новых endpoints: 11 (batch + tasks)
-- Новых файлов: 1
+**Статистика итерации 7:**
+- Новых файлов: 3
+- Новых тестов: 40+
+- Новых exception классов: 15
 
-**Commit:** `27612fb` — feat: batch operations and async task processing
+**Commit:** `171862a` — feat: standardized HTTP exception classes
 
 ---
 
