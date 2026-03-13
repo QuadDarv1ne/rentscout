@@ -3,7 +3,7 @@ CRUD operations for Property model.
 """
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any
 
 from sqlalchemy import select, update, delete, and_, or_, func, desc, text
@@ -189,7 +189,7 @@ async def update_property(
     await db.execute(
         update(Property)
         .where(Property.id == property_id)
-        .values(**property_data, last_updated=datetime.utcnow())
+        .values(**property_data, last_updated=datetime.now(timezone.utc))
     )
     
     # Record metrics
@@ -240,8 +240,8 @@ async def update_or_create_property(
                 longitude=location.get("longitude"),
                 location=location,
                 photos=property_dict.get("photos", []),
-                last_seen=datetime.utcnow(),
-                last_updated=datetime.utcnow()
+                last_seen=datetime.now(timezone.utc),
+                last_updated=datetime.now(timezone.utc)
             )
         )
         
@@ -276,7 +276,7 @@ async def deactivate_old_properties(
     """
     start_time = time.time()
     
-    threshold = datetime.utcnow() - timedelta(hours=hours)
+    threshold = datetime.now(timezone.utc) - timedelta(hours=hours)
     
     result = await db.execute(
         update(Property)
@@ -554,7 +554,7 @@ async def get_price_trends(db: AsyncSession, city: str, days: int = 30) -> List[
     
     try:
         # Calculate the date threshold
-        threshold_date = datetime.utcnow() - timedelta(days=days)
+        threshold_date = datetime.now(timezone.utc) - timedelta(days=days)
         
         # Query to get daily price averages
         query = (
@@ -641,7 +641,7 @@ async def get_property_view_count(
     """Get view count for a property in the last N days."""
     start_time = time.time()
     
-    threshold = datetime.utcnow() - timedelta(days=days)
+    threshold = datetime.now(timezone.utc) - timedelta(days=days)
     
     result = await db.execute(
         select(func.count(PropertyView.id))
@@ -671,7 +671,7 @@ async def get_popular_properties(
     """
     start_time = time.time()
     
-    threshold = datetime.utcnow() - timedelta(days=days)
+    threshold = datetime.now(timezone.utc) - timedelta(days=days)
     
     result = await db.execute(
         select(
@@ -741,7 +741,7 @@ async def get_popular_searches(
     """Get most popular search queries."""
     start_time = time.time()
     
-    threshold = datetime.utcnow() - timedelta(days=days)
+    threshold = datetime.now(timezone.utc) - timedelta(days=days)
     
     result = await db.execute(
         select(
@@ -807,7 +807,7 @@ async def bulk_upsert_properties(
                 "longitude": location.get("longitude"),
                 "location": location,
                 "photos": prop_dict.get("photos", []),
-                "last_seen": datetime.utcnow(),
+                "last_seen": datetime.now(timezone.utc),
             })
         
         # Use PostgreSQL's INSERT ... ON CONFLICT DO UPDATE
@@ -828,7 +828,7 @@ async def bulk_upsert_properties(
                 'location': stmt.excluded.location,
                 'photos': stmt.excluded.photos,
                 'last_seen': stmt.excluded.last_seen,
-                'last_updated': datetime.utcnow(),
+                'last_updated': datetime.now(timezone.utc),
             }
         )
         

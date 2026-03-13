@@ -11,7 +11,7 @@
 
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any, Tuple
 
 from sqlalchemy import select, update, delete, and_, or_, func, desc
@@ -206,7 +206,7 @@ class PropertyCRUD:
         update_stmt = (
             update(Property)
             .where(Property.id == property_id)
-            .values(**update_data, last_updated=datetime.utcnow())
+            .values(**update_data, last_updated=datetime.now(timezone.utc))
             .returning(Property)
         )
 
@@ -295,7 +295,7 @@ class PropertyCRUD:
                     "longitude": location.get("longitude"),
                     "location": location,
                     "photos": prop_dict.get("photos", []),
-                    "last_seen": datetime.utcnow(),
+                    "last_seen": datetime.now(timezone.utc),
                     "is_active": True,
                 })
 
@@ -305,7 +305,7 @@ class PropertyCRUD:
                 index_elements=["source", "external_id"],
                 set_={
                     "price": stmt.excluded.price,
-                    "last_seen": datetime.utcnow(),
+                    "last_seen": datetime.now(timezone.utc),
                     "is_active": True,
                 }
             )
@@ -364,7 +364,7 @@ class PropertyCRUD:
         # Build filters
         filters = [
             Property.is_active == True,
-            Property.last_seen >= datetime.utcnow() - timedelta(days=days),
+            Property.last_seen >= datetime.now(timezone.utc) - timedelta(days=days),
         ]
         if city:
             filters.append(Property.city == city)

@@ -18,7 +18,7 @@ import asyncio
 import click
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from pathlib import Path
 
@@ -53,7 +53,7 @@ def status():
 def services(ctx, detailed: bool):
     """Статус всех сервисов."""
     result = {
-        'timestamp': datetime.utcnow().isoformat(),
+        'timestamp': datetime.now(timezone.utc).isoformat(),
         'services': {}
     }
     
