@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import logging
 import functools
 import random
@@ -371,7 +372,7 @@ def retry_advanced(
             )
             raise last_exception
 
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
             return async_wrapper
         else:
             return sync_wrapper

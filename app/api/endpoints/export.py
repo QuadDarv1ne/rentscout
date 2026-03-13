@@ -16,7 +16,7 @@ router = APIRouter()
 
 @router.get("/export/properties")
 async def export_properties(
-    format: str = Query("json", regex="^(json|jsonl|csv)$"),
+    format: str = Query("json", pattern=r"^(json|jsonl|csv)$"),
     city: str = Query(None),
     limit: int = Query(None),
     db: AsyncSession = Depends(get_db),
@@ -74,7 +74,7 @@ async def export_properties(
 
 @router.get("/export/properties/progress")
 async def export_properties_with_progress(
-    format: str = Query("json", regex="^(json|jsonl|csv)$"),
+    format: str = Query("json", pattern=r"^(json|jsonl|csv)$"),
     city: str = Query(None),
     db: AsyncSession = Depends(get_db),
 ):

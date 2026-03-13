@@ -72,8 +72,9 @@ class PaginatedResponse(BaseModel):
 class PropertyResponse(Property):
     """Ответ с данными объекта недвижимости."""
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "id": 1,
                 "source": "avito",
@@ -88,6 +89,7 @@ class PropertyResponse(Property):
                 "created_at": "2024-01-01T00:00:00",
             }
         }
+    )
 
 
 class PropertyCreateResponse(PropertyResponse):
@@ -182,8 +184,8 @@ class BulkOperationResult(BaseModel):
 class BulkUpsertResponse(BulkOperationResult):
     """Ответ массовой операции upsert."""
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "success": True,
                 "created": 10,
@@ -193,6 +195,7 @@ class BulkUpsertResponse(BulkOperationResult):
                 "processing_time_ms": 150.5,
             }
         }
+    )
 
 
 # ============================================================================

@@ -13,7 +13,7 @@ from datetime import date
 from enum import Enum
 from typing import Optional, List, Dict, Any
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 
 
 # ============================================================================
@@ -54,8 +54,7 @@ class SortOrder(str, Enum):
 class BaseParserParams(BaseModel):
     """Базовая схема параметров парсера."""
 
-    class Config:
-        extra = "allow"  # Разрешаем дополнительные поля
+    model_config = ConfigDict(extra="allow")
 
     def to_dict(self) -> Dict[str, Any]:
         """Конвертирует схему в словарь."""
@@ -367,9 +366,9 @@ class ParserParams(
         params_dict = params.to_dict()
     """
 
-    class Config:
-        extra = "allow"
-        json_schema_extra = {
+    model_config = ConfigDict(
+        extra="allow",
+        json_schema_extra={
             "example": {
                 "city": "Москва",
                 "district": "Центральный",
@@ -386,6 +385,7 @@ class ParserParams(
                 "limit": 50,
             }
         }
+    )
 
 
 # ============================================================================
