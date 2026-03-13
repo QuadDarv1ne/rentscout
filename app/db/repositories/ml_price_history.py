@@ -2,7 +2,7 @@
 CRUD operations for ML price history.
 Repository for managing historical price data in the database.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, desc
@@ -65,7 +65,7 @@ class MLPriceHistoryRepository:
     ) -> List[MLPriceHistory]:
         """Get price history for a city in the last N days."""
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days + 1)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days + 1)
             
             query = db.query(MLPriceHistory).filter(
                 and_(
@@ -98,7 +98,7 @@ class MLPriceHistoryRepository:
     ) -> List[MLPriceHistory]:
         """Get price history for a specific district."""
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days + 1)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days + 1)
             
             records = db.query(MLPriceHistory).filter(
                 and_(
@@ -127,7 +127,7 @@ class MLPriceHistoryRepository:
     ) -> dict:
         """Calculate statistics for prices in a city."""
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days + 1)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days + 1)
             
             query = db.query(MLPriceHistory).filter(
                 and_(
@@ -184,7 +184,7 @@ class MLPriceHistoryRepository:
     ) -> dict:
         """Analyze price trend over time."""
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days + 1)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days + 1)
             
             query = db.query(MLPriceHistory).filter(
                 and_(
@@ -242,7 +242,7 @@ class MLPriceHistoryRepository:
     def delete_old_records(db: Session, days: int = 365) -> int:
         """Delete price history older than specified days."""
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
             
             count = db.query(MLPriceHistory).filter(
                 MLPriceHistory.recorded_at < cutoff_date
