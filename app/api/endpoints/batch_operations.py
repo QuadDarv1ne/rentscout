@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete
 
-from app.db.session import get_db
+from app.db.models.session import get_db
 from app.db.models.property import Property
 from app.utils.logger import logger
 

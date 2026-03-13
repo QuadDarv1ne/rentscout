@@ -312,50 +312,6 @@ class Mutation:
 schema = strawberry.Schema(
     query=Query,
     mutation=Mutation,
-    description="""
-    ## RentScout GraphQL API
-    
-    GraphQL интерфейс для работы с недвижимостью.
-    
-    ### Основные возможности:
-    - Гибкие запросы данных
-    - Фильтрация и пагинация
-    - Real-time подписки (в разработке)
-    
-    ### Примеры запросов:
-    
-    ```graphql
-    # Получить список недвижимости
-    query {
-        properties(limit: 10) {
-            id
-            title
-            price
-            rooms
-        }
-    }
-    
-    # Получить недвижимость с фильтрами
-    query {
-        properties(filter: { city: "Москва", maxPrice: 100000 }) {
-            id
-            title
-            price
-            area
-        }
-    }
-    
-    # Статистика
-    query {
-        statistics(city: "Москва") {
-            total
-            avgPrice
-            minPrice
-            maxPrice
-        }
-    }
-    ```
-    """,
 )
 
 # GraphQL router для FastAPI

@@ -154,7 +154,7 @@ class PropertyPriceHistory(Base):
     __tablename__ = "property_price_history"
 
     id = Column(Integer, primary_key=True, index=True)
-    property_id = Column(Integer, nullable=False, index=True, ForeignKey("properties.id"))
+    property_id = Column(Integer, ForeignKey("properties.id"), nullable=False, index=True)
 
     # Price data
     old_price = Column(Float)
@@ -184,7 +184,7 @@ class PropertyView(Base):
     __tablename__ = "property_views"
 
     id = Column(Integer, primary_key=True, index=True)
-    property_id = Column(Integer, nullable=False, index=True, ForeignKey("properties.id"))
+    property_id = Column(Integer, ForeignKey("properties.id"), nullable=False, index=True)
 
     # View metadata
     ip_address = Column(String(45))  # IPv4 or IPv6

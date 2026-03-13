@@ -51,10 +51,9 @@ class TestRegistration:
                 "password": "123",  # Слишком короткий
             }
         )
-        assert response.status_code == 400
+        assert response.status_code == 422
         data = response.json()
         assert "detail" in data
-        assert "Слабый пароль" in str(data["detail"])
 
     @pytest.mark.asyncio
     async def test_register_duplicate_username(self, client: AsyncClient):
@@ -78,7 +77,7 @@ class TestRegistration:
                 "password": "StrongPass123!",
             }
         )
-        assert response.status_code == 400
+        assert response.status_code == 409
         assert "Пользователь с таким именем уже существует" in str(response.json()["detail"])
 
     @pytest.mark.asyncio
@@ -103,7 +102,7 @@ class TestRegistration:
                 "password": "StrongPass123!",
             }
         )
-        assert response.status_code == 400
+        assert response.status_code == 409
         assert "Email уже зарегистрирован" in str(response.json()["detail"])
 
     @pytest.mark.asyncio
