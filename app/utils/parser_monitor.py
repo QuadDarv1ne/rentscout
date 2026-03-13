@@ -13,31 +13,55 @@ from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta
 from collections import defaultdict
-from prometheus_client import Counter, Histogram, Gauge
+from prometheus_client import Counter, Histogram, Gauge, REGISTRY
 import json
 
 
+def _safe_counter(name: str, description: str, labelnames: list) -> Counter:
+    """Создать Counter, игнорируя дублирование."""
+    try:
+        return Counter(name, description, labelnames)
+    except Exception:
+        return REGISTRY._names_to_collectors.get(name)
+
+
+def _safe_histogram(name: str, description: str, labelnames: list, buckets: list) -> Histogram:
+    """Создать Histogram, игнорируя дублирование."""
+    try:
+        return Histogram(name, description, labelnames, buckets=buckets)
+    except Exception:
+        return REGISTRY._names_to_collectors.get(name)
+
+
+def _safe_gauge(name: str, description: str, labelnames: list) -> Gauge:
+    """Создать Gauge, игнорируя дублирование."""
+    try:
+        return Gauge(name, description, labelnames)
+    except Exception:
+        return REGISTRY._names_to_collectors.get(name)
+
+
 # Prometheus метрики
-parser_requests_total = Counter(
+parser_requests_total = _safe_counter(
     'parser_requests_total',
     'Total number of parser requests',
     ['parser_name', 'status']
 )
 
-parser_duration_seconds = Histogram(
+parser_duration_seconds = _safe_histogram(
     'parser_duration_seconds',
     'Parser request duration in seconds',
     ['parser_name'],
     buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0]
 )
 
-parser_cache_size = Gauge(
+parser_cache_size = _safe_gauge(
     'parser_cache_size',
     'Current cache size',
     ['parser_name']
 )
 
-parser_properties_found = Counter(
+parser_properties_found = _safe_counter(
     'parser_properties_found_total',
     'Total number of properties found',
     ['parser_name']

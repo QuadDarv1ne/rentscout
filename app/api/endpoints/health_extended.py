@@ -13,10 +13,11 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 
 from app.utils.logger import logger
 from app.core.config import settings
-from app.db.models.session import get_db_session
+from app.db.models.session import get_db
 
 router = APIRouter()
 
@@ -101,24 +102,22 @@ async def check_database_health() -> DatabaseHealth:
     start = time.time()
 
     try:
-        # Получаем сессию БД
-        db = await get_db_session()
+        async with get_db() as db:
+            # Проверяем подключение
+            result = await db.execute(text("SELECT version(), current_setting('server_version_num')"))
+            row = result.fetchone()
 
-        # Проверяем подключение
-        result = await db.execute("SELECT version(), current_setting('server_version_num')")
-        row = result.fetchone()
+            latency = (time.time() - start) * 1000
 
-        latency = (time.time() - start) * 1000
-
-        # Получаем статистику подключений
-        conn_result = await db.execute("""
-            SELECT
-                COUNT(*) FILTER (WHERE state = 'active') as active,
-                COUNT(*) FILTER (WHERE state = 'idle') as idle
-            FROM pg_stat_activity
-            WHERE datname = current_database()
-        """)
-        conn_row = conn_result.fetchone()
+            # Получаем статистику подключений
+            conn_result = await db.execute(text("""
+                SELECT
+                    COUNT(*) FILTER (WHERE state = 'active') as active,
+                    COUNT(*) FILTER (WHERE state = 'idle') as idle
+                FROM pg_stat_activity
+                WHERE datname = current_database()
+            """))
+            conn_row = conn_result.fetchone()
 
         version = row[0] if row else "Unknown"
 

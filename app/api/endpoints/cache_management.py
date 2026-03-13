@@ -239,7 +239,7 @@ async def list_cache_keys(
 
 @router.post("/warm")
 async def warm_cache(
-    queries: List[Dict[str, Any]] = Field(..., description="Queries to warm"),
+    queries: List[Dict[str, Any]],
 ):
     """
     Warm cache with specific queries.
