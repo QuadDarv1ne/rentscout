@@ -75,7 +75,7 @@ class TestValidationException:
     def test_default(self):
         """Test default validation exception."""
         exc = ValidationException()
-        assert exc.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         assert exc.error_code == "validation_error"
 
     def test_with_details(self):
