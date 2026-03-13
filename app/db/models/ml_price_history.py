@@ -4,7 +4,7 @@ Stores historical price data for ML model training and trend analysis.
 """
 from datetime import datetime
 from sqlalchemy import Column, String, Float, Integer, DateTime, Index
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.sql import func
 
 Base = declarative_base()
