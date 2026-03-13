@@ -144,7 +144,7 @@ async def request_validation_exception_handler(
         headers["X-Request-ID"] = request_id
 
     return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         content=ErrorResponse.validation_error(exc.errors()),
         headers=headers,
     )
@@ -165,7 +165,7 @@ async def pydantic_validation_exception_handler(
         headers["X-Request-ID"] = request_id
 
     return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         content=ErrorResponse.validation_error(exc.errors()),
         headers=headers,
     )

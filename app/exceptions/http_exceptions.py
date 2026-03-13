@@ -49,7 +49,7 @@ class ValidationException(APIException):
     """Request validation error."""
 
     error_code = "validation_error"
-    default_status = status.HTTP_422_UNPROCESSABLE_ENTITY
+    default_status = status.HTTP_422_UNPROCESSABLE_CONTENT
     default_message = "Request validation failed"
 
     def __init__(
