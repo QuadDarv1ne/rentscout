@@ -17,7 +17,7 @@
 import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple, Union
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import text, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -198,10 +198,10 @@ async def safe_execute(
                         raise SQLInjectionError(f"Опасное значение параметра '{key}': обнаружен паттерн {pattern}")
 
     # Выполнение запроса
-    start_time = datetime.utcnow()
+    start_time = datetime.now(timezone.utc)
     try:
         result = await db.execute(text(query), params or {})
-        duration = (datetime.utcnow() - start_time).total_seconds()
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
 
         # Логирование медленных запросов
         if duration > 1.0:
@@ -214,7 +214,7 @@ async def safe_execute(
         return result
 
     except Exception as e:
-        duration = (datetime.utcnow() - start_time).total_seconds()
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
         metrics_collector.record_db_error("raw_sql", str(e), duration)
         raise
 
