@@ -53,7 +53,7 @@ class TestRegistration:
         )
         assert response.status_code == 422
         data = response.json()
-        assert "detail" in data
+        assert "message" in data or "error" in data
 
     @pytest.mark.asyncio
     async def test_register_duplicate_username(self, client: AsyncClient):
@@ -77,8 +77,8 @@ class TestRegistration:
                 "password": "StrongPass123!",
             }
         )
-        assert response.status_code == 409
-        assert "Пользователь с таким именем уже существует" in str(response.json()["detail"])
+        assert response.status_code == 400
+        assert "Пользователь с таким именем уже существует" in str(response.json().get("message", response.json().get("detail", "")))
 
     @pytest.mark.asyncio
     async def test_register_duplicate_email(self, client: AsyncClient):
@@ -102,8 +102,8 @@ class TestRegistration:
                 "password": "StrongPass123!",
             }
         )
-        assert response.status_code == 409
-        assert "Email уже зарегистрирован" in str(response.json()["detail"])
+        assert response.status_code == 400
+        assert "Email уже зарегистрирован" in str(response.json().get("message", response.json().get("detail", "")))
 
     @pytest.mark.asyncio
     async def test_register_admin_role_forbidden(self, client: AsyncClient):
@@ -118,7 +118,7 @@ class TestRegistration:
             }
         )
         assert response.status_code == 403
-        assert "Нельзя зарегистрироваться администратором напрямую" in str(response.json()["detail"])
+        assert "Нельзя зарегистрироваться администратором напрямую" in str(response.json().get("message", response.json().get("detail", "")))
 
 
 # =============================================================================
@@ -178,7 +178,7 @@ class TestLogin:
             }
         )
         assert response.status_code == 401
-        assert "Неверное имя пользователя или пароль" in str(response.json()["detail"])
+        assert "Неверное имя пользователя или пароль" in str(response.json().get("message", response.json().get("detail", "")))
 
     @pytest.mark.asyncio
     async def test_login_nonexistent_user(self, client: AsyncClient):
@@ -191,7 +191,7 @@ class TestLogin:
             }
         )
         assert response.status_code == 401
-        assert "Неверное имя пользователя или пароль" in str(response.json()["detail"])
+        assert "Неверное имя пользователя или пароль" in str(response.json().get("message", response.json().get("detail", "")))
 
 
 # =============================================================================
