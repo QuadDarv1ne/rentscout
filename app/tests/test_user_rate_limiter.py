@@ -1,381 +1,340 @@
 """
-Тесты для rate limiting по пользователям.
+Тесты для role-based rate limiting.
 """
-
 import pytest
-import time
-from unittest.mock import AsyncMock, MagicMock
-
-from app.middleware.user_rate_limiter import (
-    UserTier,
-    RateLimitConfig,
-    RateLimitInfo,
-    UserRateLimiter,
-    InMemoryRateLimiter,
-    DEFAULT_TIER_LIMITS,
+import asyncio
+from app.utils.user_rate_limiter import (
+    role_rate_limiter,
+    RoleBasedRateLimiter,
+    ROLE_LIMITS,
+    ENDPOINT_LIMITS,
 )
+from app.core.security import UserRole
 
 
-class TestUserTier:
-    """Тесты уровней пользователей."""
-
-    def test_user_tier_values(self):
-        """Тест значений уровней."""
-        assert UserTier.ANONYMOUS.value == "anonymous"
-        assert UserTier.AUTHENTICATED.value == "authenticated"
-        assert UserTier.PREMIUM.value == "premium"
-        assert UserTier.ADMIN.value == "admin"
-
-
-class TestRateLimitConfig:
-    """Тесты конфигурации rate limit."""
-
-    def test_default_config(self):
-        """Тест конфигурации по умолчанию."""
-        config = RateLimitConfig()
-        assert config.max_requests == 100
-        assert config.time_window == 60
-        assert config.burst_requests == 10
-        assert config.burst_window == 1
-        assert config.daily_limit is None
-
-    def test_custom_config(self):
-        """Тест пользовательской конфигурации."""
-        config = RateLimitConfig(
-            max_requests=200,
-            time_window=120,
-            burst_requests=30,
-            burst_window=2,
-            daily_limit=5000,
-        )
-        assert config.max_requests == 200
-        assert config.daily_limit == 5000
-
-
-class TestDefaultTierLimits:
-    """Тесты лимитов по умолчанию."""
-
-    def test_anonymous_limits(self):
-        """Тест лимитов для анонимов."""
-        config = DEFAULT_TIER_LIMITS[UserTier.ANONYMOUS]
-        assert config.max_requests == 60
-        assert config.daily_limit == 1000
-
-    def test_authenticated_limits(self):
-        """Тест лимитов для аутентифицированных."""
-        config = DEFAULT_TIER_LIMITS[UserTier.AUTHENTICATED]
-        assert config.max_requests == 120
-        assert config.daily_limit == 5000
-
-    def test_premium_limits(self):
-        """Тест лимитов для premium."""
-        config = DEFAULT_TIER_LIMITS[UserTier.PREMIUM]
-        assert config.max_requests == 300
-        assert config.daily_limit == 20000
-
-    def test_admin_limits(self):
-        """Тест лимитов для admin."""
-        config = DEFAULT_TIER_LIMITS[UserTier.ADMIN]
-        assert config.max_requests == 1000
-        assert config.daily_limit is None  # Без дневного лимита
-
-
-class TestRateLimitInfo:
-    """Тесты информации о rate limit."""
-
-    def test_rate_limit_info_allowed(self):
-        """Тест разрешенного запроса."""
-        info = RateLimitInfo(
-            is_allowed=True,
-            tier=UserTier.AUTHENTICATED,
-            remaining=99,
-            reset_at=time.time() + 60,
-        )
-        assert info.is_allowed is True
-        assert info.remaining == 99
-        assert info.retry_after is None
-
-    def test_rate_limit_info_exceeded(self):
-        """Тест превышения лимита."""
-        info = RateLimitInfo(
-            is_allowed=False,
-            tier=UserTier.ANONYMOUS,
-            remaining=0,
-            reset_at=time.time() + 30,
-            retry_after=30,
-        )
-        assert info.is_allowed is False
-        assert info.remaining == 0
-        assert info.retry_after == 30
-
-
-class TestInMemoryRateLimiter:
-    """Тесты in-memory rate limiter."""
-
-    @pytest.fixture
-    def limiter(self):
-        """Фикстура rate limiter."""
-        return InMemoryRateLimiter()
-
-    @pytest.fixture
-    def test_config(self):
-        """Фикстура тестовой конфигурации."""
-        return RateLimitConfig(
-            max_requests=5,
-            time_window=60,
-            burst_requests=3,
-            burst_window=1,
-            daily_limit=10,
-        )
+class TestRoleBasedRateLimiter:
+    """Тесты для rate limiter с учётом ролей."""
 
     @pytest.mark.asyncio
-    async def test_first_request_allowed(self, limiter, test_config):
-        """Тест первого разрешенного запроса."""
-        info = await limiter.check_rate_limit(
-            identifier="user1",
-            tier=UserTier.AUTHENTICATED,
-            path="/api/test",
-            config=test_config,
+    async def test_anonymous_user_limits(self):
+        """Тест лимитов для анонимного пользователя."""
+        limiter = RoleBasedRateLimiter()
+        
+        # 20 запросов для анонимных
+        for i in range(20):
+            is_allowed, info = await limiter.check_rate_limit(
+                user_id=None,
+                role=None,
+                endpoint="/api/properties/search",
+                ip="192.168.1.1"
+            )
+            assert is_allowed is True
+        
+        # 21-й запрос должен быть отклонён
+        is_allowed, info = await limiter.check_rate_limit(
+            user_id=None,
+            role=None,
+            endpoint="/api/properties/search",
+            ip="192.168.1.1"
         )
-
-        assert info.is_allowed is True
-        assert info.remaining == 4  # 5 - 1
+        assert is_allowed is False
+        assert info["error"] == "Rate limit exceeded"
 
     @pytest.mark.asyncio
-    async def test_burst_limit(self, limiter, test_config):
-        """Тест burst лимита."""
-        # Burst limit зависит от времени выполнения запросов
-        # Тестируем что первые несколько запросов разрешены
-        allowed_count = 0
+    async def test_user_role_limits(self):
+        """Тест лимитов для обычного пользователя."""
+        limiter = RoleBasedRateLimiter()
+        
+        # 100 запросов для user
+        for i in range(100):
+            is_allowed, info = await limiter.check_rate_limit(
+                user_id=1,
+                role=UserRole.USER,
+                endpoint="/api/properties/search",
+                ip="192.168.1.2"
+            )
+            assert is_allowed is True
+        
+        # 101-й запрос должен быть отклонён
+        is_allowed, info = await limiter.check_rate_limit(
+            user_id=1,
+            role=UserRole.USER,
+            endpoint="/api/properties/search",
+            ip="192.168.1.2"
+        )
+        assert is_allowed is False
+
+    @pytest.mark.asyncio
+    async def test_admin_role_limits(self):
+        """Тест лимитов для администратора."""
+        limiter = RoleBasedRateLimiter()
+        
+        # 1000 запросов для admin
+        for i in range(1000):
+            is_allowed, info = await limiter.check_rate_limit(
+                user_id=2,
+                role=UserRole.ADMIN,
+                endpoint="/api/properties/search",
+                ip="192.168.1.3"
+            )
+            assert is_allowed is True
+        
+        # 1001-й запрос должен быть отклонён
+        is_allowed, info = await limiter.check_rate_limit(
+            user_id=2,
+            role=UserRole.ADMIN,
+            endpoint="/api/properties/search",
+            ip="192.168.1.3"
+        )
+        assert is_allowed is False
+
+    @pytest.mark.asyncio
+    async def test_endpoint_specific_limits(self):
+        """Тест специальных лимитов для endpoints."""
+        limiter = RoleBasedRateLimiter()
+        
+        # /api/auth/login — только 5 попыток в минуту
         for i in range(5):
-            info = await limiter.check_rate_limit(
-                identifier="user2",
-                tier=UserTier.AUTHENTICATED,
-                path="/api/test",
-                config=test_config,
+            is_allowed, info = await limiter.check_rate_limit(
+                user_id=3,
+                role=UserRole.ADMIN,  # Даже админ
+                endpoint="/api/auth/login",
+                ip="192.168.1.4"
             )
-            if info.is_allowed:
-                allowed_count += 1
-
-        # Как минимум несколько запросов должны быть разрешены
-        assert allowed_count >= 2
+            assert is_allowed is True
+        
+        # 6-я попытка должна быть отклонена
+        is_allowed, info = await limiter.check_rate_limit(
+            user_id=3,
+            role=UserRole.ADMIN,
+            endpoint="/api/auth/login",
+            ip="192.168.1.4"
+        )
+        assert is_allowed is False
+        assert info["limit"] == 5  # Лимит endpoint'а
 
     @pytest.mark.asyncio
-    async def test_max_requests_limit(self, limiter):
-        """Тест лимита максимальных запросов."""
-        config = RateLimitConfig(
-            max_requests=3,
-            time_window=60,
-            burst_requests=10,  # Высокий burst limit
-            burst_window=1,
-        )
-
-        # Делаем 3 запроса
-        for i in range(3):
-            info = await limiter.check_rate_limit(
-                identifier="user3",
-                tier=UserTier.AUTHENTICATED,
-                path="/api/test",
-                config=config,
-            )
-            assert info.is_allowed is True
-
-        # 4-й запрос должен быть отклонен
-        info = await limiter.check_rate_limit(
-            identifier="user3",
-            tier=UserTier.AUTHENTICATED,
-            path="/api/test",
-            config=config,
-        )
-
-        assert info.is_allowed is False
-        assert info.remaining == 0
-
-    @pytest.mark.asyncio
-    async def test_daily_limit(self, limiter):
-        """Тест дневного лимита."""
-        config = RateLimitConfig(
-            max_requests=100,  # Высокий max_requests
-            time_window=60,
-            burst_requests=100,
-            burst_window=1,
-            daily_limit=3,
-        )
-
-        # Делаем 3 запроса и проверяем что они разрешены
-        allowed_requests = []
-        for i in range(3):
-            info = await limiter.check_rate_limit(
-                identifier="user4",
-                tier=UserTier.AUTHENTICATED,
-                path="/api/test",
-                config=config,
-            )
-            allowed_requests.append(info)
-            assert info.is_allowed is True
-
-        # 4-й запрос должен быть отклонен (дневной лимит)
-        info = await limiter.check_rate_limit(
-            identifier="user4",
-            tier=UserTier.AUTHENTICATED,
-            path="/api/test",
-            config=config,
-        )
-
-        # Проверяем что дневной лимит сработал
-        assert info.is_allowed is False or info.daily_remaining == 0
-
-    @pytest.mark.asyncio
-    async def test_no_daily_limit_for_admin(self, limiter):
-        """Тест отсутствия дневного лимита для admin."""
-        config = RateLimitConfig(
-            max_requests=100,
-            time_window=60,
-            burst_requests=100,
-            burst_window=1,
-            daily_limit=None,
-        )
-
-        # Делаем много запросов
+    async def test_different_users_independent(self):
+        """Тест независимости лимитов разных пользователей."""
+        limiter = RoleBasedRateLimiter()
+        
+        # Пользователь 1 делает 50 запросов
         for i in range(50):
-            info = await limiter.check_rate_limit(
-                identifier="admin1",
-                tier=UserTier.ADMIN,
-                path="/api/test",
-                config=config,
+            await limiter.check_rate_limit(
+                user_id=10,
+                role=UserRole.USER,
+                endpoint="/api/properties/search",
+                ip="192.168.1.5"
             )
-            assert info.is_allowed is True
-            assert info.daily_remaining is None
-
-
-class TestUserRateLimiter:
-    """Тесты основного rate limiter."""
-
-    @pytest.fixture
-    def user_limiter(self):
-        """Фикстура user rate limiter."""
-        return UserRateLimiter()
-
-    @pytest.fixture
-    def mock_request(self):
-        """Фикстура мок запроса."""
-        request = MagicMock()
-        request.client.host = "192.168.1.1"
-        request.url.path = "/api/test"
-        request.headers = {}
-        return request
-
-    def test_get_client_identifier(self, user_limiter, mock_request):
-        """Тест получения идентификатора клиента."""
-        identifier = user_limiter._get_client_identifier(mock_request)
-        assert identifier == "192.168.1.1"
-
-    def test_get_client_identifier_forwarded_for(self, user_limiter):
-        """Тест получения идентификатора из X-Forwarded-For."""
-        request = MagicMock()
-        request.client.host = "127.0.0.1"
-        request.headers = {"X-Forwarded-For": "203.0.113.1, 70.41.3.18"}
-        request.url.path = "/api/test"
-
-        identifier = user_limiter._get_client_identifier(request)
-        assert identifier == "203.0.113.1"
-
-    def test_get_user_tier_anonymous(self, user_limiter):
-        """Тест определения анонимного пользователя."""
-        tier = user_limiter._get_user_tier()
-        assert tier == UserTier.ANONYMOUS
-
-    def test_get_user_tier_authenticated(self, user_limiter):
-        """Тест определения аутентифицированного пользователя."""
-        tier = user_limiter._get_user_tier(user_id=123)
-        assert tier == UserTier.AUTHENTICATED
-
-    def test_get_user_tier_premium(self, user_limiter):
-        """Тест определения premium пользователя."""
-        tier = user_limiter._get_user_tier(user_id=123, is_premium=True)
-        assert tier == UserTier.PREMIUM
-
-    def test_get_user_tier_admin(self, user_limiter):
-        """Тест определения admin пользователя."""
-        tier = user_limiter._get_user_tier(user_id=123, is_admin=True)
-        assert tier == UserTier.ADMIN
-
-    def test_whitelist_ip(self, user_limiter, mock_request):
-        """Тест whitelist IP."""
-        user_limiter.whitelist_ips.add("192.168.1.1")
-
-        info = user_limiter.check_rate_limit(mock_request)
-        # Синхронно проверяем что IP в whitelist
-        assert "192.168.1.1" in user_limiter.whitelist_ips
-
-    def test_add_remove_user_whitelist(self, user_limiter):
-        """Тест добавления/удаления из whitelist пользователей."""
-        user_limiter.add_to_whitelist(123)
-        assert 123 in user_limiter.whitelist_users
-
-        user_limiter.remove_from_whitelist(123)
-        assert 123 not in user_limiter.whitelist_users
+        
+        # Пользователь 2 должен иметь полный лимит
+        is_allowed, info = await limiter.check_rate_limit(
+            user_id=11,
+            role=UserRole.USER,
+            endpoint="/api/properties/search",
+            ip="192.168.1.6"
+        )
+        assert is_allowed is True
+        assert info["remaining"] == 99  # 100 - 1
 
     @pytest.mark.asyncio
-    async def test_check_rate_limit_anonymous(self, user_limiter, mock_request):
-        """Тест rate limit для анонимного пользователя."""
-        info = await user_limiter.check_rate_limit(mock_request)
-
-        assert info.tier == UserTier.ANONYMOUS
-        assert info.is_allowed is True
-        assert info.is_whitelisted is False
+    async def test_premium_role_limits(self):
+        """Тест лимитов для premium пользователя."""
+        limiter = RoleBasedRateLimiter()
+        
+        # 500 запросов для premium
+        for i in range(500):
+            is_allowed, info = await limiter.check_rate_limit(
+                user_id=20,
+                role=UserRole.PREMIUM,
+                endpoint="/api/properties/search",
+                ip="192.168.1.7"
+            )
+            assert is_allowed is True
+        
+        # 501-й запрос должен быть отклонён
+        is_allowed, info = await limiter.check_rate_limit(
+            user_id=20,
+            role=UserRole.PREMIUM,
+            endpoint="/api/properties/search",
+            ip="192.168.1.7"
+        )
+        assert is_allowed is False
 
     @pytest.mark.asyncio
-    async def test_check_rate_limit_authenticated(self, user_limiter, mock_request):
-        """Тест rate limit для аутентифицированного пользователя."""
-        info = await user_limiter.check_rate_limit(
-            mock_request,
-            user_id=123,
+    async def test_moderator_role_limits(self):
+        """Тест лимитов для модератора."""
+        limiter = RoleBasedRateLimiter()
+        
+        # 300 запросов для moderator
+        for i in range(300):
+            is_allowed, info = await limiter.check_rate_limit(
+                user_id=30,
+                role=UserRole.MODERATOR,
+                endpoint="/api/properties/search",
+                ip="192.168.1.8"
+            )
+            assert is_allowed is True
+        
+        # 301-й запрос должен быть отклонён
+        is_allowed, info = await limiter.check_rate_limit(
+            user_id=30,
+            role=UserRole.MODERATOR,
+            endpoint="/api/properties/search",
+            ip="192.168.1.8"
         )
-
-        assert info.tier == UserTier.AUTHENTICATED
-        assert info.is_allowed is True
+        assert is_allowed is False
 
     @pytest.mark.asyncio
-    async def test_check_rate_limit_premium(self, user_limiter, mock_request):
-        """Тест rate limit для premium пользователя."""
-        info = await user_limiter.check_rate_limit(
-            mock_request,
-            user_id=123,
-            is_premium=True,
+    async def test_rate_limit_info(self):
+        """Тест информации о rate limit."""
+        limiter = RoleBasedRateLimiter()
+        
+        is_allowed, info = await limiter.check_rate_limit(
+            user_id=40,
+            role=UserRole.USER,
+            endpoint="/api/properties/search",
+            ip="192.168.1.9"
         )
-
-        assert info.tier == UserTier.PREMIUM
-        assert info.is_allowed is True
+        
+        assert is_allowed is True
+        assert "remaining" in info
+        assert "limit" in info
+        assert "window" in info
+        assert info["role"] == "user"
+        assert info["limit"] == 100
 
     @pytest.mark.asyncio
-    async def test_check_rate_limit_whitelisted_user(self, user_limiter, mock_request):
-        """Тест rate limit для пользователя в whitelist."""
-        user_limiter.add_to_whitelist(999)
-
-        info = await user_limiter.check_rate_limit(
-            mock_request,
-            user_id=999,
+    async def test_rate_limit_exceeded_info(self):
+        """Тест информации о превышении лимита."""
+        limiter = RoleBasedRateLimiter()
+        
+        # Исчерпываем лимит
+        for i in range(21):  # 20 + 1 для анонима
+            await limiter.check_rate_limit(
+                user_id=None,
+                role=None,
+                endpoint="/api/properties/search",
+                ip="192.168.1.10"
+            )
+        
+        is_allowed, info = await limiter.check_rate_limit(
+            user_id=None,
+            role=None,
+            endpoint="/api/properties/search",
+            ip="192.168.1.10"
         )
+        
+        assert is_allowed is False
+        assert "error" in info
+        assert "retry_after" in info
+        assert info["error"] == "Rate limit exceeded"
+        assert info["retry_after"] > 0
 
-        assert info.is_whitelisted is True
-        assert info.is_allowed is True
-
-
-class TestRateLimitHeaders:
-    """Тесты заголовков rate limit."""
-
-    def test_rate_limit_info_headers(self):
-        """Тест информации о заголовках."""
-        info = RateLimitInfo(
-            is_allowed=True,
-            tier=UserTier.AUTHENTICATED,
-            remaining=50,
-            reset_at=time.time() + 60,
-            daily_remaining=100,
+    @pytest.mark.asyncio
+    async def test_reset_limits(self):
+        """Тест сброса лимитов."""
+        limiter = RoleBasedRateLimiter()
+        
+        # Исчерпываем лимит
+        for i in range(21):
+            await limiter.check_rate_limit(
+                user_id=50,
+                role=UserRole.USER,
+                endpoint="/api/properties/search",
+                ip="192.168.1.11"
+            )
+        
+        # Проверяем что лимит исчерпан
+        is_allowed, info = await limiter.check_rate_limit(
+            user_id=50,
+            role=UserRole.USER,
+            endpoint="/api/properties/search",
+            ip="192.168.1.11"
         )
+        assert is_allowed is False
+        
+        # Сбрасываем лимиты
+        await limiter.reset_limits(user_id=50)
+        
+        # Теперь запрос должен пройти
+        is_allowed, info = await limiter.check_rate_limit(
+            user_id=50,
+            role=UserRole.USER,
+            endpoint="/api/properties/search",
+            ip="192.168.1.11"
+        )
+        assert is_allowed is True
 
-        # Проверяем что информация корректна
-        assert info.remaining == 50
-        assert info.daily_remaining == 100
-        assert info.tier == UserTier.AUTHENTICATED
+    @pytest.mark.asyncio
+    async def test_get_usage_stats(self):
+        """Тест статистики использования."""
+        limiter = RoleBasedRateLimiter()
+        
+        # Делаем 10 запросов
+        for i in range(10):
+            await limiter.check_rate_limit(
+                user_id=60,
+                role=UserRole.USER,
+                endpoint="/api/properties/search",
+                ip="192.168.1.12"
+            )
+        
+        stats = await limiter.get_usage_stats(user_id=60)
+        
+        assert stats["user_id"] == 60
+        assert stats["requests_last_minute"] == 10
+        assert stats["requests_last_hour"] == 10
+
+    @pytest.mark.asyncio
+    async def test_endpoint_limit_stricter_than_role(self):
+        """Тест что лимит endpoint'а строже лимита роли."""
+        limiter = RoleBasedRateLimiter()
+        
+        # Admin имеет 1000 запросов/мин, но /api/auth/login только 5
+        for i in range(5):
+            is_allowed, _ = await limiter.check_rate_limit(
+                user_id=70,
+                role=UserRole.ADMIN,
+                endpoint="/api/auth/login",
+                ip="192.168.1.13"
+            )
+            assert is_allowed is True
+        
+        # 6-й запрос должен быть отклонён несмотря на admin роль
+        is_allowed, info = await limiter.check_rate_limit(
+            user_id=70,
+            role=UserRole.ADMIN,
+            endpoint="/api/auth/login",
+            ip="192.168.1.13"
+        )
+        assert is_allowed is False
+        assert info["limit"] == 5  # Лимит endpoint'а, не роли
+
+
+class TestRoleLimitsConfiguration:
+    """Тесты конфигурации лимитов."""
+
+    def test_role_limits_positive(self):
+        """Тест что все лимиты ролей положительные."""
+        for role, limits in ROLE_LIMITS.items():
+            assert limits["requests"] > 0
+            assert limits["window"] > 0
+
+    def test_endpoint_limits_positive(self):
+        """Тест что все лимиты endpoints положительные."""
+        for endpoint, limits in ENDPOINT_LIMITS.items():
+            assert limits["requests"] > 0
+            assert limits["window"] > 0
+
+    def test_admin_has_highest_limits(self):
+        """Тест что у админа самые высокие лимиты."""
+        admin_limits = ROLE_LIMITS[UserRole.ADMIN]["requests"]
+        
+        for role, limits in ROLE_LIMITS.items():
+            if role != UserRole.ADMIN:
+                assert limits["requests"] <= admin_limits
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "-s"])
