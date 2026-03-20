@@ -23,6 +23,7 @@ from app.core.security import (
     refresh_access_token,
     generate_verification_token,
     verify_token,
+    decode_token,
 )
 from app.dependencies.auth import (
     get_current_user,
@@ -37,7 +38,26 @@ from app.utils.auth_ratelimiter import auth_rate_limiter
 from app.db.session import get_db
 from app.db.repositories import user as user_repository
 from app.db.models.user import User as UserDB
+from app.utils.two_factor import two_factor_manager
 from sqlalchemy.ext.asyncio import AsyncSession
+import json
+import hashlib
+
+class LoginRequest(BaseModel):
+    """Запрос на вход с поддержкой 2FA."""
+    username: str
+    password: str
+    code: Optional[str] = Field(None, description="TOTP код или backup код (если включен 2FA)")
+
+
+class LoginResponse(BaseModel):
+    """Ответ при входе."""
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+    token_type: str = "bearer"
+    expires_in: Optional[int] = None
+    requires_2fa: bool = False
+    message: str = ""
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -160,7 +180,7 @@ async def register(
 @router.post(
     "/login",
     response_model=TokenPair,
-    summary="Вход в систему",
+    summary="Вход в систему (OAuth2)",
 )
 async def login(
     request: Request,
@@ -168,7 +188,7 @@ async def login(
     db: AsyncSession = Depends(get_db)
 ) -> TokenPair:
     """
-    Аутентификация пользователя и получение токенов.
+    Аутентификация пользователя и получение токенов (OAuth2 Password Flow).
 
     ### OAuth2 Password Flow:
     - username: Имя пользователя или email
@@ -236,6 +256,14 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # Проверка 2FA
+    if user.two_factor_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Требуется 2FA код. Используйте /api/auth/login-with-2fa",
+            headers={"X-2FA-Required": "true"},
+        )
+
     # Обновление времени последнего входа
     await user_repository.update_last_login(db, user)
 
@@ -249,6 +277,141 @@ async def login(
     logger.info(f"Пользователь вошел в систему: {user.username} (ID: {user.id})")
 
     return tokens
+
+
+@router.post(
+    "/login-with-2fa",
+    response_model=LoginResponse,
+    summary="Вход с 2FA",
+)
+async def login_with_2fa(
+    request: Request,
+    login_data: LoginRequest,
+    db: AsyncSession = Depends(get_db)
+) -> LoginResponse:
+    """
+    Аутентификация пользователя с поддержкой 2FA.
+
+    ### Flow:
+    1. Отправьте username и password
+    2. Если включен 2FA, получите ответ с `requires_2fa: true`
+    3. Отправьте запрос снова с TOTP кодом
+
+    ### Возвращает:
+    - Если требуется 2FA: `{requires_2fa: true, message: "..."}`
+    - Если успешно: `{access_token, refresh_token, ...}`
+    """
+    # Rate limiting
+    client_ip = request.client.host if request.client else "unknown"
+    is_allowed, rate_info = await auth_rate_limiter.check_login_attempt(
+        client_ip,
+        username=login_data.username
+    )
+
+    if not is_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": rate_info.get("error", "Превышен лимит попыток входа"),
+                "retry_after": rate_info.get("retry_after", 60),
+            },
+            headers={"Retry-After": str(rate_info.get("retry_after", 60))},
+        )
+
+    # Поиск пользователя
+    user = await user_repository.get_user_by_username(db, login_data.username)
+    if not user:
+        user = await user_repository.get_user_by_email(db, login_data.username)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Неверное имя пользователя или пароль",
+        )
+
+    # Проверка пароля
+    if not verify_password(login_data.password, user.hashed_password):
+        logger.warning(
+            f"Неудачная попытка входа (2FA)",
+            extra_data={
+                "ip": client_ip,
+                "username": login_data.username,
+                "reason": "invalid_password",
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Неверное имя пользователя или пароль",
+        )
+
+    # Проверка активности
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Аккаунт заблокирован",
+        )
+
+    # Проверка 2FA
+    if user.two_factor_enabled:
+        if not login_data.code:
+            return LoginResponse(
+                requires_2fa=True,
+                message="Требуется 2FA код. Отправьте запрос с полем 'code'"
+            )
+
+        # Проверяем TOTP код
+        if user.two_factor_secret:
+            if not two_factor_manager.verify_code(user.two_factor_secret, login_data.code):
+                # Проверяем backup код
+                if user.backup_codes:
+                    backup_codes = json.loads(user.backup_codes)
+                    used_codes = json.loads(user.backup_codes_used or "[]")
+                    
+                    is_valid_backup = False
+                    for i, code_hash in enumerate(backup_codes):
+                        if i not in used_codes:
+                            input_hash = hashlib.sha256(login_data.code.encode()).hexdigest().upper()
+                            if code_hash == input_hash:
+                                is_valid_backup = True
+                                # Отмечаем код как использованный
+                                used_codes.append(i)
+                                await user_repository.update_user_by_id(
+                                    db, user.id,
+                                    {"backup_codes_used": json.dumps(used_codes)}
+                                )
+                                break
+                    
+                    if not is_valid_backup:
+                        raise HTTPException(
+                            status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Неверный 2FA код",
+                        )
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Неверный 2FA код",
+                    )
+
+    # Обновление времени последнего входа
+    await user_repository.update_last_login(db, user)
+
+    # Генерация токенов
+    tokens = create_token_pair(
+        user_id=user.id,
+        username=user.username,
+        role=user.role,
+    )
+
+    logger.info(f"Пользователь вошел с 2FA: {user.username} (ID: {user.id})")
+
+    return LoginResponse(
+        access_token=tokens.access_token,
+        refresh_token=tokens.refresh_token,
+        token_type=tokens.token_type,
+        expires_in=tokens.expires_in,
+        requires_2fa=False,
+        message="Вход выполнен успешно"
+    )
 
 
 @router.post(
