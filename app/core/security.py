@@ -3,12 +3,13 @@
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Any
+from typing import Optional, Any, Tuple
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from enum import Enum
 import secrets
+import re
 
 from app.core.config import settings
 
@@ -166,6 +167,45 @@ def validate_password_strength(password: str) -> tuple[bool, list[str]]:
         problems.append("Пароль слишком распространённый")
     
     return len(problems) == 0, problems
+
+
+def validate_email_format(email: str) -> Tuple[bool, Optional[str]]:
+    """
+    Проверяет формат email адреса.
+
+    Args:
+        email: Email для проверки
+
+    Returns:
+        Кортеж (валиден, сообщение об ошибке или None)
+    """
+    if not email or not isinstance(email, str):
+        return False, "Email обязателен"
+
+    email = email.strip().lower()
+
+    if len(email) < 5 or len(email) > 100:
+        return False, "Email должен быть от 5 до 100 символов"
+
+    # Базовая проверка формата через regex
+    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(email_pattern, email):
+        return False, "Неверный формат email"
+
+    # Проверка домена
+    domain = email.split('@')[1] if '@' in email else ''
+    if not domain or '.' not in domain:
+        return False, "Неверный домен email"
+
+    # Проверка на одноразовые email (базовая)
+    disposable_domains = [
+        'tempmail.com', 'throwaway.com', 'guerrillamail.com',
+        'mailinator.com', '10minutemail.com', 'temp-mail.org'
+    ]
+    if domain in disposable_domains:
+        return False, "Одноразовые email адреса запрещены"
+
+    return True, None
 
 
 # =============================================================================

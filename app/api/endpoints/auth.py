@@ -19,6 +19,7 @@ from app.core.security import (
     verify_password,
     get_password_hash,
     validate_password_strength,
+    validate_email_format,
     create_token_pair,
     refresh_access_token,
     generate_verification_token,
@@ -150,6 +151,17 @@ async def register(
             detail={
                 "error": "Слабый пароль",
                 "problems": problems
+            }
+        )
+
+    # Валидация email
+    is_valid_email, email_error = validate_email_format(user_data.email)
+    if not is_valid_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "Неверный email",
+                "message": email_error
             }
         )
 
