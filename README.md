@@ -1,5 +1,7 @@
 # 🏠 RentScout – Парсер арендной недвижимости
 
+© 2026 Dupley Maxim Igorevich. Все права защищены.
+
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.68+-green?logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Python](https://img.shields.io/badge/Python-3.9+-blue?logo=python)](https://python.org)
 [![Version](https://img.shields.io/badge/Version-v3.4.0-blue)](https://github.com/QuadDarv1ne/rentscout/releases)
