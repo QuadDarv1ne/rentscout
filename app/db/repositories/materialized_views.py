@@ -5,7 +5,7 @@ Provides optimized queries using pre-computed aggregations.
 """
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from sqlalchemy import select, text
+from sqlalchemy import select, text, bindparam
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -21,12 +21,17 @@ async def get_property_stats_by_location(
     Much faster than querying properties table directly.
     """
     filters = []
+    params = {}
+    
     if city:
-        filters.append(f"city = '{city}'")
+        filters.append("city = :city")
+        params["city"] = city
     if district:
-        filters.append(f"district = '{district}'")
+        filters.append("district = :district")
+        params["district"] = district
     if source:
-        filters.append(f"source = '{source}'")
+        filters.append("source = :source")
+        params["source"] = source
 
     where_clause = "WHERE " + " AND ".join(filters) if filters else ""
 
@@ -49,7 +54,7 @@ async def get_property_stats_by_location(
         ORDER BY property_count DESC
     """)
 
-    result = await db.execute(query)
+    result = await db.execute(query, params)
     rows = result.all()
 
     return [
@@ -82,13 +87,15 @@ async def get_price_trends(
 
     Returns daily price statistics.
     """
-    date_filter = f"WHERE date >= CURRENT_DATE - INTERVAL '{days} days'"
-    filters = [date_filter]
+    filters = ["date >= CURRENT_DATE - INTERVAL ':days days'"]
+    params = {"days": days}
 
     if city:
-        filters.append(f"city = '{city}'")
+        filters.append("city = :city")
+        params["city"] = city
     if rooms is not None:
-        filters.append(f"rooms = {rooms}")
+        filters.append("rooms = :rooms")
+        params["rooms"] = rooms
 
     where_clause = " AND ".join(filters)
 
@@ -108,7 +115,7 @@ async def get_price_trends(
         ORDER BY date DESC
     """)
 
-    result = await db.execute(query)
+    result = await db.execute(query, params)
     rows = result.all()
 
     return [
@@ -136,11 +143,12 @@ async def get_popular_searches(
     """
     Get popular search queries from materialized view.
     """
-    date_filter = f"WHERE search_date >= CURRENT_DATE - INTERVAL '{days} days'"
-    filters = [date_filter]
+    filters = ["search_date >= CURRENT_DATE - INTERVAL ':days days'"]
+    params = {"days": days, "limit": limit}
 
     if city:
-        filters.append(f"city = '{city}'")
+        filters.append("city = :city")
+        params["city"] = city
 
     where_clause = " AND ".join(filters)
 
@@ -155,10 +163,10 @@ async def get_popular_searches(
         FROM mv_popular_searches
         {where_clause}
         ORDER BY search_count DESC
-        LIMIT {limit}
+        LIMIT :limit
     """)
 
-    result = await db.execute(query)
+    result = await db.execute(query, params)
     rows = result.all()
 
     return [
@@ -182,11 +190,12 @@ async def get_property_view_stats(
     """
     Get property view statistics from materialized view.
     """
-    date_filter = f"WHERE view_date >= CURRENT_DATE - INTERVAL '{days} days'"
-    filters = [date_filter]
+    filters = ["view_date >= CURRENT_DATE - INTERVAL ':days days'"]
+    params = {"days": days}
 
-    if property_id:
-        filters.append(f"property_id = {property_id}")
+    if property_id is not None:
+        filters.append("property_id = :property_id")
+        params["property_id"] = property_id
 
     where_clause = " AND ".join(filters)
 
@@ -201,7 +210,7 @@ async def get_property_view_stats(
         ORDER BY view_date DESC, view_count DESC
     """)
 
-    result = await db.execute(query)
+    result = await db.execute(query, params)
     rows = result.all()
 
     return [
@@ -232,6 +241,17 @@ async def refresh_materialized_view(
         True if successful
     """
     try:
+        # Whitelist допустимых названий представлений
+        ALLOWED_VIEWS = {
+            "mv_property_stats_by_location",
+            "mv_price_trends_daily",
+            "mv_popular_searches",
+            "mv_property_views_daily",
+        }
+        
+        if view_name not in ALLOWED_VIEWS:
+            raise ValueError(f"Invalid materialized view name: {view_name}")
+        
         concurrently_str = "CONCURRENTLY" if concurrently else ""
         query = text(f"REFRESH MATERIALIZED VIEW {concurrently_str} {view_name}")
         await db.execute(query)
