@@ -107,7 +107,7 @@ async def setup_2fa(
     
     # Временно сохраняем секрет (не активируем пока не подтвердим)
     # В реальном приложении лучше хранить в Redis с TTL
-    await user_repository.update_user(
+    await user_repository.update_user_by_id(
         db,
         user.id,
         {"two_factor_secret": secret, "backup_codes": json.dumps(setup_data["backup_codes"])}
@@ -160,7 +160,7 @@ async def enable_2fa(
         )
     
     # Активируем 2FA
-    await user_repository.update_user(
+    await user_repository.update_user_by_id(
         db,
         user.id,
         {"two_factor_enabled": True}
@@ -220,7 +220,7 @@ async def disable_2fa(
             )
     
     # Отключаем 2FA
-    await user_repository.update_user(
+    await user_repository.update_user_by_id(
         db,
         user.id,
         {
@@ -279,7 +279,7 @@ async def verify_2fa(
             used_codes = json.loads(user.backup_codes_used or "[]")
             used_codes.append(code_index)
             
-            await user_repository.update_user(
+            await user_repository.update_user_by_id(
                 db,
                 user.id,
                 {"backup_codes_used": json.dumps(used_codes)}

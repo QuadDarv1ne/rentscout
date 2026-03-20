@@ -378,7 +378,7 @@ async def login_2fa(
             # Отмечаем код как использованный
             used_codes = json.loads(user.backup_codes_used or "[]")
             used_codes.append(code_index)
-            await user_repository.update_user(
+            await user_repository.update_user_by_id(
                 db, user.id, {"backup_codes_used": json.dumps(used_codes)}
             )
     
