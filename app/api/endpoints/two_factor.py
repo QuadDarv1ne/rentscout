@@ -12,6 +12,7 @@ from app.db.session import get_db
 from app.db.repositories import user as user_repository
 from app.utils.two_factor import two_factor_manager
 from app.utils.logger import logger
+from app.utils.auth_ratelimiter import auth_rate_limiter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -252,41 +253,58 @@ async def verify_2fa(
     """
     Проверяет код 2FA без создания сессии.
     """
+    # Rate limiting для 2FA verification (защита от brute-force)
+    client_ip = request.client.host if request.client else "unknown"
+    is_allowed, rate_info = await auth_rate_limiter.check_login_attempt(
+        client_ip,
+        username=f"2fa_verify_{current_user.user_id}"
+    )
+
+    if not is_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": "Превышен лимит попыток проверки 2FA",
+                "retry_after": rate_info.get("retry_after", 60),
+            },
+            headers={"Retry-After": str(rate_info.get("retry_after", 60))},
+        )
+
     user = await user_repository.get_user_by_id(db, current_user.user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Пользователь не найден"
         )
-    
+
     if not user.two_factor_enabled or not user.two_factor_secret:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="2FA не включен"
         )
-    
+
     # Пробуем TOTP код
     if two_factor_manager.verify_code(user.two_factor_secret, code):
         return {"valid": True, "method": "totp"}
-    
+
     # Пробуем backup код
     if user.backup_codes:
         backup_codes = json.loads(user.backup_codes)
         is_valid, code_index = two_factor_manager.verify_backup_code(backup_codes, code)
-        
+
         if is_valid:
             # Отмечаем backup код как использованный
             used_codes = json.loads(user.backup_codes_used or "[]")
             used_codes.append(code_index)
-            
+
             await user_repository.update_user_by_id(
                 db,
                 user.id,
                 {"backup_codes_used": json.dumps(used_codes)}
             )
-            
+
             return {"valid": True, "method": "backup"}
-    
+
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail="Неверный код"
