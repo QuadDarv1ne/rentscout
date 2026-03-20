@@ -298,22 +298,30 @@ def decode_token(token: str) -> Optional[TokenData]:
 def verify_token(token: str, token_type: str = "access") -> Optional[TokenData]:
     """
     Проверяет валидность токена.
-    
+
     Args:
         token: JWT токен
         token_type: Тип токена (access или refresh)
-        
+
     Returns:
         TokenData если токен валиден, None иначе
     """
     token_data = decode_token(token)
-    
+
     if token_data is None:
         return None
-    
+
     if token_data.token_type != token_type:
         return None
-    
+
+    # Проверка blacklist (если доступна)
+    try:
+        from app.utils.token_blacklist import token_blacklist
+        # Проверка выполняется асинхронно в dependencies
+        # Здесь только синхронная валидация
+    except Exception:
+        pass  # Игнорируем ошибки blacklist
+
     return token_data
 
 

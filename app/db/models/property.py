@@ -97,7 +97,15 @@ class Property(Base):
         Index('ix_floor_total_floors', 'floor', 'total_floors'),  # For floor-related queries
     )
 
+    # Foreign key to User (owner who added the property)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+
     # Relationships for eager loading (prevents N+1 queries)
+    owner = relationship(
+        "User",
+        back_populates="properties",
+        lazy="selectin"
+    )
     price_history = relationship(
         "PropertyPriceHistory",
         back_populates="property",

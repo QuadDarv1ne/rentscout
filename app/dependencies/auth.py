@@ -1,5 +1,6 @@
 """
 Зависимости для JWT-аутентификации.
+Включает проверку blacklist для отозванных токенов.
 """
 
 from typing import Optional
@@ -16,6 +17,7 @@ from app.core.security import (
     get_current_moderator_or_admin,
 )
 from app.core.config import settings
+from app.utils.token_blacklist import token_blacklist
 
 
 # =============================================================================
@@ -72,28 +74,38 @@ async def get_current_user(
 ) -> TokenData:
     """
     Получает текущего аутентифицированного пользователя.
-    
+    Проверяет blacklist для отзыва токенов.
+
     Args:
         token: JWT токен
-        
+
     Returns:
         TokenData текущего пользователя
-        
+
     Raises:
-        HTTPException: Если токен невалиден или истёк
+        HTTPException: Если токен невалиден, истёк или отозван
     """
     try:
         token_data = verify_token(token)
-        
+
         if token_data is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Неверный или истёкший токен",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        
+
+        # Проверка blacklist
+        is_blacklisted = await token_blacklist.is_blacklisted(token, token_type="access")
+        if is_blacklisted:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Токен отозван",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
         return token_data
-    
+
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
