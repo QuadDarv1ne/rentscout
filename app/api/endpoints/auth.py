@@ -39,6 +39,7 @@ from app.db.session import get_db
 from app.db.repositories import user as user_repository
 from app.db.models.user import User as UserDB
 from app.utils.two_factor import two_factor_manager
+from app.utils.token_blacklist import token_blacklist
 from sqlalchemy.ext.asyncio import AsyncSession
 import json
 import hashlib
@@ -458,6 +459,91 @@ async def login_with_2fa(
         )
 
 
+class RefreshTokenRequest(BaseModel):
+    """Запрос на обновление токена."""
+    refresh_token: str = Field(..., description="Refresh токен")
+
+
+@router.post(
+    "/refresh",
+    response_model=TokenPair,
+    summary="Обновление токена",
+)
+async def refresh_token(
+    request: Request,
+    data: RefreshTokenRequest,
+    db: AsyncSession = Depends(get_db)
+) -> TokenPair:
+    """
+    Обновляет пару токенов используя refresh токен.
+
+    ### Требования:
+    - Refresh токен должен быть валидным
+    - Пользователь должен быть активен
+    - Токен не должен быть отозван
+
+    ### Возвращает:
+    - `access_token`: Новый access токен (24 часа)
+    - `refresh_token`: Новый refresh токен (7 дней)
+    - `token_type`: bearer
+    - `expires_in`: Время жизни access токена в секундах
+    """
+    try:
+        # Проверяем refresh токен
+        token_data = refresh_access_token(data.refresh_token)
+
+        if not token_data:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Неверный или истёкший refresh токен",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # Проверяем blacklist
+        is_blacklisted = await token_blacklist.is_blacklisted(data.refresh_token, "refresh")
+        if is_blacklisted:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Токен был отозван",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # Проверяем существование пользователя
+        user = await user_repository.get_user_by_id(db, token_data.user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Пользователь не найден",
+            )
+
+        # Проверяем активность
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Аккаунт заблокирован",
+            )
+
+        # Генерируем новую пару токенов
+        new_tokens = create_token_pair(
+            user_id=user.id,
+            username=user.username,
+            role=user.role,
+        )
+
+        logger.info(f"Токен обновлён для пользователя: {user.username} (ID: {user.id})")
+
+        return new_tokens
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Token refresh error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Ошибка обновления токена",
+        )
+
+
 @router.post(
     "/logout",
     summary="Выход из системы",
@@ -469,22 +555,22 @@ async def logout(
 ) -> dict:
     """
     Выход из системы с отзывом токенов.
-    
+
     Добавляет текущий access токен в blacklist.
     """
     from app.utils.token_blacklist import token_blacklist
     from datetime import datetime, timezone, timedelta
-    
+
     # Извлекаем токен из запроса
     token = await get_token_from_request(request)
-    
+
     # Получаем информацию о токене для вычисления TTL
     token_data = verify_token(token)
     if token_data and token_data.exp:
         await token_blacklist.add_token(token, token_data.exp, "access")
-    
+
     logger.info(f"Пользователь вышел из системы: {current_user.username} (ID: {current_user.user_id})")
-    
+
     return {"message": "Выход выполнен успешно", "token_revoked": True}
 
 

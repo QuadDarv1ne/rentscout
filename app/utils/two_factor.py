@@ -13,7 +13,8 @@ import qrcode
 import io
 import base64
 import hashlib
-from typing import Optional
+import bcrypt
+from typing import Optional, List, Tuple
 from datetime import datetime, timezone
 
 from app.core.config import settings
@@ -89,40 +90,49 @@ class TwoFactorManager:
         totp = self.get_totp(secret)
         return totp.verify(code, valid_window=window)
     
-    def generate_backup_codes(self) -> list[str]:
+    def generate_backup_codes(self) -> List[str]:
         """
         Генерирует список backup кодов.
-        
+
         Returns:
-            Список backup кодов (хэшированных для хранения)
+            Список backup кодов (хэшированных bcrypt для безопасности)
         """
-        codes = []
+        plain_codes = []
+        hashed_codes = []
+
         for _ in range(self.BACKUP_CODES_COUNT):
-            # Генерируем случайный код
-            code = secrets.token_hex(self.BACKUP_CODE_LENGTH // 2).upper()
-            # Хэшируем для безопасного хранения
-            code_hash = hashlib.sha256(code.encode()).hexdigest()
-            codes.append(code_hash)
-        
-        return codes
-    
-    def verify_backup_code(self, stored_codes: list[str], code: str) -> tuple[bool, int]:
+            # Генерируем случайный код (8 символов, верхний регистр)
+            code = ''.join(secrets.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')
+                          for _ in range(self.BACKUP_CODE_LENGTH))
+            plain_codes.append(code)
+
+            # Хэшируем bcrypt для безопасного хранения
+            salt = bcrypt.gensalt(rounds=12)
+            code_hash = bcrypt.hashpw(code.encode(), salt).decode()
+            hashed_codes.append(code_hash)
+
+        return hashed_codes
+
+    def verify_backup_code(self, stored_codes: List[str], code: str) -> Tuple[bool, int]:
         """
-        Проверяет backup код.
-        
+        Проверяет backup код с использованием bcrypt.
+
         Args:
-            stored_codes: Список хэшированных backup кодов
+            stored_codes: Список хэшированных bcrypt backup кодов
             code: Введённый пользователем код
-            
+
         Returns:
             (валидность, индекс использованного кода)
         """
-        code_hash = hashlib.sha256(code.encode()).upper()
-        
         for i, stored_hash in enumerate(stored_codes):
-            if stored_hash == code_hash:
-                return True, i
-        
+            try:
+                # Проверяем код с bcrypt
+                if bcrypt.checkpw(code.encode(), stored_hash.encode()):
+                    return True, i
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Invalid backup code hash: {e}")
+                continue
+
         return False, -1
     
     def generate_setup_data(self, secret: str, username: str, email: str) -> dict:
