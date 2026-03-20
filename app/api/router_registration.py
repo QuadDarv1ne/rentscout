@@ -37,6 +37,8 @@ from app.api.endpoints import (
     two_factor,
     properties_compare,
     price_alerts,
+    geolocation,
+    mobile,
 )
 
 
@@ -123,6 +125,9 @@ def register_all_routers(app: FastAPI) -> None:
 
     # Mobile API
     app.include_router(mobile.router, prefix="/api", tags=["mobile"])
+
+    # Geolocation
+    app.include_router(geolocation.router, prefix="/api", tags=["geolocation"])
 
 
 def get_router_summary() -> dict[str, list[str]]:
