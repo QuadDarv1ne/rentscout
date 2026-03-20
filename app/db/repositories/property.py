@@ -142,16 +142,21 @@ async def bulk_create_properties(db: AsyncSession, properties_data: List[Propert
 async def get_property(db: AsyncSession, property_id: int) -> Optional[Property]:
     """Get a property by ID."""
     start_time = time.time()
-    
+
     query = select(Property).where(Property.id == property_id)
     result = await db.execute(query)
     property_obj = result.scalar_one_or_none()
-    
+
     # Record metrics
     duration = time.time() - start_time
     metrics_collector.record_db_query("SELECT", "properties", duration)
-    
+
     return property_obj
+
+
+async def get_property_by_id(db: AsyncSession, property_id: int) -> Optional[Property]:
+    """Get a property by ID (alias for get_property)."""
+    return await get_property(db, property_id)
 
 
 async def get_property_by_external_id(
@@ -523,19 +528,28 @@ async def get_price_history(
 ) -> List[PropertyPriceHistory]:
     """Get price history for a property."""
     start_time = time.time()
-    
+
     result = await db.execute(
         select(PropertyPriceHistory)
         .where(PropertyPriceHistory.property_id == property_id)
         .order_by(desc(PropertyPriceHistory.changed_at))
         .limit(limit)
     )
-    
+
     # Record metrics
     duration = time.time() - start_time
     metrics_collector.record_db_query("SELECT", "price_history", duration)
-    
+
     return list(result.scalars().all())
+
+
+async def get_property_price_history(
+    db: AsyncSession,
+    property_id: int,
+    limit: int = 50
+) -> List[PropertyPriceHistory]:
+    """Get full price history for a property (alias for get_price_history with higher limit)."""
+    return await get_price_history(db, property_id, limit)
 
 
 async def get_price_trends(db: AsyncSession, city: str, days: int = 30) -> List[Dict[str, Any]]:

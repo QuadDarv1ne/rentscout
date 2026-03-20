@@ -35,6 +35,7 @@ from app.api.endpoints import (
     cache_management,
     async_tasks,
     two_factor,
+    properties_compare,
 )
 
 
@@ -52,6 +53,7 @@ def register_all_routers(app: FastAPI) -> None:
     # Properties Search
     app.include_router(properties.router, prefix="/api", tags=["properties"])
     app.include_router(advanced_search.router, prefix="/api", tags=["advanced-search"])
+    app.include_router(properties_compare.router, prefix="/api", tags=["properties-comparison"])
 
     # Database Properties
     app.include_router(properties_db.router, prefix="/api/db", tags=["properties-db"])
@@ -116,6 +118,9 @@ def register_all_routers(app: FastAPI) -> None:
 
     # Async Tasks
     app.include_router(async_tasks.router, tags=["async-tasks"])
+
+    # Mobile API
+    app.include_router(mobile.router, prefix="/api", tags=["mobile"])
 
 
 def get_router_summary() -> dict[str, list[str]]:
