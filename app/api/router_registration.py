@@ -34,6 +34,7 @@ from app.api.endpoints import (
     parser_health,
     cache_management,
     async_tasks,
+    two_factor,
 )
 
 
@@ -46,6 +47,7 @@ def register_all_routers(app: FastAPI) -> None:
     """
     # Authentication & Users
     app.include_router(auth.router, prefix="/api", tags=["authentication"])
+    app.include_router(two_factor.router, prefix="/api", tags=["2FA"])
 
     # Properties Search
     app.include_router(properties.router, prefix="/api", tags=["properties"])

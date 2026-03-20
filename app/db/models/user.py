@@ -35,6 +35,12 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     last_login = Column(DateTime(timezone=True), nullable=True)
 
+    # 2FA fields
+    two_factor_enabled = Column(Boolean, default=False, nullable=False)
+    two_factor_secret = Column(String(32), nullable=True)  # Encrypted TOTP secret
+    backup_codes = Column(String(1000), nullable=True)  # JSON array of hashed backup codes
+    backup_codes_used = Column(String(500), nullable=True)  # JSON array of used backup code indices
+
     # Indexes
     __table_args__ = (
         Index('ix_users_username_active', 'username', 'is_active'),

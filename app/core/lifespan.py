@@ -20,6 +20,7 @@ from app.utils.app_cache import app_cache
 from app.utils.http_pool import http_pool
 from app.utils import sentry as sentry_utils
 from app.utils.logger import logger
+from app.utils.token_blacklist import token_blacklist
 
 
 @asynccontextmanager
@@ -46,6 +47,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         await advanced_cache_manager.connect()
     except Exception as e:
         logger.warning(f"Redis connection failed: {e}")
+
+    # Инициализация token blacklist
+    try:
+        if hasattr(advanced_cache_manager, 'redis_client') and advanced_cache_manager.redis_client:
+            await token_blacklist.connect(advanced_cache_manager.redis_client)
+            logger.info("✅ Token blacklist initialized")
+    except Exception as e:
+        logger.warning(f"Token blacklist initialization failed: {e}")
 
     # Инициализация кешей
     try:

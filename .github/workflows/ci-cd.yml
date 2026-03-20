@@ -117,11 +117,11 @@ jobs:
 
     - name: Run tests
       env:
-        DATABASE_URL: postgresql+asyncpg://rentscout:test_password_secure_123@localhost:5432/rentscout_test
-        REDIS_URL: redis://:test_password_secure_123@localhost:6379/0
+        DATABASE_URL: postgresql+asyncpg://rentscout:${{ secrets.TEST_DB_PASSWORD || 'test_password_secure_123' }}@localhost:5432/rentscout_test
+        REDIS_URL: redis://:${{ secrets.TEST_DB_PASSWORD || 'test_password_secure_123' }}@localhost:6379/0
         TESTING: true
-        SECRET_KEY: test_secret_key_for_ci_pipeline_minimum_32_chars
-        JWT_SECRET: test_jwt_secret_for_ci_pipeline_minimum_32_chars
+        SECRET_KEY: ${{ secrets.SECRET_KEY || 'test_secret_key_for_ci_pipeline_minimum_32_chars' }}
+        JWT_SECRET: ${{ secrets.JWT_SECRET || 'test_jwt_secret_for_ci_pipeline_minimum_32_chars' }}
       run: |
         pytest tests/ -v --cov=app --cov-report=xml --cov-report=html
 
@@ -183,18 +183,18 @@ jobs:
 
     - name: Run migrations
       env:
-        DATABASE_URL: postgresql+asyncpg://rentscout:test_password_secure_123@localhost:5432/rentscout_integration
-        REDIS_URL: redis://:test_password_secure_123@localhost:6379/0
+        DATABASE_URL: postgresql+asyncpg://rentscout:${{ secrets.TEST_DB_PASSWORD || 'test_password_secure_123' }}@localhost:5432/rentscout_integration
+        REDIS_URL: redis://:${{ secrets.TEST_DB_PASSWORD || 'test_password_secure_123' }}@localhost:6379/0
       run: |
         alembic upgrade head
 
     - name: Run integration tests
       env:
-        DATABASE_URL: postgresql+asyncpg://rentscout:test_password_secure_123@localhost:5432/rentscout_integration
-        REDIS_URL: redis://:test_password_secure_123@localhost:6379/0
+        DATABASE_URL: postgresql+asyncpg://rentscout:${{ secrets.TEST_DB_PASSWORD || 'test_password_secure_123' }}@localhost:5432/rentscout_integration
+        REDIS_URL: redis://:${{ secrets.TEST_DB_PASSWORD || 'test_password_secure_123' }}@localhost:6379/0
         TESTING: true
-        SECRET_KEY: test_secret_key_for_ci_pipeline_minimum_32_chars
-        JWT_SECRET: test_jwt_secret_for_ci_pipeline_minimum_32_chars
+        SECRET_KEY: ${{ secrets.SECRET_KEY || 'test_secret_key_for_ci_pipeline_minimum_32_chars' }}
+        JWT_SECRET: ${{ secrets.JWT_SECRET || 'test_jwt_secret_for_ci_pipeline_minimum_32_chars' }}
       run: |
         pytest tests/integration/ -v --cov=app --cov-report=xml
 
