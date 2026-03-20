@@ -22,7 +22,7 @@ class TestAPIKeyGeneration:
         )
         
         assert plain_key.startswith("rs_api_")
-        assert len(plain_key) == 40  # rs_api_ (8) + 32 hex символа
+        assert len(plain_key) == 39  # rs_api_ (7) + 32 hex символа
 
     def test_key_uniqueness(self):
         """Тест уникальности ключей."""
