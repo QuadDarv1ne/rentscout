@@ -197,21 +197,28 @@ async def create_price_alert(
 
 @router.get("", response_model=PriceAlertListResponse)
 async def get_price_alerts(
+    skip: int = Query(0, ge=0, description="Количество записей для пропуска"),
+    limit: int = Query(50, ge=1, le=100, description="Максимальное количество записей (1-100)"),
     db: AsyncSession = Depends(get_db),
     current_user: TokenData = Depends(get_current_user)
 ) -> PriceAlertListResponse:
     """
     Получить все активные уведомления пользователя.
-    
+
     Возвращает список уведомлений с текущей информацией об объектах.
+    Поддерживает пагинацию через параметры skip и limit.
     """
-    alerts = await get_user_alerts_from_db(current_user.user_id)
-    
+    all_alerts = await get_user_alerts_from_db(current_user.user_id)
+
+    # Применяем пагинацию
+    total = len(all_alerts)
+    alerts = all_alerts[skip:skip + limit]
+
     # Получаем информацию об объектах
     alert_responses = []
     for alert in alerts:
         prop = await property_repository.get_property_by_id(db, alert["property_id"])
-        
+
         if prop:
             # Проверяем, сработало ли уведомление
             price_drop = prop.price - (prop.price * alert["threshold_percent"] / 100)
@@ -240,7 +247,7 @@ async def get_price_alerts(
     
     return PriceAlertListResponse(
         alerts=alert_responses,
-        total=len(alert_responses),
+        total=total,
     )
 
 

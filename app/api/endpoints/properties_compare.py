@@ -8,7 +8,7 @@ API для сравнения объектов недвижимости.
 - Характеристики
 """
 
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Query
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
@@ -16,6 +16,7 @@ from app.db.session import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.repositories import property as property_repository
 from app.dependencies.auth import get_current_user, TokenData
+from app.services.advanced_cache import cached
 
 router = APIRouter(prefix="/properties", tags=["properties-comparison"])
 
@@ -280,6 +281,7 @@ async def get_property_price_history(
 
 
 @router.get("/price-trends", response_model=Dict[str, Any])
+@cached(expire=300)  # Кеш на 5 минут
 async def get_price_trends(
     city: str = "Москва",
     property_type: str = "Квартира",
@@ -289,13 +291,14 @@ async def get_price_trends(
 ) -> Dict[str, Any]:
     """
     Получить тренды цен по городу/типу недвижимости.
-    
+
     Возвращает статистику и тренды цен за последний период.
+    Данные кешируются на 5 минут для улучшения производительности.
     """
     from sqlalchemy import func, select
     from app.db.models.property import Property
     from datetime import datetime, timedelta
-    
+
     # Получаем статистику
     query = select(
         func.avg(Property.price).label('avg_price'),
@@ -307,13 +310,13 @@ async def get_price_trends(
         Property.city == city,
         Property.is_active == True,
     )
-    
+
     if rooms:
         query = query.where(Property.rooms == rooms)
-    
+
     result = await db.execute(query)
     stats = result.fetchone()
-    
+
     if not stats or stats.total_count == 0:
         return {
             "city": city,
@@ -321,10 +324,10 @@ async def get_price_trends(
             "rooms": rooms,
             "error": "Нет данных для указанного запроса",
         }
-    
+
     # Получаем тренд по сравнению с прошлым месяцем
     one_month_ago = datetime.now() - timedelta(days=30)
-    
+
     query_last_month = select(
         func.avg(Property.price).label('avg_price'),
     ).where(
