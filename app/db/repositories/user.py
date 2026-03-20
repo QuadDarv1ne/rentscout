@@ -87,6 +87,7 @@ async def update_user(
     role: Optional[UserRole] = None,
     is_active: Optional[bool] = None,
     is_verified: Optional[bool] = None,
+    extra_fields: Optional[dict] = None,
 ) -> User:
     """Обновить данные пользователя."""
     update_data = {}
@@ -103,6 +104,10 @@ async def update_user(
         update_data['is_active'] = is_active
     if is_verified is not None:
         update_data['is_verified'] = is_verified
+    
+    # Поддержка произвольных полей (для 2FA и других)
+    if extra_fields:
+        update_data.update(extra_fields)
     
     if update_data:
         update_data['updated_at'] = datetime.now(timezone.utc)
@@ -172,3 +177,21 @@ async def count_users(
     
     result = await db.execute(query)
     return result.scalar_one()
+
+
+async def update_user_by_id(
+    db: AsyncSession,
+    user_id: int,
+    extra_fields: dict,
+) -> Optional[User]:
+    """Обновить пользователя по ID с произвольными полями."""
+    update_data = extra_fields.copy()
+    update_data['updated_at'] = datetime.now(timezone.utc)
+    
+    stmt = update(User).where(User.id == user_id).values(**update_data)
+    await db.execute(stmt)
+    await db.flush()
+    
+    # Получаем обновлённого пользователя
+    result = await db.execute(select(User).where(User.id == user_id))
+    return result.scalar_one_or_none()

@@ -36,6 +36,7 @@ from app.api.endpoints import (
     async_tasks,
     two_factor,
     properties_compare,
+    price_alerts,
 )
 
 
@@ -68,6 +69,7 @@ def register_all_routers(app: FastAPI) -> None:
     # Notifications & Bookmarks
     app.include_router(notifications.router, prefix="/api", tags=["notifications"])
     app.include_router(bookmarks.router, prefix="/api", tags=["bookmarks"])
+    app.include_router(price_alerts.router, prefix="/api", tags=["price-alerts"])
 
     # ML & Analytics
     app.include_router(ml_predictions.router, prefix="/api", tags=["ml-predictions"])

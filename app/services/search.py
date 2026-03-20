@@ -3,13 +3,15 @@ import logging
 import time
 from typing import List, Dict, Any
 
-from app.db.batch_insert import bulk_upsert_with_deduplication
+from app.db.batch_insert import bulk_insert_with_deduplication
 from app.models.schemas import Property
 from app.parsers.avito.parser import AvitoParser
 from app.parsers.cian.parser import CianParser
 from app.parsers.domofond.parser import DomofondParser
 from app.parsers.yandex_realty.parser import YandexRealtyParser
 from app.parsers.domclick.parser import DomclickParser
+from app.parsers.etagi.parser import EtagiParser
+from app.parsers.cian_commercial.parser import CianCommercialParser
 from app.parsers.base_parser import BaseParser
 from app.utils.parser_errors import ErrorClassifier
 from app.utils.metrics import metrics_collector
@@ -26,7 +28,15 @@ class SearchService:
 
     def __init__(self) -> None:
         """Инициализация сервиса поиска."""
-        self.parsers: List[BaseParser] = [AvitoParser(), CianParser(), DomofondParser(), YandexRealtyParser(), DomclickParser()]
+        self.parsers: List[BaseParser] = [
+            AvitoParser(),
+            CianParser(),
+            DomofondParser(),
+            YandexRealtyParser(),
+            DomclickParser(),
+            EtagiParser(),
+            CianCommercialParser(),
+        ]
         self.duplicate_filter = DuplicateFilter(
             expected_items=100000,
             false_positive_rate=0.001,  # 0.1% FP rate
