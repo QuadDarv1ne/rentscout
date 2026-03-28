@@ -1,5 +1,5 @@
 # Multi-stage build для оптимизации размера образа
-FROM python:3.9-slim as builder
+FROM python:3.14-slim as builder
 
 # Установка переменных окружения
 ENV PYTHONUNBUFFERED=1 \
@@ -24,7 +24,7 @@ RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # Production stage
-FROM python:3.9-slim
+FROM python:3.14-slim
 
 # Переменные окружения
 ENV PYTHONUNBUFFERED=1 \
